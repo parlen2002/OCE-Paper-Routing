@@ -235,7 +235,7 @@ export const DIVISIONS: Division[] = [
   },
   {
     id: 'plan',
-    code: 'PLAN',
+    code: 'PDPD',
     name: 'Planning Design and Programming Division',
     cluster: 'tech',
     head: 'Engr. Grace Panganiban',

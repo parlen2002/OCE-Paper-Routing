@@ -686,7 +686,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 6, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
+  return { v: 7, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

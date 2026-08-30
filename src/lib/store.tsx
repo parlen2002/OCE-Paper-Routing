@@ -4,14 +4,14 @@ import { divById, stageMeta } from './types';
 import { freshSeed, deriveActivities } from './seed';
 import { uid } from './util';
 
-const LS_KEY = 'ppc-ceoflow-v6';
+const LS_KEY = 'ppc-ceoflow-v7';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 6 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 7 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = [];
         return d as DB;
       }

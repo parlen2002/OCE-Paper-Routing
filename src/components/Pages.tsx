@@ -792,7 +792,7 @@ export function PersonnelPage() {
     [db.users]
   );
   const [sel, setSel] = useState<string | null>(employees[0]?.id ?? null);
-  if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
+  if (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'moderator') return null;
 
   const papersOf = (id: string) => db.papers.filter((p) => (p.assignees ?? []).includes(id));
   const selected = employees.find((e) => e.id === sel) ?? employees[0] ?? null;

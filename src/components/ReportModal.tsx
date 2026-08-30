@@ -442,6 +442,7 @@ export function ReportModal() {
             </p>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

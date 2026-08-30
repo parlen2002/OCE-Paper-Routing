@@ -38,7 +38,7 @@ function AppInner() {
 
   const restricted: string[] = ['dashboard', 'users', 'userlogs', 'activity', 'personnel'];
   const page =
-    user.role === 'employee'
+    user.role === 'employee' || user.role === 'joborder'
       ? restricted.includes(ui.page)
         ? 'myboard'
         : ui.page
@@ -51,13 +51,15 @@ function AppInner() {
       <Shell>
         {page === 'dashboard' && <Dashboard />}
         {page === 'board' && <Board />}
-        {page === 'myboard' && user.role === 'employee' && <Board />}
+        {page === 'myboard' && (user.role === 'employee' || user.role === 'joborder') && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
         {page === 'activity' && user.role !== 'division' && user.role !== 'employee' && <ActivityPage />}
         {page === 'users' && <UsersPage />}
         {page === 'userlogs' && user.role !== 'division' && user.role !== 'employee' && <LogsPage />}
-        {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor') && <PersonnelPage />}
+        {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && (
+          <PersonnelPage />
+        )}
       </Shell>
       <DocDrawer />
       <NewDocModal />

@@ -269,24 +269,46 @@ export const INSPECTORATE: Division = {
   code: 'INSP-TEAM',
   name: 'Inspectorate Team',
   cluster: 'tech',
-  head: 'Under the Office of the City Engineer',
-  headUser: '',
-    desc: 'Cross-division team that conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
+  head: 'Engr. Julio B. Sergio',
+  headUser: 'u-sup2',
+  desc: 'Cross-division team headed by Engr. Julio B. Sergio, the Assistant City Engineer — conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
 };
 
-/** I.T. Division — cross-division unit hosting the program administrator and digital services. */
+/** I.T. Section — cross-division unit hosting the program administrator and digital services. */
 export const IT_DIVISION: Division = {
   id: 'it',
   code: 'IT',
-  name: 'I.T. Division',
+  name: 'I.T. Section',
   cluster: 'tech',
   head: 'Alphard S. Grande',
   headUser: 'admin',
   desc: 'Information technology services — maintains CEO Flow, user accounts, office network and connectivity, digital records and data backups for the whole office.',
 };
 
+/** Documentation and Monitoring Team — cross-division unit for records, photo and drone monitoring of projects. */
+export const DOCMON_TEAM: Division = {
+  id: 'docmon',
+  code: 'DOC-MON',
+  name: 'Documentation and Monitoring Team',
+  cluster: 'tech',
+  head: 'Ms. Rica Domingo',
+  headUser: '',
+  desc: 'Documents and monitors ongoing works — progress photography, drone coverage, accomplishment reports and as-built records for every project of the office.',
+};
+
+/** Subaybayan Team — citizen feedback and monitoring desk of the City Engineering Office. */
+export const SUBAYBAYAN_TEAM: Division = {
+  id: 'subay',
+  code: 'SUBAY',
+  name: 'Subaybayan Team',
+  cluster: 'ops',
+  head: 'Mr. Aldrin Fajardo',
+  headUser: '',
+  desc: 'Runs the Subaybayan citizen-feedback channel — logs public reports and complaints, validates them on site and tracks the engineering response until closed.',
+};
+
 /** Cross-division units — routable recipients alongside the nine divisions. */
-export const CROSS_UNITS: Division[] = [INSPECTORATE, IT_DIVISION];
+export const CROSS_UNITS: Division[] = [INSPECTORATE, IT_DIVISION, DOCMON_TEAM, SUBAYBAYAN_TEAM];
 
 /** Executive desks — the two department heads are first-class recipients of paperwork. */export const DESKS: Division[] = [
   {

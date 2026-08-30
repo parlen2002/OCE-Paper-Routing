@@ -267,8 +267,9 @@ export function DivisionsPage() {
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
           {CROSS_UNITS.map((cu) => {
-            const isIt = cu.id === 'it';
-            const tint = isIt ? '#6cd1f4' : '#2dd4bf';
+            const tint =
+              cu.id === 'it' ? '#6cd1f4' : cu.id === 'subay' ? '#ff8a4c' : cu.id === 'docmon' ? '#45e0cd' : '#2dd4bf';
+            const cuIcon = cu.id === 'it' ? 'pulse' : cu.id === 'subay' ? 'bell' : cu.id === 'docmon' ? 'cam' : 'shield';
             const open = db.papers.filter((p) => p.divisionId === cu.id && p.stage !== 'completed').length;
             const done = db.papers.filter((p) => p.divisionId === cu.id && p.stage === 'completed').length;
             return (
@@ -287,7 +288,7 @@ export function DivisionsPage() {
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
                   style={{ border: `1px solid ${tint}80`, background: `${tint}1a`, color: tint }}
                 >
-                  <I n={isIt ? 'pulse' : 'shield'} className="h-5 w-5" sw={1.8} />
+                  <I n={cuIcon as IconName} className="h-5 w-5" sw={1.8} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
@@ -300,6 +301,15 @@ export function DivisionsPage() {
                     </span>
                   </span>
                   <span className="mt-0.5 block text-[12.5px] leading-relaxed text-mist-400">{cu.desc}</span>
+                  <span className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-mist-500">
+                    <I n="users" className="h-3 w-3" sw={2} />
+                    Headed by {cu.head || 'the Office of the City Engineer'}
+                    {cu.headUser === 'u-sup2' && (
+                      <span className="rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1 py-px font-mono text-[7.5px] font-bold uppercase tracking-wider text-amberx-400">
+                        Asst. City Engineer
+                      </span>
+                    )}
+                  </span>
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="block font-display text-[24px] font-bold leading-none tabular" style={{ color: tint }}>

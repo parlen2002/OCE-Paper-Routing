@@ -587,9 +587,73 @@ export function freshSeed(): DB {
       recipientIds: ALL_UNITS.map((u) => u.id),
       receivedBy: ['admin', 'const', 'maint', 'psd', 'motorpool'],
     },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0146',
+      title: 'Photo & drone documentation coverage — Q3 road concreting projects',
+      kind: 'memo',
+      priority: 'routine',
+      origin: 'Planning Design and Programming Division (documentation program)',
+      divisionId: 'docmon',
+      intendedId: 'docmon',
+      stage: 'progress',
+      attachments: [],
+      custody: [
+        c(now - 2.1 * D, CAROL, 'created', 'Documentation coverage memo logged for the Documentation and Monitoring Team', {
+          toDivisionId: 'docmon',
+        }),
+        c(now - 2.0 * D, CE, 'routed', 'For execution; coordinate the shoot schedule with the Construction Division', {
+          fromDivisionId: 'admin',
+          toDivisionId: 'docmon',
+        }),
+        c(now - 0.7 * D, 'Ms. Rica Domingo', 'stage', 'Drone sorties scheduled for Brgy. San Pedro and Bacungan stretches', {
+          stage: 'progress',
+        }),
+      ],
+      createdAt: now - 2.1 * D,
+      updatedAt: now - 0.7 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      diverted: false,
+    },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0147',
+      title: 'Subaybayan citizen report — pothole cluster along Rizal Avenue near the public market',
+      kind: 'complaint',
+      priority: 'priority',
+      origin: 'Subaybayan hotline — resident, Brgy. Bancao-Bancao',
+      divisionId: 'subay',
+      intendedId: 'subay',
+      stage: 'review',
+      attachments: [],
+      custody: [
+        c(now - 0.55 * D, CAROL, 'created', 'Citizen complaint logged from the Subaybayan hotline and transmitted to the team', {
+          toDivisionId: 'subay',
+        }),
+        c(now - 0.5 * D, 'Mr. Aldrin Fajardo', 'stage', 'Complaint validated against site photos; endorsement to Maintenance Division in draft', {
+          stage: 'review',
+        }),
+      ],
+      createdAt: now - 0.55 * D,
+      updatedAt: now - 0.5 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      diverted: false,
+    },
   ];
 
   const notifs: Notif[] = [
+    {
+      id: uid(),
+      at: now - 0.48 * D,
+      text: 'CEO-2026-0147 logged — Subaybayan citizen report on Rizal Avenue potholes, now with the Subaybayan Team',
+      kind: 'new',
+      docId: papers[papers.length - 1].id,
+      ref: 'CEO-2026-0147',
+      scope: { type: 'supervisors' },
+      readBy: [],
+    },
     {
       id: uid(),
       at: now - 0.18 * D,
@@ -625,7 +689,7 @@ export function freshSeed(): DB {
     {
       id: uid(),
       at: now - 0.35 * D,
-      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
       kind: 'new',
       docId: papers[17].id,
       ref: 'CEO-2026-0145',
@@ -635,7 +699,7 @@ export function freshSeed(): DB {
     {
       id: uid(),
       at: now - 0.35 * D,
-      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
       kind: 'new',
       docId: papers[17].id,
       ref: 'CEO-2026-0145',
@@ -645,7 +709,7 @@ export function freshSeed(): DB {
     {
       id: uid(),
       at: now - 0.35 * D,
-      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
       kind: 'new',
       docId: papers[17].id,
       ref: 'CEO-2026-0145',
@@ -655,7 +719,7 @@ export function freshSeed(): DB {
     {
       id: uid(),
       at: now - 0.35 * D,
-      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
       kind: 'new',
       docId: papers[17].id,
       ref: 'CEO-2026-0145',
@@ -753,7 +817,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 9, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
+  return { v: 10, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

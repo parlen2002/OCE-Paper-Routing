@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, divById } from '../lib/types';
-import type { CustodyAction, Kind, Paper, Priority, Stage } from '../lib/types';
+import type { Attachment, CustodyAction, Kind, Paper, Priority, Stage } from '../lib/types';
 import { I, type IconName } from './icons';
 import { DivChip, KindTag, PriorityTag, StageChip } from './ui';
 import { fmtCoord, fmtDT, mapsLink, osmEmbed, timeAgo } from '../lib/util';
@@ -33,9 +33,11 @@ function Section({ title, icon, children, right }: { title: string; icon: IconNa
   );
 }
 
+/** Stages picked files first, then commits them only when the officer presses Save. */
 function AttachControl({ paperId }: { paperId: string }) {
   const { user, addAttachments, pushToast } = useStore();
   const [busy, setBusy] = useState(false);
+  const [staged, setStaged] = useState<Attachment[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pick = async (files: FileList | null) => {
@@ -44,25 +46,71 @@ function AttachControl({ paperId }: { paperId: string }) {
     const { atts, skipped } = await buildAttachments(files, user.name);
     setBusy(false);
     if (inputRef.current) inputRef.current.value = '';
-    if (atts.length > 0) addAttachments(paperId, atts);
+    if (atts.length > 0) setStaged((s) => [...s, ...atts]);
     if (skipped.length > 0) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
   };
 
+  const commit = () => {
+    if (staged.length === 0) return;
+    addAttachments(paperId, staged);
+    setStaged([]);
+  };
+
   return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,application/pdf"
-        className="hidden"
-        onChange={(e) => void pick(e.target.files)}
-      />
-      <button className="btn btn-ghost text-[12px]" onClick={() => inputRef.current?.click()} disabled={busy}>
-        <I n="clip" className="h-3.5 w-3.5" />
-        {busy ? 'Reading files…' : 'Attach JPG / PDF'}
-      </button>
-    </>
+    <div className="flex flex-col items-stretch gap-2">
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,application/pdf"
+          className="hidden"
+          onChange={(e) => void pick(e.target.files)}
+        />
+        <button className="btn btn-ghost text-[12px]" onClick={() => inputRef.current?.click()} disabled={busy}>
+          <I n="clip" className="h-3.5 w-3.5" />
+          {busy ? 'Reading files…' : 'Add JPG / PDF'}
+        </button>
+        {staged.length > 0 && (
+          <button className="btn btn-primary text-[12px]" onClick={commit}>
+            <I n="check" className="h-3.5 w-3.5" sw={2.2} />
+            Save {staged.length} file{staged.length > 1 ? 's' : ''}
+          </button>
+        )}
+      </div>
+
+      {staged.length > 0 && (
+        <ul className="space-y-1.5 rounded-md border border-cyanx-500/40 bg-cyanx-500/[0.05] p-2">
+          {staged.map((a) => (
+            <li key={a.id} className="flex items-center gap-2">
+              {a.kind === 'image' ? (
+                <img src={a.url} alt={a.name} className="h-8 w-10 shrink-0 rounded object-cover" />
+              ) : (
+                <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded bg-flare-500/12 text-flare-400">
+                  <I n="file" className="h-4 w-4" sw={1.6} />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-[10.5px] font-semibold text-mist-200">{a.name}</span>
+                <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-600">
+                  staged — not yet saved{a.geotagged ? ' · geotagged' : ''}
+                </span>
+              </span>
+              <button
+                onClick={() => setStaged((s) => s.filter((x) => x.id !== a.id))}
+                className="rounded p-1 text-mist-500 transition hover:text-redx-400"
+                title="Discard this file"
+              >
+                <I n="x" className="h-3.5 w-3.5" sw={2.2} />
+              </button>
+            </li>
+          ))}
+          <li className="pt-0.5 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+            Press “Save … file(s)” to attach them to the paper
+          </li>
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -86,6 +134,8 @@ export function DocDrawer() {
     submitToHead,
     returnToEmployee,
     employeesOf,
+    removeAttachment,
+    setReportOpen,
   } = store;
   const paper = useMemo(() => db.papers.find((p) => p.id === ui.drawerId) ?? null, [db.papers, ui.drawerId]);
   const [remark, setRemark] = useState('');
@@ -137,8 +187,16 @@ export function DocDrawer() {
                 <I n="alert" className="h-2.5 w-2.5" sw={2.4} /> Overdue
               </span>
             )}
+            <button
+              onClick={() => setReportOpen(true, { paperId: paper.id })}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-flare-500/50 bg-flare-500/10 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-flare-400 transition hover:bg-flare-500/20"
+              title="Print the full paperwork record — route sheet, custody, evidence & supporting documents"
+            >
+              <I n="printer" className="h-3 w-3" sw={2.2} />
+              Print paperwork
+            </button>
             {(user.role === 'admin' || user.role === 'moderator') && (
-              <span className="ml-auto flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5">
                 <button
                   onClick={() => setEditOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-cyanx-500/60 hover:text-cyanx-400"
@@ -432,6 +490,14 @@ export function DocDrawer() {
                         <I n="dl" className="h-2.5 w-2.5" sw={2.2} />
                         Save
                       </a>
+                      <button
+                        onClick={() => removeAttachment(paper.id, a.id)}
+                        title={`Remove ${a.name} from this paper`}
+                        className="inline-flex items-center gap-1 rounded-sm bg-ink-700/80 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mist-500 transition hover:bg-redx-500/15 hover:text-redx-400"
+                      >
+                        <I n="trash" className="h-2.5 w-2.5" sw={2.2} />
+                        Remove
+                      </button>
                     </div>
                   </div>
                 </div>

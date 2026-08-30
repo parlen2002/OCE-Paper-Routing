@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { ALL_UNITS, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
+import { ALL_UNITS, KINDS, PRIORITIES, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
 import { I, Seal } from './icons';
-import { fmtDT } from '../lib/util';
+import { fmtCoord, fmtDT, fmtDate, mapsLink, osmEmbed } from '../lib/util';
 
 const D = 864e5;
 
@@ -45,17 +45,226 @@ interface Row {
   lastBy: string;
 }
 
+/** Full paperwork record — route sheet, custody trail, evidence, maps & PDF supporting docs. */
+function PaperSheet({ paper }: { paper: Paper }) {
+  const { db, user } = useStore();
+  const div = divById(paper.divisionId);
+  const intended = divById(paper.intendedId);
+  const sm = stageMeta(paper.stage);
+  const pics = (paper.assignees ?? [])
+    .map((id) => db.users.find((u) => u.id === id))
+    .filter((u): u is NonNullable<typeof u> => !!u);
+
+  const path: string[] = [];
+  for (const e of paper.custody) {
+    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId && path[path.length - 1] !== e.toDivisionId)
+      path.push(e.toDivisionId);
+  }
+  if (path[path.length - 1] !== paper.divisionId) path.push(paper.divisionId);
+  const trail = [...paper.custody].sort((a, b) => a.at - b.at);
+  const geo = paper.attachments.filter((a) => a.geotagged && a.lat != null && a.lng != null);
+  const imgs = paper.attachments.filter((a) => a.kind === 'image');
+  const pdfs = paper.attachments.filter((a) => a.kind === 'pdf');
+
+  const label = 'font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#8a9ab0]';
+  const cell = 'border border-[#dde5ee] px-2 py-1.5 align-top';
+
+  return (
+    <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
+      <div className="px-9 py-8">
+        {/* letterhead */}
+        <div className="flex items-center gap-4 border-b-[3px] border-[#182a3e] pb-4">
+          <Seal className="h-14 w-14" />
+          <div className="flex-1 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5b7089]">Republic of the Philippines</p>
+            <p className="font-display text-[22px] font-bold uppercase leading-tight tracking-wide">City of Puerto Princesa</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#31506e]">Office of the City Engineer</p>
+            <p className="mt-0.5 text-[9.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">CEO Flow — Paperwork Record</p>
+          </div>
+          <div className="w-14 text-right font-mono text-[9px] uppercase leading-relaxed text-[#8a9ab0]">
+            Form
+            <br />
+            CEO-DOC-01
+          </div>
+        </div>
+
+        {/* title block */}
+        <div className="mt-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-[11px] font-bold tracking-[0.2em] text-[#0e7490]">{paper.ref}</p>
+            <h1 className="mt-0.5 font-display text-[24px] font-bold uppercase leading-tight tracking-wide">{paper.title}</h1>
+          </div>
+          <span className="stamp shrink-0 text-[11px]" style={{ color: sm.color }}>
+            {sm.label}
+          </span>
+        </div>
+
+        {/* meta chips */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[9px] font-bold uppercase tracking-[0.14em]">
+          <span className="border border-[#c8d3e0] px-2 py-0.5">{KINDS[paper.kind].short}</span>
+          <span className="border px-2 py-0.5" style={{ color: PRIORITIES[paper.priority].color, borderColor: PRIORITIES[paper.priority].color }}>
+            {PRIORITIES[paper.priority].label}
+          </span>
+          <span className="border border-[#c8d3e0] px-2 py-0.5">Logged {fmtDate(paper.createdAt)} · {paper.byName}</span>
+          {paper.dueAt && <span className="border border-[#c8d3e0] px-2 py-0.5">Due {fmtDate(paper.dueAt)}</span>}
+        </div>
+
+        {/* particulars */}
+        <h2 className="mt-6 border-b-2 border-[#182a3e] pb-1 font-display text-[14px] font-bold uppercase tracking-[0.14em]">1 · Particulars</h2>
+        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2.5">
+          <div><p className={label}>Origin</p><p className="text-[11px] font-semibold">{paper.origin}</p></div>
+          <div><p className={label}>Currently held by</p><p className="text-[11px] font-semibold">{div ? `${div.code} — ${div.name}` : '—'}</p></div>
+          <div><p className={label}>Intended recipient</p><p className="text-[11px] font-semibold">{intended ? `${intended.code} — ${intended.name}` : '—'}</p></div>
+          <div><p className={label}>Persons-in-charge</p><p className="text-[11px] font-semibold">{pics.length ? pics.map((p) => p.name).join(', ') : 'Unassigned (division pool)'}</p></div>
+          {(paper.recipientIds?.length ?? 0) > 1 && (
+            <div className="col-span-2"><p className={label}>Circulated to</p><p className="text-[11px] font-semibold">{paper.recipientIds!.map((r) => divById(r)?.code ?? r).join(' · ')} ({(paper.receivedBy ?? []).length}/{paper.recipientIds!.length} acknowledged)</p></div>
+          )}
+          {paper.remarks && <div className="col-span-2"><p className={label}>Remarks</p><p className="text-[11px] leading-relaxed">{paper.remarks}</p></div>}
+        </div>
+
+        {/* route sheet */}
+        <h2 className="mt-6 border-b-2 border-[#182a3e] pb-1 font-display text-[14px] font-bold uppercase tracking-[0.14em]">2 · Route sheet — where it has gone</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {path.map((id, i) => {
+            const d = divById(id);
+            const isNow = id === paper.divisionId;
+            return (
+              <span key={`${id}-${i}`} className="flex items-center gap-1.5">
+                <span
+                  className={`border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider ${isNow ? 'bg-[#182a3e] text-white' : 'border-[#c8d3e0] text-[#31506e]'}`}
+                >
+                  {d?.code ?? id}
+                  {isNow ? ' · now here' : ''}
+                </span>
+                {i < path.length - 1 && <span className="font-mono text-[11px] font-bold text-[#8a9ab0]">→</span>}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* chain of custody */}
+        <h2 className="mt-6 border-b-2 border-[#182a3e] pb-1 font-display text-[14px] font-bold uppercase tracking-[0.14em]">3 · Chain of custody</h2>
+        <table className="mt-3 w-full border-collapse text-[10px] leading-snug">
+          <thead>
+            <tr className="border-y-2 border-[#182a3e] text-left font-mono text-[8.5px] uppercase tracking-[0.14em] text-[#5b7089]">
+              <th className="py-1.5 pr-2">When</th>
+              <th className="py-1.5 pr-2">Officer</th>
+              <th className="py-1.5">Movement / action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trail.map((e) => (
+              <tr key={e.id} className="border-b border-[#dde5ee]">
+                <td className={`${cell} whitespace-nowrap font-mono text-[9px] text-[#5b7089]`}>{fmtDT(e.at)}</td>
+                <td className={`${cell} font-semibold`}>{e.byName}</td>
+                <td className={cell}>{e.text}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* evidence */}
+        <h2 className="mt-6 border-b-2 border-[#182a3e] pb-1 font-display text-[14px] font-bold uppercase tracking-[0.14em]">
+          4 · Evidence & location ({paper.attachments.length} file{paper.attachments.length === 1 ? '' : 's'})
+        </h2>
+        {geo.length > 0 && (
+          <div className="mt-3">
+            <iframe title="Site location map" src={osmEmbed(geo[0].lat!, geo[0].lng!)} className="h-56 w-full border border-[#c8d3e0]" loading="lazy" />
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#5b7089]">
+              Geotagged site · {fmtCoord(geo[0].lat!, geo[0].lng!)} · <a href={mapsLink(geo[0].lat!, geo[0].lng!)} className="text-[#0e7490] underline">Open in Google Maps</a>
+            </p>
+          </div>
+        )}
+        {imgs.length > 0 && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {imgs.map((a) => (
+              <figure key={a.id} className="border border-[#dde5ee]">
+                <img src={a.url} alt={a.name} className="h-24 w-full object-cover" />
+                <figcaption className="px-1.5 py-1 font-mono text-[7.5px] leading-tight text-[#5b7089]">
+                  {a.name}
+                  {a.geotagged && a.lat != null && a.lng != null ? ` · ${fmtCoord(a.lat, a.lng)}` : ' · no geotag'}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+        {paper.attachments.length === 0 && (
+          <p className="mt-3 border border-dashed border-[#c8d3e0] px-4 py-5 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+            No files attached to this paper
+          </p>
+        )}
+
+        {/* supporting documents (PDF) */}
+        {pdfs.length > 0 && (
+          <>
+            <h2 className="mt-6 border-b-2 border-[#182a3e] pb-1 font-display text-[14px] font-bold uppercase tracking-[0.14em]">
+              5 · Supporting documents ({pdfs.length} PDF)
+            </h2>
+            {pdfs.map((a, i) => (
+              <div key={a.id} style={{ pageBreakBefore: i === 0 ? 'auto' : 'always' }} className="mt-3">
+                <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#5b7089]">
+                  Annex {String.fromCharCode(65 + i)} · {a.name}{a.size ? ` · ${a.size}` : ''} · attached by {a.by}
+                </p>
+                <object data={a.url} type="application/pdf" className="h-[720px] w-full border border-[#c8d3e0]">
+                  <p className="border border-[#c8d3e0] px-3 py-4 text-center font-mono text-[10px] text-[#5b7089]">
+                    PDF preview unavailable in print — <a href={a.url} download={a.name} className="text-[#0e7490] underline">download {a.name}</a>
+                  </p>
+                </object>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* certification */}
+        <div className="mt-10 grid grid-cols-2 gap-10" style={{ pageBreakBefore: pdfs.length > 0 ? 'always' : 'auto' }}>
+          <div>
+            <p className={label}>Prepared by</p>
+            <div className="mt-10 border-t-2 border-[#182a3e] pt-1.5">
+              <p className="text-[12px] font-bold">{user?.name}</p>
+              <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">{user?.title}</p>
+            </div>
+          </div>
+          <div>
+            <p className={label}>Noted by</p>
+            <div className="mt-10 border-t-2 border-[#182a3e] pt-1.5">
+              <p className="text-[12px] font-bold">{cityEngineerName(db.users)}</p>
+              <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">CGPP Department Head II (City Engineer)</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-8 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+          Generated by CEO Flow · {fmtDT(Date.now())} · electronic chain of custody · {trail.length} recorded movements
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ReportModal() {
   const { ui, setReportOpen, db, user, visiblePapers } = useStore();
   const [period, setPeriod] = useState<Period>('daily');
   const [date, setDate] = useState(toDateInput(Date.now()));
   const [divSel, setDivSel] = useState<string>('all');
+  const [view, setView] = useState<'routing' | 'paper'>('routing');
+  const [paperId, setPaperId] = useState<string | null>(null);
 
   // consume the preset passed by whichever board opened the dialog
   useEffect(() => {
-    if (ui.reportOpen) setDivSel(ui.reportPreset?.presetDiv ?? 'all');
+    if (ui.reportOpen) {
+      setDivSel(ui.reportPreset?.presetDiv ?? 'all');
+      if (ui.reportPreset?.paperId) {
+        setPaperId(ui.reportPreset.paperId);
+        setView('paper');
+      } else {
+        setPaperId(null);
+        setView('routing');
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui.reportOpen]);
+
+  const paper = paperId ? db.papers.find((p) => p.id === paperId) ?? null : null;
 
   const range = useMemo(() => periodRange(period, fromInput(date)), [period, date]);
 
@@ -157,6 +366,29 @@ export function ReportModal() {
           <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">Print center</span>
 
           <div className="flex overflow-hidden rounded-md border border-ink-600">
+            <button
+              onClick={() => setView('routing')}
+              className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
+                view === 'routing' ? 'bg-cyanx-500/20 text-cyanx-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+              }`}
+            >
+              Routing report
+            </button>
+            {paper && (
+              <button
+                onClick={() => setView('paper')}
+                className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
+                  view === 'paper' ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+                }`}
+              >
+                Paperwork detail · {paper.ref}
+              </button>
+            )}
+          </div>
+
+          {view === 'routing' && (
+          <>
+          <div className="flex overflow-hidden rounded-md border border-ink-600">
             {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
               <button
                 key={p}
@@ -200,6 +432,8 @@ export function ReportModal() {
               {scopeLabel}
             </span>
           )}
+          </>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             <button className="btn btn-ghost py-1.5" onClick={close}>
@@ -218,6 +452,7 @@ export function ReportModal() {
         </p>
 
         {/* ------- the routing sheet ------- */}
+        {view === 'routing' && (
         <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
           <div className="px-9 py-8">
             {/* letterhead */}
@@ -375,6 +610,10 @@ export function ReportModal() {
             </p>
           </div>
         </div>
+        )}
+
+        {/* ------- the paperwork detail sheet ------- */}
+        {view === 'paper' && paper && <PaperSheet paper={paper} />}
       </div>
     </div>
   );

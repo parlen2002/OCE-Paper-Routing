@@ -26,6 +26,8 @@ export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity
 
 export interface ReportPreset {
   presetDiv?: string; // 'all' | division id
+  /** When set, the print center opens in "paperwork detail" mode for this paper. */
+  paperId?: string;
 }
 
 export interface UIState {
@@ -1026,6 +1028,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', geos > 0 ? `${atts.length} file(s) attached — ${geos} geotagged photo(s) linked to the map` : `${atts.length} file(s) attached`);
   };
 
+  /** Remove an attachment from a paper. Geotags are per-attachment, so the map
+   *  and GPS trail drop off automatically once no geotagged images remain. */
+  const removeAttachment: StoreCtx['removeAttachment'] = (docId, attId) => {
+    if (!user) return;
+    const p = db.papers.find((x) => x.id === docId);
+    if (!p) return;
+    const att = p.attachments.find((a) => a.id === attId);
+    if (!att) return;
+    const remaining = p.attachments.filter((a) => a.id !== attId);
+    const entry = {
+      id: uid(),
+      at: Date.now(),
+      byName: user.name,
+      action: 'attachment' as const,
+      text: `Removed file — ${att.name}`,
+    };
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          papers: d.papers.map((x) =>
+            x.id === docId ? touch(x, (pp) => ({ ...pp, attachments: remaining, custody: [...pp.custody, entry] })) : x
+          ),
+        },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'delete',
+          text: `Removed attachment "${att.name}" from ${p.ref}`,
+          ref: p.ref,
+          docId,
+        }
+      )
+    );
+    const geoLeft = remaining.filter((a) => a.geotagged).length;
+    pushToast(
+      'ok',
+      geoLeft === 0 && att.geotagged
+        ? `${att.name} removed — no geotagged photos left, so the map & GPS link are cleared`
+        : `${att.name} removed from ${p.ref}`
+    );
+  };
+
   const deletePaper = (id: string) => {
     if (!user || user.role !== 'admin') return;
     const p = db.papers.find((x) => x.id === id);
@@ -1153,6 +1198,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     routePaper,
     addNote,
     addAttachments,
+    removeAttachment,
     deletePaper,
     updatePaper,
     markAllRead,

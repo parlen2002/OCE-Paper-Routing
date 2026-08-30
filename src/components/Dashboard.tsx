@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, divById } from '../lib/types';
+import { ALL_UNITS, DIVISIONS, INSPECTORATE, divById } from '../lib/types';
 import type { Activity } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, StageChip } from './ui';
@@ -27,7 +27,7 @@ export function Dashboard() {
   const doneWeek = papers.filter((p) => p.stage === 'completed' && p.updatedAt >= week).length;
   const urgentOpen = open.filter((p) => p.priority === 'urgent');
 
-  const load = [...DIVISIONS, INSPECTORATE, ...DESKS].map((d) => ({ d, n: open.filter((p) => p.divisionId === d.id).length }));
+  const load = ALL_UNITS.map((d) => ({ d, n: open.filter((p) => p.divisionId === d.id).length }));
   const maxLoad = Math.max(1, ...load.map((l) => l.n));
 
   const stats: { label: string; value: number; hint: string; color: string; icon: IconName }[] = [

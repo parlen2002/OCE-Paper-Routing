@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, PRIORITIES, STAGES, divById } from '../lib/types';
+import { CROSS_UNITS, DESKS, DIVISIONS, INSPECTORATE, PRIORITIES, STAGES, divById } from '../lib/types';
 import type { Paper, Stage } from '../lib/types';
 import { I } from './icons';
 import { DivChip, KindTag, PriorityTag } from './ui';
@@ -143,7 +143,7 @@ export function Board() {
             >
               All divisions
             </button>
-            {[...DIVISIONS, INSPECTORATE].map((d) => (
+            {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
               <button
                 key={d.id}
                 onClick={() => setDivFilter(d.id === ui.divFilter ? 'all' : d.id)}

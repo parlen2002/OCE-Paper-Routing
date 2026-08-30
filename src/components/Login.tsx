@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, INSPECTORATE } from '../lib/types';
+import { CROSS_UNITS, DIVISIONS } from '../lib/types';
 import { I, Seal } from './icons';
 
 const QUICK = [
@@ -292,7 +292,9 @@ export function Login() {
                         {DIVISIONS.map((d) => (
                           <option key={d.id} value={d.id}>{d.name}</option>
                         ))}
-                        <option value={INSPECTORATE.id}>{INSPECTORATE.name}</option>
+                        {CROSS_UNITS.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
                       </select>
                     </div>
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CLUSTERS, DESKS, DIVISIONS, INSPECTORATE, KINDS, STAGES, divById } from '../lib/types';
+import { CLUSTERS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById } from '../lib/types';
 import type { Kind, Role, Stage, User, UserStatus } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, EmptyState, KindTag, PageHead, PriorityTag, StageChip } from './ui';
@@ -64,7 +64,7 @@ export function DocumentsPage() {
               ))}
             </optgroup>
             <optgroup label="Divisions & teams">
-              {[...DIVISIONS, INSPECTORATE].map((d) => (
+              {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
                 <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
               ))}
             </optgroup>
@@ -255,43 +255,62 @@ export function DivisionsPage() {
         </div>
       </section>
 
-      {/* Inspectorate Team — cross-division inspection unit */}
+      {/* Cross-division units — Inspectorate Team & I.T. Division */}
       <section className="anim-fade-up">
         <div className="mb-3 flex items-center gap-3">
           <span className="h-2.5 w-2.5 rounded-full bg-tealx-500" style={{ boxShadow: '0 0 10px #2dd4bf88' }} />
-          <h2 className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Cross-division unit</h2>
+          <h2 className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Cross-division units</h2>
+          <span className="rounded-sm bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-mist-400">
+            {CROSS_UNITS.length}
+          </span>
           <span className="h-px flex-1 bg-ink-700" />
         </div>
-        {(() => {
-          const open = db.papers.filter((p) => p.divisionId === INSPECTORATE.id && p.stage !== 'completed').length;
-          const done = db.papers.filter((p) => p.divisionId === INSPECTORATE.id && p.stage === 'completed').length;
-          return (
-            <button
-              onClick={() => {
-                setDivFilter(INSPECTORATE.id);
-                go('board');
-              }}
-              className="flex w-full items-center gap-4 rounded-lg border border-tealx-500/35 bg-ink-900/80 p-4 text-left transition hover:border-tealx-500/70 hover:bg-ink-800/70"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-tealx-500/50 bg-tealx-500/10 text-tealx-400">
-                <I n="shield" className="h-5 w-5" sw={1.8} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="font-display text-[17px] font-bold uppercase tracking-wide text-mist-50">{INSPECTORATE.name}</span>
-                  <span className="rounded-sm border border-tealx-500/50 bg-tealx-500/10 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-tealx-400">
-                    {INSPECTORATE.code}
-                  </span>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {CROSS_UNITS.map((cu) => {
+            const isIt = cu.id === 'it';
+            const tint = isIt ? '#6cd1f4' : '#2dd4bf';
+            const open = db.papers.filter((p) => p.divisionId === cu.id && p.stage !== 'completed').length;
+            const done = db.papers.filter((p) => p.divisionId === cu.id && p.stage === 'completed').length;
+            return (
+              <button
+                key={cu.id}
+                onClick={() => {
+                  setDivFilter(cu.id);
+                  go('board');
+                }}
+                className="flex w-full items-center gap-4 rounded-lg bg-ink-900/80 p-4 text-left transition hover:bg-ink-800/70"
+                style={{ border: `1px solid ${tint}59` }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = `${tint}b3`)}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = `${tint}59`)}
+              >
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
+                  style={{ border: `1px solid ${tint}80`, background: `${tint}1a`, color: tint }}
+                >
+                  <I n={isIt ? 'pulse' : 'shield'} className="h-5 w-5" sw={1.8} />
                 </span>
-                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-mist-400">{INSPECTORATE.desc}</span>
-              </span>
-              <span className="shrink-0 text-right">
-                <span className="block font-display text-[24px] font-bold leading-none text-tealx-400 tabular">{open}</span>
-                <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
-              </span>
-            </button>
-          );
-        })()}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="font-display text-[17px] font-bold uppercase tracking-wide text-mist-50">{cu.name}</span>
+                    <span
+                      className="rounded-sm px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider"
+                      style={{ border: `1px solid ${tint}80`, background: `${tint}1a`, color: tint }}
+                    >
+                      {cu.code}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-mist-400">{cu.desc}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-display text-[24px] font-bold leading-none tabular" style={{ color: tint }}>
+                    {open}
+                  </span>
+                  <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </section>
     </div>
   );
@@ -356,7 +375,7 @@ export function ActivityPage() {
               ))}
             </optgroup>
             <optgroup label="Divisions & teams">
-              {[...DIVISIONS, INSPECTORATE].map((d) => (
+              {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.code} · {d.name}
                 </option>
@@ -490,12 +509,14 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team</span>
-              <select className="field" value={divisionId} disabled={role !== 'division'} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
+              <select className="field" value={divisionId} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
                 <option value="">— none —</option>
                 {DIVISIONS.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
-                <option value={INSPECTORATE.id}>{INSPECTORATE.name}</option>
+                {CROSS_UNITS.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
               </select>
             </label>
             <label className="block">

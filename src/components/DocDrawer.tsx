@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, KINDS, PRIORITIES, STAGES, divById } from '../lib/types';
+import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, divById } from '../lib/types';
 import type { CustodyAction, Kind, Paper, Priority, Stage } from '../lib/types';
 import { I, type IconName } from './icons';
 import { DivChip, KindTag, PriorityTag, StageChip } from './ui';
@@ -381,7 +381,7 @@ export function DocDrawer() {
                       ))}
                     </optgroup>
                     <optgroup label="Divisions & teams">
-                      {[...DIVISIONS, INSPECTORATE].filter((d) => d.id !== paper.divisionId).map((d) => (
+                      {[...DIVISIONS, ...CROSS_UNITS].filter((d) => d.id !== paper.divisionId).map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.code} · {d.name}
                         </option>
@@ -569,7 +569,7 @@ function EditDocModal({ paper, onClose }: { paper: Paper; onClose: () => void })
                   ))}
                 </optgroup>
                 <optgroup label="Divisions & teams">
-                  {[...DIVISIONS, INSPECTORATE].map((d) => (
+                  {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
                     <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
                   ))}
                 </optgroup>

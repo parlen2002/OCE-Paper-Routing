@@ -66,7 +66,7 @@ const CE = 'Engr. Aries S. Grande';
 const ACE = 'Engr. Julio B. Sergio';
 
 export const INITIAL_USERS: User[] = [
-  { id: 'u-admin', name: 'Alphard S. Grande', username: 'admin', password: 'cityeng2026', role: 'admin', title: 'System Administrator', shortTitle: 'Administrator', status: 'active' },
+  { id: 'u-admin', name: 'Alphard S. Grande', username: 'admin', password: 'cityeng2026', role: 'admin', title: 'System Administrator — I.T. Division', shortTitle: 'Administrator', divisionId: 'it', status: 'active' },
   { id: 'u-sup1', name: 'Engr. Aries S. Grande', username: 'agrande', password: 'cityeng2026', role: 'supervisor', title: 'CGPP Department Head II (City Engineer)', shortTitle: 'City Engineer', status: 'active' },
   { id: 'u-sup2', name: 'Engr. Julio B. Sergio', username: 'jsergio', password: 'cityeng2026', role: 'supervisor', title: 'Assistant CGPP Department Head II (Assistant City Engineer)', shortTitle: 'Asst. City Engineer', status: 'active' },
   { id: 'u-const', name: 'Engr. Ramil Domingo', username: 'rdomingo', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'const', status: 'active' },
@@ -496,9 +496,41 @@ export function freshSeed(): DB {
       byName: CAROL,
       diverted: true,
     },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0144',
+      title: 'Scheduled maintenance — CEO Flow server & office network backup',
+      kind: 'memo',
+      priority: 'routine',
+      origin: 'I.T. Division (systems maintenance program)',
+      divisionId: 'it',
+      intendedId: 'it',
+      stage: 'progress',
+      attachments: [],
+      custody: [
+        c(now - 1.6 * D, CAROL, 'created', 'Maintenance window memo logged for all divisions', { toDivisionId: 'it' }),
+        c(now - 1.5 * D, ACE, 'routed', 'For execution; advise all divisions of the downtime window', { fromDivisionId: 'admin', toDivisionId: 'it' }),
+        c(now - 0.6 * D, 'Alphard S. Grande', 'stage', 'Database backup verified; patch staging in progress', { stage: 'progress' }),
+      ],
+      createdAt: now - 1.6 * D,
+      updatedAt: now - 0.6 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      diverted: false,
+    },
   ];
 
   const notifs: Notif[] = [
+    {
+      id: uid(),
+      at: now - 0.3 * D,
+      text: 'CEO-2026-0144 assigned to your division — CEO Flow server maintenance window',
+      kind: 'new',
+      docId: papers[16].id,
+      ref: 'CEO-2026-0144',
+      scope: { type: 'division', divisionId: 'it' },
+      readBy: [],
+    },
     {
       id: uid(),
       at: now - 0.35 * D,
@@ -580,7 +612,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 3, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 144 };
+  return { v: 4, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 145 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

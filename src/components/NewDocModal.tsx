@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, KINDS, PRIORITIES } from '../lib/types';
+import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES } from '../lib/types';
 import type { Attachment, Kind, Priority } from '../lib/types';
 import { I } from './icons';
 import { Modal } from './ui';
@@ -135,7 +135,7 @@ export function NewDocModal() {
                   ))}
                 </optgroup>
                 <optgroup label="Divisions & teams">
-                  {[...DIVISIONS, INSPECTORATE].map((d) => (
+                  {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.code} · {d.name}
                     </option>

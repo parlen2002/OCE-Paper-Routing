@@ -257,11 +257,24 @@ export const INSPECTORATE: Division = {
   cluster: 'tech',
   head: 'Under the Office of the City Engineer',
   headUser: '',
-  desc: 'Cross-division team that conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
+    desc: 'Cross-division team that conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
 };
 
-/** Executive desks — the two department heads are first-class recipients of paperwork. */
-export const DESKS: Division[] = [
+/** I.T. Division — cross-division unit hosting the program administrator and digital services. */
+export const IT_DIVISION: Division = {
+  id: 'it',
+  code: 'IT',
+  name: 'I.T. Division',
+  cluster: 'tech',
+  head: 'Alphard S. Grande',
+  headUser: 'admin',
+  desc: 'Information technology services — maintains CEO Flow, user accounts, office network and connectivity, digital records and data backups for the whole office.',
+};
+
+/** Cross-division units — routable recipients alongside the nine divisions. */
+export const CROSS_UNITS: Division[] = [INSPECTORATE, IT_DIVISION];
+
+/** Executive desks — the two department heads are first-class recipients of paperwork. */export const DESKS: Division[] = [
   {
     id: 'desk-ce',
     code: 'CE-DESK',
@@ -282,7 +295,7 @@ export const DESKS: Division[] = [
   },
 ];
 
-export const ALL_UNITS = [...DIVISIONS, INSPECTORATE, ...DESKS];
+export const ALL_UNITS = [...DIVISIONS, ...CROSS_UNITS, ...DESKS];
 
 export const divById = (id: string): Division | undefined => ALL_UNITS.find((d) => d.id === id);
 

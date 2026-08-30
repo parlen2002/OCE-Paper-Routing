@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
+import { ALL_UNITS, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
 import { I, Seal } from './icons';
 import { fmtDT } from '../lib/util';
 
@@ -85,7 +85,7 @@ export function ReportModal() {
       return codes.join(' → ');
     };
 
-    const divSummary = [...DIVISIONS, INSPECTORATE, ...DESKS].map((d) => {
+    const divSummary = ALL_UNITS.map((d) => {
       let inbound = 0;
       let outbound = 0;
       for (const p of db.papers) {

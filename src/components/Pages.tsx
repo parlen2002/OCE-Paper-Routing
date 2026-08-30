@@ -334,12 +334,15 @@ export function ActivityPage() {
     return [...m.entries()];
   }, [filtered]);
 
+  // restricted surface — program admin and executives (department heads) only
+  if (user?.role === 'division') return null;
+
   return (
     <div>
       <PageHead
-        kicker="Audit trail"
+        kicker="Audit trail · restricted"
         title="Activity log"
-        sub="Every hand-off, remark and attachment across the office — immutable, time-stamped, and attributable to a named officer."
+        sub="Every hand-off, remark and attachment across the office — immutable, time-stamped, and attributable to a named officer. Visible to the program admin and the department heads only."
       />
       {isSup && (
         <div className="anim-fade-up mx-auto mb-5 max-w-3xl">

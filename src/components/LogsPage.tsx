@@ -19,6 +19,7 @@ const KIND: Record<LogType, { label: string; icon: IconName; color: string }> = 
   approve: { label: 'Approved', icon: 'checkc', color: '#62e29a' },
   deny: { label: 'Denied', icon: 'x', color: '#f8837c' },
   edit: { label: 'Edited', icon: 'wrench', color: '#8adcf8' },
+  delete: { label: 'Deleted', icon: 'trash', color: '#f4645c' },
 };
 
 const AUTH: LogType[] = ['login', 'logout', 'signup', 'approve', 'deny', 'edit'];

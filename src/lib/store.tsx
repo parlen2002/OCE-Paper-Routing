@@ -31,7 +31,7 @@ export interface UIState {
   reportOpen: boolean;
   search: string;
   divFilter: string; // 'all' | division id
-  viewer: string | null; // image url for full view
+  viewer: { docId: string; attId: string } | null; // attachment viewer target
 }
 
 export interface Toast {
@@ -64,7 +64,20 @@ interface StoreCtx {
   setReportOpen: (open: boolean) => void;
   setSearch: (s: string) => void;
   setDivFilter: (s: string) => void;
-  setViewer: (url: string | null) => void;
+  setViewer: (v: { docId: string; attId: string } | null) => void;
+  deletePaper: (id: string) => void;
+  updatePaper: (
+    id: string,
+    patch: {
+      title?: string;
+      kind?: Kind;
+      priority?: Priority;
+      origin?: string;
+      divisionId?: string;
+      dueAt?: number | null;
+      remarks?: string;
+    }
+  ) => void;
   createPaper: (input: {
     title: string;
     kind: Kind;
@@ -579,6 +592,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', geos > 0 ? `${atts.length} file(s) attached — ${geos} geotagged photo(s) linked to the map` : `${atts.length} file(s) attached`);
   };
 
+  const deletePaper = (id: string) => {
+    if (!user || user.role !== 'admin') return;
+    const p = db.papers.find((x) => x.id === id);
+    if (!p) return;
+    setDb((d) =>
+      withLog(
+        { ...d, papers: d.papers.filter((x) => x.id !== id) },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'delete',
+          text: `Deleted board entry ${p.ref} — ${p.title.slice(0, 64)}`,
+          ref: p.ref,
+          docId: p.id,
+        }
+      )
+    );
+    setUi((u) => ({ ...u, drawerId: null }));
+    pushToast('warn', `${p.ref} deleted from the board and the register`);
+  };
+
+  const updatePaper: StoreCtx['updatePaper'] = (id, patch) => {
+    if (!user || user.role !== 'admin') return;
+    const p = db.papers.find((x) => x.id === id);
+    if (!p) return;
+    const holderChanged = !!patch.divisionId && patch.divisionId !== p.divisionId;
+    const toDiv = holderChanged ? divById(patch.divisionId!) : undefined;
+    const fromDiv = divById(p.divisionId);
+    const custodyEntry = holderChanged
+      ? {
+          id: uid(),
+          at: Date.now(),
+          byName: user.name,
+          action: 'routed' as const,
+          fromDivisionId: p.divisionId,
+          toDivisionId: patch.divisionId,
+          text: `Administrator re-assigned the holder ${fromDiv?.code ?? ''} → ${toDiv?.code ?? ''}`,
+        }
+      : null;
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          papers: d.papers.map((x) => {
+            if (x.id !== id) return x;
+            const nextHolder = patch.divisionId ?? x.divisionId;
+            return {
+              ...x,
+              title: patch.title?.trim() || x.title,
+              kind: patch.kind ?? x.kind,
+              priority: patch.priority ?? x.priority,
+              origin: patch.origin?.trim() || x.origin,
+              remarks: patch.remarks !== undefined ? patch.remarks.trim() || undefined : x.remarks,
+              dueAt: patch.dueAt !== undefined ? patch.dueAt ?? undefined : x.dueAt,
+              divisionId: nextHolder,
+              stage: holderChanged ? ('received' as Stage) : x.stage,
+              diverted: nextHolder !== x.intendedId,
+              custody: custodyEntry ? [...x.custody, custodyEntry] : x.custody,
+              updatedAt: Date.now(),
+            };
+          }),
+        },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'edit',
+          text: `Edited document ${p.ref} — administrator update${holderChanged ? ` (holder → ${toDiv?.code ?? ''})` : ''}`,
+          ref: p.ref,
+          docId: p.id,
+        }
+      )
+    );
+    pushToast('ok', `${p.ref} updated by the administrator`);
+  };
+
   const markRead = (notifId: string) => {
     if (!user) return;
     setDb((d) => ({
@@ -621,6 +709,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     routePaper,
     addNote,
     addAttachments,
+    deletePaper,
+    updatePaper,
     markAllRead,
     markRead,
     pushToast,

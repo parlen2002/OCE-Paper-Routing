@@ -285,23 +285,29 @@ select.field {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- print: routing report only ---------- */
+/* ---------- print: routing & history reports only ---------- */
+@page {
+  size: A4 portrait;
+  margin: 11mm 10mm;
+}
+
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 11mm 10mm;
-  }
   html,
   body {
     height: auto !important;
+    overflow: visible !important;
     background: #fff !important;
   }
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
   .print-sheet,
   .print-sheet * {
-    visibility: visible;
+    visibility: visible !important;
+  }
+  .print-sheet {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .print-reset {
     position: static !important;
@@ -315,12 +321,18 @@ select.field {
     width: 100% !important;
     max-width: none !important;
   }
+  .print-scroll {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
   .print-sheet {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
     max-height: none !important;
+    height: auto !important;
     overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
@@ -329,5 +341,11 @@ select.field {
   }
   .no-print {
     display: none !important;
+  }
+  .anim-pop,
+  .anim-fade-up,
+  .anim-toast,
+  .anim-slide-r {
+    animation: none !important;
   }
 }

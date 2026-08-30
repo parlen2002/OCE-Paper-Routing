@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DESKS, DIVISIONS, INSPECTORATE, STAGES, divById } from '../lib/types';
-import type { CustodyAction, Paper, Stage } from '../lib/types';
+import { DESKS, DIVISIONS, INSPECTORATE, KINDS, PRIORITIES, STAGES, divById } from '../lib/types';
+import type { CustodyAction, Kind, Paper, Priority, Stage } from '../lib/types';
 import { I, type IconName } from './icons';
 import { DivChip, KindTag, PriorityTag, StageChip } from './ui';
 import { fmtCoord, fmtDT, mapsLink, osmEmbed, timeAgo } from '../lib/util';
@@ -68,11 +68,13 @@ function AttachControl({ paperId }: { paperId: string }) {
 
 export function DocDrawer() {
   const store = useStore();
-  const { db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer } = store;
+  const { db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer, deletePaper, updatePaper } = store;
   const paper = useMemo(() => db.papers.find((p) => p.id === ui.drawerId) ?? null, [db.papers, ui.drawerId]);
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
   const [forwardVal, setForwardVal] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
   if (!paper || !user) return null;
 
@@ -116,7 +118,27 @@ export function DocDrawer() {
                 <I n="alert" className="h-2.5 w-2.5" sw={2.4} /> Overdue
               </span>
             )}
-            <button onClick={closeDrawer} className="ml-auto rounded p-1.5 text-mist-400 transition hover:bg-ink-700 hover:text-mist-50" title="Close (Esc)">
+            {user.role === 'admin' && (
+              <span className="ml-auto flex items-center gap-1.5">
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-cyanx-500/60 hover:text-cyanx-400"
+                  title="Administrator — edit this board entry"
+                >
+                  <I n="wrench" className="h-3 w-3" sw={2.2} />
+                  Edit
+                </button>
+                <button
+                  onClick={() => setDelOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-redx-500/60 hover:bg-redx-500/10 hover:text-redx-400"
+                  title="Administrator — delete this board entry"
+                >
+                  <I n="trash" className="h-3 w-3" sw={2.2} />
+                  Delete
+                </button>
+              </span>
+            )}
+            <button onClick={closeDrawer} className={`${user.role === 'admin' ? '' : 'ml-auto'} rounded p-1.5 text-mist-400 transition hover:bg-ink-700 hover:text-mist-50`} title="Close (Esc)">
               <I n="x" className="h-4 w-4" sw={2} />
             </button>
           </div>
@@ -251,7 +273,11 @@ export function DocDrawer() {
               {paper.attachments.map((a) => (
                 <div key={a.id} className="group overflow-hidden rounded-md border border-ink-700 bg-ink-850">
                   {a.kind === 'image' ? (
-                    <button className="block h-32 w-full overflow-hidden" onClick={() => setViewer(a.url)} title="View full size">
+                    <button
+                      className="block h-32 w-full overflow-hidden"
+                      onClick={() => setViewer({ docId: paper.id, attId: a.id })}
+                      title="Open in the attachment viewer"
+                    >
                       <img
                         src={a.url}
                         alt={a.name}
@@ -263,12 +289,16 @@ export function DocDrawer() {
                       />
                     </button>
                   ) : (
-                    <div className="flex h-32 flex-col items-center justify-center gap-2 bg-[repeating-linear-gradient(45deg,rgba(86,200,240,0.03)_0_10px,transparent_10px_20px)]">
-                      <span className="text-cyanx-400">
+                    <button
+                      className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[repeating-linear-gradient(45deg,rgba(255,107,28,0.05)_0_10px,transparent_10px_20px)] transition hover:bg-[repeating-linear-gradient(45deg,rgba(255,107,28,0.1)_0_10px,transparent_10px_20px)]"
+                      onClick={() => setViewer({ docId: paper.id, attId: a.id })}
+                      title="Open in the attachment viewer"
+                    >
+                      <span className="text-flare-400">
                         <I n="file" className="h-8 w-8" sw={1.3} />
                       </span>
-                      <span className="font-mono text-[9.5px] uppercase tracking-widest text-mist-500">PDF document</span>
-                    </div>
+                      <span className="font-mono text-[9.5px] uppercase tracking-widest text-mist-400">PDF — click to view</span>
+                    </button>
                   )}
                   <div className="px-2.5 py-2">
                     <p className="truncate font-mono text-[10.5px] font-semibold text-mist-200" title={a.name}>
@@ -437,7 +467,182 @@ export function DocDrawer() {
             </ol>
           </Section>
         </div>
+        {editOpen && <EditDocModal paper={paper} onClose={() => setEditOpen(false)} />}
+        {delOpen && <ConfirmDeleteModal paper={paper} onClose={() => setDelOpen(false)} onDelete={() => deletePaper(paper.id)} />}
       </aside>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ admin: edit board entry */
+const toDateInputLocal = (ts: number) => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const fromInputLocal = (s: string) => {
+  const [y, m, dd] = s.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, dd || 1, 12, 0, 0).getTime();
+};
+
+function EditDocModal({ paper, onClose }: { paper: Paper; onClose: () => void }) {
+  const { updatePaper } = useStore();
+  const [title, setTitle] = useState(paper.title);
+  const [kind, setKind] = useState<Kind>(paper.kind);
+  const [priority, setPriority] = useState<Priority>(paper.priority);
+  const [origin, setOrigin] = useState(paper.origin);
+  const [holder, setHolder] = useState(paper.divisionId);
+  const [due, setDue] = useState(paper.dueAt ? toDateInputLocal(paper.dueAt) : '');
+  const [remarks, setRemarks] = useState(paper.remarks ?? '');
+  const [err, setErr] = useState('');
+
+  const save = () => {
+    if (title.trim().length < 4) return setErr('A descriptive title is required (min. 4 characters).');
+    if (!holder) return setErr('Choose the division, team or desk currently holding the paper.');
+    updatePaper(paper.id, {
+      title,
+      kind,
+      priority,
+      origin,
+      divisionId: holder,
+      dueAt: due ? fromInputLocal(due) : null,
+      remarks,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[62] flex items-start justify-center overflow-y-auto p-4 sm:p-10">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="anim-pop relative w-full max-w-xl rounded-xl border border-cyanx-500/40 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.85)]">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-cyanx-500/50 bg-cyanx-500/10 text-cyanx-400">
+            <I n="wrench" className="h-5 w-5" sw={1.8} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-cyanx-400">Administrator override</p>
+            <h3 className="truncate font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">Edit {paper.ref}</h3>
+            <p className="mt-0.5 text-[11.5px] text-mist-500">Changes are stamped into the system log. Re-assigning the holder files a custody entry and returns the paper to its Received tray.</p>
+          </div>
+          <button onClick={onClose} className="rounded-md border border-ink-600 p-2 text-mist-400 transition hover:border-redx-500/60 hover:text-redx-400">
+            <I n="x" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Title</span>
+            <input className="field" value={title} onChange={(e) => { setTitle(e.target.value); setErr(''); }} />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Type</span>
+              <select className="field" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+                {(Object.keys(KINDS) as Kind[]).map((k) => (
+                  <option key={k} value={k}>{KINDS[k].label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Priority</span>
+              <select className="field" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+                {(Object.keys(PRIORITIES) as Priority[]).map((k) => (
+                  <option key={k} value={k}>{PRIORITIES[k].label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Due date</span>
+              <input type="date" className="field font-mono text-[12px]" value={due} onChange={(e) => setDue(e.target.value)} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Origin / source</span>
+              <input className="field" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Current holder</span>
+              <select className="field" value={holder} onChange={(e) => { setHolder(e.target.value); setErr(''); }}>
+                <optgroup label="Executive desks">
+                  {DESKS.map((d) => (
+                    <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Divisions & teams">
+                  {[...DIVISIONS, INSPECTORATE].map((d) => (
+                    <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Remarks</span>
+            <textarea className="field min-h-[64px] resize-y" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Instructions, context, references…" />
+          </label>
+
+          {err && (
+            <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
+              <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
+              {err}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={save}>
+              <I n="check" className="h-4 w-4" sw={2.2} />
+              Save changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ admin: delete board entry */
+function ConfirmDeleteModal({ paper, onClose, onDelete }: { paper: Paper; onClose: () => void; onDelete: () => void }) {
+  const div = divById(paper.divisionId);
+  return (
+    <div className="fixed inset-0 z-[62] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="anim-pop relative w-full max-w-md rounded-xl border border-redx-500/45 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.85)]">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-redx-500/50 bg-redx-500/12 text-redx-400">
+            <I n="trash" className="h-5 w-5" sw={1.8} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-redx-400">Administrator — destructive action</p>
+            <h3 className="mt-0.5 font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">Delete {paper.ref}?</h3>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-md border border-ink-600 bg-ink-850 p-3.5">
+          <p className="text-[13.5px] font-bold leading-snug text-mist-100">{paper.title}</p>
+          <p className="mt-1 font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
+            holder: {div?.code ?? '—'} · {paper.custody.length} custody entries · {paper.attachments.length} attachment(s)
+          </p>
+        </div>
+
+        <p className="mt-3 text-[12.5px] leading-relaxed text-mist-400">
+          This removes the entry from the tracker board, the register and every dashboard. The custody trail and
+          attachments go with it. The deletion itself is recorded in the system log under your name.
+        </p>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="btn btn-ghost" onClick={onClose}>Keep it</button>
+          <button
+            className="btn border border-redx-500/60 bg-redx-500/15 text-redx-400 hover:bg-redx-500/25"
+            onClick={() => {
+              onDelete();
+            }}
+          >
+            <I n="trash" className="h-4 w-4" sw={2} />
+            Delete permanently
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

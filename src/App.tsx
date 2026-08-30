@@ -9,32 +9,9 @@ import { NewDocModal } from './components/NewDocModal';
 import { ActivityPage, DivisionsPage, DocumentsPage, UsersPage } from './components/Pages';
 import { LogsPage } from './components/LogsPage';
 import { ReportModal } from './components/ReportModal';
+import { AttachmentViewer } from './components/AttachmentViewer';
 import { Toasts } from './components/ui';
 import { I } from './components/icons';
-
-function ImageViewer() {
-  const { ui, setViewer } = useStore();
-  if (!ui.viewer) return null;
-  return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-ink-950/90 backdrop-blur-sm" onClick={() => setViewer(null)} />
-      <figure className="anim-pop relative max-h-full">
-        <img
-          src={ui.viewer}
-          alt="Attachment full view"
-          className="max-h-[86vh] max-w-full rounded-lg border border-ink-600 object-contain shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]"
-        />
-        <button
-          onClick={() => setViewer(null)}
-          className="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full border border-ink-600 bg-ink-850 text-mist-200 shadow-lg transition hover:border-redx-500 hover:text-redx-400"
-          title="Close"
-        >
-          <I n="x" className="h-4 w-4" sw={2.2} />
-        </button>
-      </figure>
-    </div>
-  );
-}
 
 function AppInner() {
   const { user, ui, closeDrawer, setNewOpen, setViewer } = useStore();
@@ -60,7 +37,7 @@ function AppInner() {
   }
 
   const page =
-    user.role === 'division' && (ui.page === 'dashboard' || ui.page === 'users' || ui.page === 'userlogs')
+    user.role === 'division' && (ui.page === 'dashboard' || ui.page === 'users' || ui.page === 'userlogs' || ui.page === 'activity')
       ? 'board'
       : ui.page;
 
@@ -71,14 +48,14 @@ function AppInner() {
         {page === 'board' && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
-        {page === 'activity' && <ActivityPage />}
+        {page === 'activity' && user.role !== 'division' && <ActivityPage />}
         {page === 'users' && <UsersPage />}
-        {page === 'userlogs' && user.role === 'admin' && <LogsPage />}
+        {page === 'userlogs' && user.role !== 'division' && <LogsPage />}
       </Shell>
       <DocDrawer />
       <NewDocModal />
       <ReportModal />
-      <ImageViewer />
+      <AttachmentViewer />
       <Toasts />
     </>
   );
@@ -122,7 +99,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
                 className="btn btn-ghost"
                 onClick={() => {
                   try {
-                    localStorage.removeItem('ppc-ceoflow-v1');
+                    localStorage.removeItem('ppc-ceoflow-v3');
                   } catch {
                     /* ignore */
                   }

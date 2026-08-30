@@ -117,7 +117,8 @@ export type LogType =
   | 'signup'
   | 'approve'
   | 'deny'
-  | 'edit';
+  | 'edit'
+  | 'delete';
 
 export interface SysLog {
   id: string;

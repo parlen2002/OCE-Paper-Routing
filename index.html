@@ -7,13 +7,46 @@
     <title>CEO Flow — Puerto Princesa City Engineering Office</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Non-blocking font load: the app renders instantly on system fallbacks,
+         then swaps to the display faces once the CDN responds. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background-color: #071120;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Boot trap: if the bundle fails to load or throws during module init,
+      // paint a visible diagnostic instead of a blank screen.
+      window.addEventListener('error', function (e) {
+        var r = document.getElementById('root');
+        if (r && !r.children.length) {
+          r.innerHTML =
+            '<div style="font-family:Consolas,monospace;color:#a9c0d6;background:#0d1d31;border:1px solid #274468;border-radius:8px;max-width:640px;margin:8vh auto;padding:22px 26px;line-height:1.5">' +
+            '<p style="color:#ff8a4c;font-weight:700;margin:0 0 8px">CEO FLOW — STARTUP FAULT</p>' +
+            '<p style="margin:0 0 6px;font-size:13px">' + (e.message || 'Unknown load error') + '</p>' +
+            '<p style="margin:0;font-size:11px;opacity:.7">' + (e.filename || '') + ' ' + (e.lineno || '') + '</p>' +
+            '<p style="margin:12px 0 0;font-size:12px">Hard-refresh (Ctrl+Shift+R). If it persists, the script bundle may be blocked by the network.</p>' +
+            '</div>';
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

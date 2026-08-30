@@ -84,10 +84,69 @@ function AppInner() {
   );
 }
 
+interface EBState {
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
+  state: EBState = { error: null };
+
+  static getDerivedStateFromError(error: Error): EBState {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-ink-950 p-6">
+          <div className="w-full max-w-xl rounded-lg border border-redx-500/40 bg-ink-900 p-7 shadow-2xl">
+            <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.26em] text-redx-400">
+              CEO Flow — runtime fault
+            </p>
+            <h1 className="mt-2 font-display text-3xl font-bold uppercase tracking-wide text-mist-50">
+              Something broke the floor
+            </h1>
+            <p className="mt-3 rounded-md border border-ink-600 bg-ink-850 p-3 font-mono text-[11.5px] leading-relaxed text-mist-300">
+              {this.state.error.message}
+            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-mist-500">
+              The interface crashed, but your paperwork data is safe in local storage. Reload to
+              resume; if the fault repeats, clear the stored data to reseed the demo office.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button className="btn btn-primary" onClick={() => window.location.reload()}>
+                <I n="refresh" className="h-4 w-4" sw={2.2} />
+                Reload app
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('ppc-ceoflow-v1');
+                  } catch {
+                    /* ignore */
+                  }
+                  window.location.reload();
+                }}
+              >
+                <I n="trash" className="h-4 w-4" />
+                Clear data & reseed
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <StoreProvider>
-      <AppInner />
-    </StoreProvider>
+    <ErrorBoundary>
+      <StoreProvider>
+        <AppInner />
+      </StoreProvider>
+    </ErrorBoundary>
   );
 }

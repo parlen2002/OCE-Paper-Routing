@@ -62,7 +62,11 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
               key={a.id}
               src={a.url}
               alt={a.name}
-              className="h-11 w-[52px] rounded-[4px] border border-[#d8cfb4] object-cover"
+              loading="lazy"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+              className="h-11 w-[52px] rounded-[4px] border border-[#d8cfb4] object-cover bg-[#e4dcc4]"
             />
           ))}
           {pdfs > 0 && (

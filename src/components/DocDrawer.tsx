@@ -252,7 +252,15 @@ export function DocDrawer() {
                 <div key={a.id} className="group overflow-hidden rounded-md border border-ink-700 bg-ink-850">
                   {a.kind === 'image' ? (
                     <button className="block h-32 w-full overflow-hidden" onClick={() => setViewer(a.url)} title="View full size">
-                      <img src={a.url} alt={a.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]" />
+                      <img
+                        src={a.url}
+                        alt={a.name}
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                      />
                     </button>
                   ) : (
                     <div className="flex h-32 flex-col items-center justify-center gap-2 bg-[repeating-linear-gradient(45deg,rgba(86,200,240,0.03)_0_10px,transparent_10px_20px)]">

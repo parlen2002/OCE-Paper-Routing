@@ -109,6 +109,7 @@ interface StoreCtx {
   routePaper: (id: string, toDivisionId: string, note?: string) => void;
   addNote: (id: string, text: string) => void;
   addAttachments: (id: string, atts: Attachment[]) => void;
+  removeAttachment: (docId: string, attId: string) => void;
   markAllRead: () => void;
   markRead: (notifId: string) => void;
   pushToast: (kind: Toast['kind'], text: string) => void;

@@ -218,7 +218,7 @@ export const DIVISIONS: Division[] = [
   {
     id: 'mtqc',
     code: 'MTQC',
-    name: 'Materials Testing and Quality Checking Division',
+    name: 'Materials Testing and Quality Control Division',
     cluster: 'tech',
     head: 'Engr. Mona Abad',
     headUser: 'mabad',
@@ -295,7 +295,7 @@ export const CROSS_UNITS: Division[] = [INSPECTORATE, IT_DIVISION];
     cluster: 'tech',
     head: 'Engr. Julio B. Sergio',
     headUser: 'jsergio',
-    desc: 'Review, endorsement and concurrent supervision — Engr. Julio B. Sergio, Assistant CGPP Department Head II (Assistant City Engineer).',
+    desc: 'Review, endorsement and concurrent supervision — Engr. Julio B. Sergio, CGPP Assistant Department Head II (Assistant City Engineer).',
   },
 ];
 

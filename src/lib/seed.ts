@@ -69,7 +69,7 @@ const ACE = 'Engr. Julio B. Sergio';
 export const INITIAL_USERS: User[] = [
   { id: 'u-admin', name: 'Alphard S. Grande', username: 'admin', password: 'cityeng2026', role: 'admin', title: 'System Administrator — I.T. Division', shortTitle: 'Administrator', divisionId: 'it', status: 'active' },
   { id: 'u-sup1', name: 'Engr. Aries S. Grande', username: 'agrande', password: 'cityeng2026', role: 'supervisor', title: 'CGPP Department Head II (City Engineer)', shortTitle: 'City Engineer', status: 'active' },
-  { id: 'u-sup2', name: 'Engr. Julio B. Sergio', username: 'jsergio', password: 'cityeng2026', role: 'supervisor', title: 'Assistant CGPP Department Head II (Assistant City Engineer)', shortTitle: 'Asst. City Engineer', status: 'active' },
+  { id: 'u-sup2', name: 'Engr. Julio B. Sergio', username: 'jsergio', password: 'cityeng2026', role: 'supervisor', title: 'CGPP Assistant Department Head II (Assistant City Engineer)', shortTitle: 'Asst. City Engineer', status: 'active' },
   { id: 'u-const', name: 'Engr. Ramil Domingo', username: 'rdomingo', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'const', status: 'active' },
   { id: 'u-maint', name: 'Engr. Nardo Salvador', username: 'nsalvador', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'maint', status: 'active' },
   { id: 'u-psd', name: 'Engr. Liza Bartolome', username: 'lbartolome', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'psd', status: 'active' },
@@ -686,7 +686,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 5, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
+  return { v: 6, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

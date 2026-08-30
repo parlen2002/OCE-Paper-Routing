@@ -234,7 +234,9 @@ export function Dashboard() {
                   {name}
                   {user.id === supId && <span className="ml-2 rounded bg-greenx-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-greenx-500">you · on duty</span>}
                 </p>
-                <p className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-mist-500">{su?.title ?? 'CGPP Department Head II'}</p>
+                <p className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-mist-500">
+                  {su?.title ?? (cl === 'ops' ? 'CGPP Department Head II (City Engineer)' : 'CGPP Assistant Department Head II (Assistant City Engineer)')}
+                </p>
                 <p className="mt-1 flex flex-wrap gap-1">
                   {divs.map((d) => (
                     <span key={d.id} className="rounded-sm bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-mist-400">

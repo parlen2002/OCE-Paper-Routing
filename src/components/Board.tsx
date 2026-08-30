@@ -7,7 +7,7 @@ import { DivChip, KindTag, PriorityTag } from './ui';
 import { timeAgo } from '../lib/util';
 
 function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; onOpen: () => void }) {
-  const { user } = useStore();
+  const { user, db } = useStore();
   const div = divById(paper.divisionId);
   const geo = paper.attachments.some((a) => a.geotagged);
   const imgs = paper.attachments.filter((a) => a.kind === 'image').slice(0, 3);
@@ -53,15 +53,23 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {div && <DivChip div={div} tone="paper" />}
         <KindTag kind={paper.kind} />
-        {paper.assignedByName && (
-          <span
-            className="inline-flex items-center gap-1 rounded-sm border border-[#0f9d8a]/50 bg-[#2dd4bf]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#0d9488]"
-            title={`Person-in-charge: ${paper.assignedByName}`}
-          >
-            <I n="users" className="h-2.5 w-2.5" sw={2.4} />
-            {paper.assignedByName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
-          </span>
-        )}
+        {(paper.assignees?.length ?? 0) > 0 && (() => {
+          const pics = (paper.assignees ?? [])
+            .map((id) => db.users.find((u) => u.id === id))
+            .filter((u): u is NonNullable<typeof u> => !!u);
+          if (pics.length === 0) return null;
+          const shown = pics.slice(0, 2).map((p) => p.name.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]);
+          return (
+            <span
+              className="inline-flex items-center gap-1 rounded-sm border border-[#0f9d8a]/50 bg-[#2dd4bf]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#0d9488]"
+              title={`Persons-in-charge: ${pics.map((p) => p.name).join(', ')}`}
+            >
+              <I n="users" className="h-2.5 w-2.5" sw={2.4} />
+              {shown.join(' + ')}
+              {pics.length > 2 && <span className="text-[#0d9488]/80">+{pics.length - 2}</span>}
+            </span>
+          );
+        })()}
         {paper.pendingHeadReview && !done && (
           <span className="inline-flex items-center gap-1 rounded-sm border border-[#b45309]/50 bg-[#f59e0b]/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#b45309]">
             <I n="shield" className="h-2.5 w-2.5" sw={2.4} />

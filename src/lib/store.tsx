@@ -4,14 +4,14 @@ import { divById, stageMeta } from './types';
 import { freshSeed, deriveActivities } from './seed';
 import { uid } from './util';
 
-const LS_KEY = 'ppc-ceoflow-v8';
+const LS_KEY = 'ppc-ceoflow-v9';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 8 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 9 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = [];
         return d as DB;
       }
@@ -29,6 +29,7 @@ export interface UIState {
   drawerId: string | null;
   newOpen: boolean;
   reportOpen: boolean;
+  profileOpen: boolean;
   search: string;
   divFilter: string; // 'all' | division id
   viewer: { docId: string; attId: string } | null; // attachment viewer target
@@ -87,12 +88,17 @@ interface StoreCtx {
     dueAt?: number;
     remarks?: string;
     attachments: Attachment[];
+    assigneeIds?: string[];
   }) => void;
   ackPaper: (id: string) => void;
   userUnitId: string | null;
   employeesOf: (unitId: string | undefined) => User[];
-  moveStage: (id: string, stage: Stage, note?: string, employeeId?: string) => void;
-  assignPaper: (id: string, employeeId: string | null) => void;
+  moveStage: (id: string, stage: Stage, note?: string, assigneeIds?: string[]) => void;
+  assignPaper: (id: string, ids: string[]) => void;
+  changePassword: (current: string, next: string) => string | null;
+  requestPasswordReset: () => void;
+  approvePasswordReset: (userId: string) => void;
+  setProfileOpen: (open: boolean) => void;
   submitToHead: (id: string) => void;
   returnToEmployee: (id: string) => void;
   routePaper: (id: string, toDivisionId: string, note?: string) => void;
@@ -134,6 +140,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     drawerId: null,
     newOpen: false,
     reportOpen: false,
+    profileOpen: false,
     search: '',
     divFilter: 'all',
     viewer: null,
@@ -156,7 +163,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       setUi((u) => ({
         ...u,
-        page: user.role === 'employee' ? 'myboard' : user.role === 'division' ? 'board' : 'dashboard',
+        page:
+          user.role === 'employee' || user.role === 'joborder'
+            ? 'myboard'
+            : user.role === 'division' || user.role === 'moderator'
+              ? 'board'
+              : 'dashboard',
         divFilter: 'all',
       }));
     }
@@ -167,10 +179,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const visiblePapers = useMemo(() => {
     if (!user) return [];
-    if (user.role === 'admin' || user.role === 'supervisor') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
-    // employees: strictly their own work orders
-    if (user.role === 'employee')
-      return db.papers.filter((p) => p.assignedTo === user.id).sort((a, b) => b.updatedAt - a.updatedAt);
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator')
+      return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    // employees & job-order personnel: strictly their own work orders
+    if (user.role === 'employee' || user.role === 'joborder')
+      return db.papers.filter((p) => (p.assignees ?? []).includes(user.id)).sort((a, b) => b.updatedAt - a.updatedAt);
     const mine = (p: Paper) =>
       p.divisionId === user.divisionId ||
       p.intendedId === user.divisionId ||
@@ -220,9 +233,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const canEdit = (p: Paper): boolean => {
     if (!user) return false;
-    if (user.role === 'admin' || user.role === 'supervisor') return true;
-    // employees: only their own assigned work orders
-    if (user.role === 'employee') return p.assignedTo === user.id;
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return true;
+    // employees & job-order: only their own assigned work orders
+    if (user.role === 'employee' || user.role === 'joborder') return (p.assignees ?? []).includes(user.id);
     // circulars: any addressed desk may act on the paper
     if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(user.divisionId ?? '');
     return user.divisionId === p.divisionId;
@@ -240,7 +253,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : null;
 
   const employeesOf = (unitId: string | undefined): User[] =>
-    db.users.filter((u) => u.role === 'employee' && u.divisionId === unitId && u.status === 'active');
+    db.users.filter(
+      (u) => (u.role === 'employee' || u.role === 'joborder') && u.divisionId === unitId && u.status === 'active'
+    );
 
   const ackPaper: StoreCtx['ackPaper'] = (id) => {
     if (!user) return;
@@ -319,7 +334,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (db.users.some((x) => x.username.toLowerCase() === username)) return 'That username is already taken — choose another.';
     if (input.password.length < 6) return 'Password must be at least 6 characters long.';
     const div = divById(input.divisionId);
-    const role: Role = input.role === 'employee' ? 'employee' : 'division';
+    const role: Role = input.role === 'employee' ? 'employee' : input.role === 'joborder' ? 'joborder' : 'division';
     const nu: User = {
       id: uid(),
       name,
@@ -388,9 +403,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!target) return;
     const cleaned: Partial<User> = { ...patch };
     if (!cleaned.password) delete cleaned.password;
+    // '' = explicit clear; undefined = not specified, so keep whatever the account already has
+    const clearDiv = cleaned.divisionId === '';
+    if (cleaned.divisionId === undefined || clearDiv) delete cleaned.divisionId;
     setDb((d) =>
       withLog(
-        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, ...cleaned } : x)) },
+        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, ...cleaned, ...(clearDiv ? { divisionId: undefined } : {}) } : x)) },
         {
           userId: user.id,
           userName: user.name,
@@ -406,6 +424,83 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
     pushToast('ok', `Account of ${target.name} updated`);
+  };
+
+  /** Self-service: change own password. Returns an error string, or null on success. */
+  const changePassword: StoreCtx['changePassword'] = (current, next) => {
+    if (!user) return 'Not signed in.';
+    if (user.password !== current) return 'Current password is incorrect.';
+    if (next.length < 6) return 'New password must be at least 6 characters long.';
+    if (next === current) return 'New password must be different from the current one.';
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === user.id ? { ...x, password: next, passwordResetAt: undefined } : x)) },
+        { userId: user.id, userName: user.name, type: 'profile', text: 'Changed their own password from the profile panel' }
+      )
+    );
+    pushToast('ok', 'Password updated — use it the next time you sign in');
+    return null;
+  };
+
+  /** Self-service: ask the program admin to reset the password to 123456. */
+  const requestPasswordReset: StoreCtx['requestPasswordReset'] = () => {
+    if (!user) return;
+    if (user.passwordResetAt) return;
+    setDb((d) => {
+      let next: DB = {
+        ...d,
+        users: d.users.map((x) => (x.id === user.id ? { ...x, passwordResetAt: Date.now() } : x)),
+      };
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'resetreq',
+        text: 'Requested a password reset (to 123456) — awaiting program admin verification',
+      });
+      next = pushNotif(
+        next,
+        {
+          text: `Password reset request — ${user.name} (@${user.username}) asks to reset their password to 123456`,
+          kind: 'account',
+          scope: { type: 'supervisors' },
+        },
+        user
+      );
+      return next;
+    });
+    fireBrowser('CEO Flow — reset request', `${user.name} requested a password reset — pending admin verification`);
+    pushToast('ok', 'Reset request sent — the program admin will verify and set it to 123456');
+  };
+
+  /** Program admin: approve a reset request — password becomes 123456. */
+  const approvePasswordReset: StoreCtx['approvePasswordReset'] = (userId) => {
+    if (!user || user.role !== 'admin') return;
+    const target = db.users.find((x) => x.id === userId);
+    if (!target) return;
+    setDb((d) => {
+      let next: DB = {
+        ...d,
+        users: d.users.map((x) => (x.id === userId ? { ...x, password: '123456', passwordResetAt: undefined } : x)),
+      };
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'reset',
+        text: `Approved password reset for ${target.name} (@${target.username}) — set to 123456`,
+      });
+      next = pushNotif(
+        next,
+        {
+          text: `Your password was reset by the administrator — your new password is 123456`,
+          kind: 'account',
+          scope: { type: 'division', divisionId: target.divisionId ?? '' },
+          targetUserId: target.id,
+        },
+        user
+      );
+      return next;
+    });
+    pushToast('ok', `${target.name}'s password reset to 123456 — they have been notified`);
   };
 
   const logout = () => {
@@ -457,9 +552,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           at: nowTs,
           byName: user.name,
           action: 'created',
-          text: multi
-            ? `Logged into the system and circulated to ${recipients.length} desks (primary: ${div?.code ?? primary})`
-            : `Logged into the system and transmitted to ${div?.name ?? primary}`,
+          text:
+            (multi
+              ? `Logged into the system and circulated to ${recipients.length} desks (primary: ${div?.code ?? primary})`
+              : `Logged into the system and transmitted to ${div?.name ?? primary}`) +
+            (input.assigneeIds && input.assigneeIds.length
+              ? ` · persons-in-charge: ${input.assigneeIds
+                  .map((a) => db.users.find((u) => u.id === a)?.name)
+                  .filter(Boolean)
+                  .join(', ')}`
+              : ''),
           toDivisionId: primary,
         },
       ],
@@ -472,7 +574,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       diverted: false,
       recipientIds: recipients,
       receivedBy: multi ? [] : undefined,
+      assignees: input.assigneeIds && input.assigneeIds.length ? [...new Set(input.assigneeIds.filter((x) => x))] : undefined,
     };
+    const picUsers = (paper.assignees ?? [])
+      .map((a) => db.users.find((u) => u.id === a))
+      .filter((u): u is User => !!u);
     setDb((d) => {
       let next: DB = { ...d, papers: [paper, ...d.papers], seq: d.seq + 1 };
       for (const rid of recipients) {
@@ -486,6 +592,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             docId: paper.id,
             ref,
             scope: { type: 'division', divisionId: rid },
+          },
+          user
+        );
+      }
+      for (const pic of picUsers) {
+        next = pushNotif(
+          next,
+          {
+            text: `${ref} assigned to you at intake — ${paper.title.slice(0, 56)}`,
+            kind: 'new',
+            docId: paper.id,
+            ref,
+            scope: { type: 'division', divisionId: paper.divisionId },
+            targetUserId: pic.id,
           },
           user
         );
@@ -529,23 +649,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ...next, updatedAt: Date.now() };
   };
 
-  const moveStage: StoreCtx['moveStage'] = (id, stage, note, employeeId) => {
+  const moveStage: StoreCtx['moveStage'] = (id, stage, note, assigneeIds) => {
     if (!user) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
-    if (p.stage === stage && employeeId === undefined) return;
+    if (p.stage === stage && assigneeIds === undefined) return;
     if (!canEdit(p)) {
       pushToast('warn', `Only ${divById(p.divisionId)?.name ?? 'the assigned division'} or a supervisor can move this paper`);
       return;
     }
     // Employees work their own board but may not close a work order — completion is verified by the division head.
-    if (user.role === 'employee' && stage === 'completed') {
+    if ((user.role === 'employee' || user.role === 'joborder') && stage === 'completed') {
       pushToast('warn', 'Completion is verified by your division head — submit the paper for review instead');
       return;
     }
     const meta = stageMeta(stage);
-    const emp = employeeId !== undefined ? db.users.find((u) => u.id === employeeId && u.role === 'employee') : undefined;
-    const picNote = emp ? ` · person-in-charge: ${emp.name}` : '';
+    const prevAssignees = p.assignees ?? [];
+    const nextAssignees = assigneeIds !== undefined ? assigneeIds.filter((x) => x) : prevAssignees;
+    const newPics = db.users.filter(
+      (u) => (u.role === 'employee' || u.role === 'joborder') && nextAssignees.includes(u.id) && !prevAssignees.includes(u.id)
+    );
+    const picNames = db.users.filter((u) => nextAssignees.includes(u.id)).map((u) => u.name);
+    const picNote = assigneeIds !== undefined ? ` · persons-in-charge: ${picNames.length ? picNames.join(', ') : 'none'}` : '';
     const entry = {
       id: uid(),
       at: Date.now(),
@@ -562,15 +687,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             ? touch(x, (pp) => ({
                 ...pp,
                 stage,
-                assignedTo: employeeId !== undefined ? employeeId || undefined : pp.assignedTo,
-                assignedByName: emp ? emp.name : employeeId === '' ? undefined : pp.assignedByName,
+                assignees: nextAssignees.length ? nextAssignees : undefined,
                 pendingHeadReview: false,
                 custody: [...pp.custody, entry],
               }))
             : x
         ),
       };
-      if (emp && emp.id !== p.assignedTo) {
+      for (const emp of newPics) {
         next = pushNotif(
           next,
           {
@@ -607,38 +731,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
       return next;
     });
-    pushToast('ok', emp ? `${p.ref} moved to ${meta.label} — ${emp.name} is person-in-charge` : `${p.ref} moved to ${meta.label}`);
+    pushToast(
+      'ok',
+      newPics.length
+        ? `${p.ref} moved to ${meta.label} — ${newPics.map((e) => e.name).join(', ')} designated person${newPics.length > 1 ? 's' : ''}-in-charge`
+        : `${p.ref} moved to ${meta.label}`
+    );
   };
 
-  /** Division heads / executives / admin designate (or clear) the person-in-charge. */
-  const assignPaper: StoreCtx['assignPaper'] = (id, employeeId) => {
+  /** Division heads / executives / admin / moderator designate (or clear) the persons-in-charge. */
+  const assignPaper: StoreCtx['assignPaper'] = (id, ids) => {
     if (!user) return;
-    if (user.role === 'employee' || user.role === 'division') {
-      pushToast('warn', 'Only the division head or an executive can designate the person-in-charge');
+    if (user.role === 'employee' || user.role === 'joborder') {
+      pushToast('warn', 'Only the division head or an executive can designate the persons-in-charge');
       return;
     }
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
-    const emp = employeeId ? db.users.find((u) => u.id === employeeId && u.role === 'employee') : null;
-    if (employeeId && !emp) return;
-    if ((p.assignedTo ?? '') === (employeeId ?? '')) return;
+    const prev = p.assignees ?? [];
+    const nextIds = [...new Set(ids.filter((x) => x))];
+    if (JSON.stringify(prev) === JSON.stringify(nextIds)) return;
+    const picUsers = db.users.filter((u) => (u.role === 'employee' || u.role === 'joborder') && nextIds.includes(u.id));
+    const added = picUsers.filter((u) => !prev.includes(u.id));
     const entry = {
       id: uid(),
       at: Date.now(),
       byName: user.name,
       action: 'note' as const,
-      text: emp
-        ? `Person-in-charge designated — ${emp.name} (${emp.title})`
-        : `Person-in-charge cleared — paper is unassigned`,
+      text: picUsers.length
+        ? `Persons-in-charge designated — ${picUsers.map((u) => u.name).join(', ')}`
+        : `Persons-in-charge cleared — paper is unassigned`,
     };
     setDb((d) => {
       let next: DB = {
         ...d,
         papers: d.papers.map((x) =>
-          x.id === id ? touch(x, (pp) => ({ ...pp, assignedTo: employeeId || undefined, assignedByName: emp?.name, custody: [...pp.custody, entry] })) : x
+          x.id === id ? touch(x, (pp) => ({ ...pp, assignees: nextIds.length ? nextIds : undefined, custody: [...pp.custody, entry] })) : x
         ),
       };
-      if (emp) {
+      for (const emp of added) {
         next = pushNotif(
           next,
           {
@@ -656,20 +787,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         userId: user.id,
         userName: user.name,
         type: 'stage',
-        text: emp ? `Assigned ${p.ref} to ${emp.name} as person-in-charge` : `Cleared person-in-charge on ${p.ref}`,
+        text: picUsers.length
+          ? `Assigned ${p.ref} to ${picUsers.map((u) => u.name).join(', ')} as persons-in-charge`
+          : `Cleared persons-in-charge on ${p.ref}`,
         ref: p.ref,
         docId: p.id,
       });
       return next;
     });
-    pushToast('ok', emp ? `${p.ref} — ${emp.name} is now person-in-charge` : `${p.ref} is now unassigned`);
+    pushToast(
+      'ok',
+      picUsers.length
+        ? `${p.ref} — ${picUsers.map((u) => u.name).join(', ')} now in charge`
+        : `${p.ref} is now unassigned`
+    );
   };
 
-  /** Employee submits their work order to the division head for verification. */
+  /** Employee / job-order personnel submit their work order to the division head for verification. */
   const submitToHead: StoreCtx['submitToHead'] = (id) => {
-    if (!user || user.role !== 'employee') return;
+    if (!user || (user.role !== 'employee' && user.role !== 'joborder')) return;
     const p = db.papers.find((x) => x.id === id);
-    if (!p || p.assignedTo !== user.id || p.pendingHeadReview || p.stage === 'completed') return;
+    if (!p || !(p.assignees ?? []).includes(user.id) || p.pendingHeadReview || p.stage === 'completed') return;
     const unit = divById(p.divisionId);
     const entry = {
       id: uid(),
@@ -712,11 +850,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** Division head / executive returns a submitted work order to the employee for rework. */
   const returnToEmployee: StoreCtx['returnToEmployee'] = (id) => {
     if (!user) return;
-    if (user.role === 'employee') return;
+    if (user.role === 'employee' || user.role === 'joborder') return;
     if (user.role === 'division' && !(user.divisionId && db.papers.find((x) => x.id === id)?.divisionId === user.divisionId)) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p || !p.pendingHeadReview) return;
-    const emp = p.assignedTo ? db.users.find((u) => u.id === p.assignedTo) : null;
+    const emps = db.users.filter((u) => (p.assignees ?? []).includes(u.id));
     const entry = {
       id: uid(),
       at: Date.now(),
@@ -731,7 +869,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           x.id === id ? touch(x, (pp) => ({ ...pp, stage: 'progress' as Stage, pendingHeadReview: false, custody: [...pp.custody, entry] })) : x
         ),
       };
-      if (emp) {
+      for (const emp of emps) {
         next = pushNotif(
           next,
           {
@@ -749,13 +887,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         userId: user.id,
         userName: user.name,
         type: 'stage',
-        text: `Returned ${p.ref} to ${emp?.name ?? 'employee'} for rework`,
+        text: `Returned ${p.ref} to ${emps.length ? emps.map((e) => e.name).join(', ') : 'employee'} for rework`,
         ref: p.ref,
         docId: p.id,
       });
       return next;
     });
-    pushToast('warn', `${p.ref} returned to ${emp?.name ?? 'the employee'} for rework`);
+    pushToast('warn', `${p.ref} returned to ${emps.length ? emps.map((e) => e.name).join(', ') : 'the employee'} for rework`);
   };
 
   const routePaper: StoreCtx['routePaper'] = (id, toDivisionId, note) => {
@@ -763,8 +901,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const p = db.papers.find((x) => x.id === id);
     const to = divById(toDivisionId);
     if (!p || !to || p.divisionId === toDivisionId) return;
-    if (user.role === 'employee') {
-      pushToast('warn', 'Employees cannot pass a paper to another division — only your division head can route it');
+    if (user.role === 'employee' || user.role === 'joborder') {
+      pushToast('warn', 'You cannot pass a paper to another division — only your division head can route it');
       return;
     }
     if (!canEdit(p)) {
@@ -986,6 +1124,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     assignPaper,
     submitToHead,
     returnToEmployee,
+    changePassword,
+    requestPasswordReset,
+    approvePasswordReset,
+    setProfileOpen: (open) => setUi((u) => ({ ...u, profileOpen: open })),
     login,
     logout,
     resetDemo,

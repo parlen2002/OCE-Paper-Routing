@@ -79,9 +79,12 @@ export const INITIAL_USERS: User[] = [
   { id: 'u-motor', name: 'Engr. Boyet Ramos', username: 'bramos', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'motorpool', status: 'active' },
   { id: 'u-plan', name: 'Engr. Grace Panganiban', username: 'gpanganiban', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'plan', status: 'active' },
   { id: 'u-admindiv', name: 'Ms. Carol Estrella', username: 'cestrella', password: 'cityeng2026', role: 'division', title: 'Records & Admin Officer', divisionId: 'admin', status: 'active' },
+  { id: 'u-mod', name: 'Ms. Bianca Salonga', username: 'bsalonga', password: 'cityeng2026', role: 'moderator', title: 'Board Moderator — Office of the City Engineer', shortTitle: 'Moderator', status: 'active' },
   // ---- employees: person-in-charge of individual work orders, each with a personal board ----
   { id: 'u-pmanalo', name: 'Engr. Paolo Manalo', username: 'pmanalo', password: 'cityeng2026', role: 'employee', title: 'Project Engineer I', divisionId: 'const', status: 'active' },
   { id: 'u-daquino', name: 'Mr. Dennis Aquino', username: 'daquino', password: 'cityeng2026', role: 'employee', title: 'Maintenance Foreman', divisionId: 'maint', status: 'active' },
+  { id: 'u-kduque', name: 'Mr. Kevin Duque', username: 'kduque', password: 'cityeng2026', role: 'joborder', title: 'Skilled Worker II (Job Order)', divisionId: 'maint', status: 'active' },
+  { id: 'u-lmarquez', name: 'Ms. Lani Marquez', username: 'lmarquez', password: 'cityeng2026', role: 'joborder', title: 'Records Clerk (Job Order)', divisionId: 'admin', status: 'active' },
   { id: 'u-kvillanueva', name: 'Engr. Kara Villanueva', username: 'kvillanueva', password: 'cityeng2026', role: 'employee', title: 'Survey Technician III', divisionId: 'survey', status: 'active' },
   { id: 'u-rito', name: 'Mr. Ramon Ito', username: 'rito', password: 'cityeng2026', role: 'employee', title: 'Sanitation Inspector', divisionId: 'psd', status: 'active' },
   { id: 'u-jreyes', name: 'Mr. Joem Reyes', username: 'jreyes', password: 'cityeng2026', role: 'employee', title: 'Lineman II', divisionId: 'elec', status: 'active' },
@@ -142,8 +145,7 @@ export function freshSeed(): DB {
       dueAt: now + 1.2 * D,
       remarks: 'CDRRMO flag: erosion undermining promenade footing near marker B-17.',
       diverted: false,
-      assignedTo: 'u-pmanalo',
-      assignedByName: 'Engr. Paolo Manalo',
+      assignees: ['u-pmanalo'],
     },
     {
       id: uid(),
@@ -185,7 +187,7 @@ export function freshSeed(): DB {
         c(now - 1.05 * D, CE, 'routed', 'Urgent - flooding at Malvar-Burgos intersection; Maintenance to dispatch declogging team', { fromDivisionId: 'admin', toDivisionId: 'maint' }),
         c(now - 0.9 * D, 'Engr. Nardo Salvador', 'attachment', 'Attached geotagged photo of overflow point', {}),
         c(now - 0.6 * D, 'Engr. Nardo Salvador', 'stage', 'Vactor truck dispatched; declogging underway', { stage: 'progress' }),
-        c(now - 0.5 * D, 'Engr. Nardo Salvador', 'note', 'Person-in-charge designated — Mr. Dennis Aquino (Maintenance Foreman)', {}),
+        c(now - 0.5 * D, 'Engr. Nardo Salvador', 'note', 'Persons-in-charge designated — Mr. Dennis Aquino (Maintenance Foreman), Mr. Kevin Duque (Skilled Worker II, Job Order)', {}),
       ],
       createdAt: now - 1.1 * D,
       updatedAt: now - 0.5 * D,
@@ -194,8 +196,7 @@ export function freshSeed(): DB {
       dueAt: now + 0.5 * D,
       remarks: 'Resident reports knee-deep water at the intersection after 30-min rain.',
       diverted: false,
-      assignedTo: 'u-daquino',
-      assignedByName: 'Mr. Dennis Aquino',
+      assignees: ['u-daquino', 'u-kduque'],
     },
     {
       id: uid(),
@@ -256,8 +257,7 @@ export function freshSeed(): DB {
       byId: 'u-admindiv',
       byName: CAROL,
       diverted: false,
-      assignedTo: 'u-jreyes',
-      assignedByName: 'Mr. Joem Reyes',
+      assignees: ['u-jreyes'],
     },
     {
       id: uid(),
@@ -283,8 +283,7 @@ export function freshSeed(): DB {
       byName: CAROL,
       dueAt: now + 6 * D,
       diverted: false,
-      assignedTo: 'u-kvillanueva',
-      assignedByName: 'Engr. Kara Villanueva',
+      assignees: ['u-kvillanueva'],
       pendingHeadReview: true,
     },
     {
@@ -357,8 +356,7 @@ export function freshSeed(): DB {
       byId: 'u-admindiv',
       byName: CAROL,
       diverted: true,
-      assignedTo: 'u-rito',
-      assignedByName: 'Mr. Ramon Ito',
+      assignees: ['u-rito'],
     },
     {
       id: uid(),
@@ -755,7 +753,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 8, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
+  return { v: 9, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

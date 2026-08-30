@@ -2,7 +2,7 @@ export type Stage = 'received' | 'review' | 'progress' | 'verification' | 'compl
 export type Cluster = 'ops' | 'tech';
 export type Kind = 'work-order' | 'permit' | 'memo' | 'complaint' | 'inspection';
 export type Priority = 'routine' | 'priority' | 'urgent';
-export type Role = 'supervisor' | 'division' | 'admin' | 'employee';
+export type Role = 'supervisor' | 'division' | 'admin' | 'employee' | 'joborder' | 'moderator';
 export type UserStatus = 'active' | 'pending' | 'disabled';
 
 export interface Division {
@@ -28,6 +28,8 @@ export interface User {
   requestedDivisionId?: string;
   requestedTitle?: string;
   requestedAt?: number;
+  /** Timestamp when the user asked the program admin to reset their password to 123456. */
+  passwordResetAt?: number;
 }
 
 export interface Attachment {
@@ -86,10 +88,9 @@ export interface Paper {
   recipientIds?: string[];
   /** Desk ids that acknowledged receipt of a circular. */
   receivedBy?: string[];
-  /** Employee (user id) designated person-in-charge of the work order. */
-  assignedTo?: string;
-  assignedByName?: string;
-  /** Employee submitted it to the division head — awaiting verification. */
+  /** Employee / job-order user ids designated persons-in-charge of the work order. */
+  assignees?: string[];
+  /** A person-in-charge submitted it to the division head — awaiting verification. */
   pendingHeadReview?: boolean;
 }
 
@@ -129,6 +130,8 @@ export type LogType =
   | 'approve'
   | 'deny'
   | 'edit'
+  | 'profile'
+  | 'resetreq'
   | 'delete';
 
 export interface SysLog {

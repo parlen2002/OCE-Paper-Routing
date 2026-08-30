@@ -100,7 +100,7 @@ export function Board() {
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
 
-  const isSup = user?.role === 'supervisor';
+  const isSup = user?.role !== 'division';
   const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
 
   const filtered = useMemo(() => {

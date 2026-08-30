@@ -3,10 +3,12 @@ import { useStore } from '../lib/store';
 import { I, Seal } from './icons';
 
 const QUICK = [
+  { label: 'Admin — system & logs', u: 'admin' },
   { label: 'Supervisor — Operations', u: 'avillanueva' },
   { label: 'Supervisor — Technical', u: 'ctiongson' },
   { label: 'Roads & Bridges', u: 'lbartolome' },
   { label: 'Building Permits', u: 'vhalali' },
+  { label: 'Records & Admin', u: 'cestrella' },
 ];
 
 const FLOW = [
@@ -175,13 +177,17 @@ export function Login() {
                   Demo accounts · password <b className="text-mist-300">cityeng2026</b>
                   <span className="h-px flex-1 bg-ink-600" />
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {QUICK.map((q) => (
                     <button
                       key={q.u}
                       type="button"
                       onClick={() => { setU(q.u); setP('cityeng2026'); setErr(''); }}
-                      className="rounded-md border border-ink-600 bg-ink-800/70 px-2.5 py-2 text-left text-[11.5px] font-semibold text-mist-200 transition hover:border-cyanx-500/70 hover:text-mist-50"
+                      className={`rounded-md border px-2.5 py-2 text-left text-[11.5px] font-semibold transition hover:border-flare-500/70 hover:text-mist-50 ${
+                        q.u === 'admin'
+                          ? 'border-flare-500/50 bg-flare-500/10 text-flare-300 hover:bg-flare-500/15'
+                          : 'border-ink-600 bg-ink-800/70 text-mist-200 hover:border-cyanx-500/70'
+                      }`}
                     >
                       {q.label}
                       <span className="mt-0.5 block font-mono text-[10px] font-normal text-mist-500">@{q.u}</span>

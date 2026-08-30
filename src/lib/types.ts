@@ -2,7 +2,7 @@ export type Stage = 'received' | 'review' | 'progress' | 'verification' | 'compl
 export type Cluster = 'ops' | 'tech';
 export type Kind = 'work-order' | 'permit' | 'memo' | 'complaint' | 'inspection';
 export type Priority = 'routine' | 'priority' | 'urgent';
-export type Role = 'supervisor' | 'division';
+export type Role = 'supervisor' | 'division' | 'admin';
 
 export interface Division {
   id: string;
@@ -99,11 +99,33 @@ export interface Activity {
   ref: string;
 }
 
+export type LogType =
+  | 'login'
+  | 'logout'
+  | 'create'
+  | 'stage'
+  | 'route'
+  | 'note'
+  | 'attachment'
+  | 'reset';
+
+export interface SysLog {
+  id: string;
+  at: number;
+  userId: string;
+  userName: string;
+  type: LogType;
+  text: string;
+  ref?: string;
+  docId?: string;
+}
+
 export interface DB {
   v: number;
   session: string | null;
   papers: Paper[];
   notifs: Notif[];
+  logs: SysLog[];
   seq: number;
 }
 
@@ -227,6 +249,7 @@ export const USERS: User[] = [
   { id: 'u-permits', name: 'Engr. Victor Halali', username: 'vhalali', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'permits' },
   { id: 'u-insp', name: 'Engr. Mona Abad', username: 'mabad', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'insp' },
   { id: 'u-admin', name: 'Ms. Carol Estrella', username: 'cestrella', password: 'cityeng2026', role: 'division', title: 'Records Officer', divisionId: 'admin' },
+  { id: 'u-sysadmin', name: 'System Admin', username: 'admin', password: 'cityeng2026', role: 'admin', title: 'System Administrator' },
 ];
 
 export const divById = (id: string): Division | undefined => DIVISIONS.find((d) => d.id === id);

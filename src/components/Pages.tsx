@@ -8,11 +8,11 @@ import { dayLabel, fmtDT, timeAgo } from '../lib/util';
 
 /* ------------------------------------------------ documents register */
 export function DocumentsPage() {
-  const { user, visiblePapers, ui, openDrawer, setNewOpen } = useStore();
+  const { user, visiblePapers, ui, openDrawer, setNewOpen, setReportOpen } = useStore();
   const [stage, setStage] = useState<'all' | Stage>('all');
   const [divF, setDivF] = useState<'all' | string>('all');
   const [kindF, setKindF] = useState<'all' | Kind>('all');
-  const isSup = user?.role === 'supervisor';
+  const isSup = user?.role !== 'division';
 
   const rows = useMemo(() => {
     const q = ui.search.trim().toLowerCase();
@@ -36,9 +36,15 @@ export function DocumentsPage() {
             : 'Papers that passed through your desk — the full registry stays with Records & Administration.'
         }
         right={
-          <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
-            <I n="plus" className="h-4 w-4" sw={2.2} /> Log paperwork
-          </button>
+          <>
+            <button className="btn btn-ghost" onClick={() => setReportOpen(true)} title="Print daily / weekly / monthly routing report">
+              <I n="printer" className="h-4 w-4" sw={2} />
+              Routing report
+            </button>
+            <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
+              <I n="plus" className="h-4 w-4" sw={2.2} /> Log paperwork
+            </button>
+          </>
         }
       />
 
@@ -128,7 +134,7 @@ export function DocumentsPage() {
 /* ------------------------------------------------ divisions directory */
 export function DivisionsPage() {
   const { db, user, go, setDivFilter } = useStore();
-  const isSup = user?.role === 'supervisor';
+  const isSup = user?.role !== 'division';
 
   return (
     <div>
@@ -214,7 +220,7 @@ const ACT_META: Record<string, { icon: IconName; color: string; label: string }>
 export function ActivityPage() {
   const { db, activities, openDrawer, user } = useStore();
   const [divF, setDivF] = useState<'all' | string>('all');
-  const isSup = user?.role === 'supervisor';
+  const isSup = user?.role !== 'division';
 
   const filtered = useMemo(() => {
     if (divF === 'all') return activities;

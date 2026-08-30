@@ -1,4 +1,5 @@
-import type { Activity, Attachment, Custody, CustodyAction, DB, Notif, Paper } from './types';
+import type { Activity, Attachment, Custody, CustodyAction, DB, LogType, Notif, Paper, SysLog } from './types';
+import { USERS } from './types';
 import { uid, makeStubPdf } from './util';
 
 const H = 36e5;
@@ -476,7 +477,8 @@ export function freshSeed(): DB {
     },
   ];
 
-  return { v: 1, session: null, papers, notifs, seq: 142 };
+  const logs = deriveLogs(papers);
+  return { v: 1, session: null, papers, notifs, logs, seq: 142 };
 }
 
 const ACTIVITY_MAP: Record<CustodyAction, Activity['type'] | null> = {
@@ -488,6 +490,70 @@ const ACTIVITY_MAP: Record<CustodyAction, Activity['type'] | null> = {
   attachment: 'attach',
   completed: 'complete',
 };
+
+const LOG_MAP: Record<CustodyAction, LogType | null> = {
+  created: 'create',
+  received: 'create',
+  stage: 'stage',
+  routed: 'route',
+  note: 'note',
+  attachment: 'attachment',
+  completed: 'stage',
+};
+
+/** Rebuilds the system log (per-user history) from the custody trails, plus sign-in events. */
+export function deriveLogs(papers: Paper[]): SysLog[] {
+  const byName = new Map(USERS.map((u) => [u.name, u]));
+  const logs: SysLog[] = [];
+  const firstSeen = new Map<string, number>();
+
+  for (const p of papers) {
+    for (const e of p.custody) {
+      const u = byName.get(e.byName);
+      if (!u) continue;
+      const type = LOG_MAP[e.action];
+      if (!type) continue;
+      if (!firstSeen.has(u.id) || e.at < (firstSeen.get(u.id) ?? 0)) firstSeen.set(u.id, e.at);
+      logs.push({
+        id: `log-${e.id}`,
+        at: e.at,
+        userId: u.id,
+        userName: u.name,
+        type,
+        text: e.text,
+        ref: p.ref,
+        docId: p.id,
+      });
+    }
+  }
+
+  // sign-in events — shortly before each officer's first recorded action
+  for (const [userId, at] of firstSeen) {
+    const u = byName.get(USERS.find((x) => x.id === userId)?.name ?? '');
+    logs.push({
+      id: uid(),
+      at: at - 22 * 60 * 1000,
+      userId,
+      userName: u?.name ?? 'Officer',
+      type: 'login',
+      text: 'Signed in to CEO Flow (session start)',
+    });
+  }
+
+  // a couple of historical sign-ins for the records desk and supervisors
+  const extra: [string, number][] = [
+    ['u-admin', Date.now() - 4.4 * 24 * 36e5],
+    ['u-sup1', Date.now() - 3.4 * 24 * 36e5],
+    ['u-sup2', Date.now() - 3.3 * 24 * 36e5],
+  ];
+  for (const [userId, at] of extra) {
+    const u = USERS.find((x) => x.id === userId);
+    if (!u) continue;
+    logs.push({ id: uid(), at, userId, userName: u.name, type: 'login', text: 'Signed in to CEO Flow (session start)' });
+  }
+
+  return logs.sort((a, b) => b.at - a.at);
+}
 
 export function deriveActivities(papers: Paper[]): Activity[] {
   const list: Activity[] = [];

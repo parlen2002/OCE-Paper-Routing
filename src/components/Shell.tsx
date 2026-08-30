@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, type Page } from '../lib/store';
+import type { Role } from '../lib/types';
 import { I, Seal, type IconName } from './icons';
 import { Avatar } from './ui';
 import { timeAgo } from '../lib/util';
 
-const NAV: { page: Page; label: string; icon: IconName; supervisorOnly?: boolean }[] = [
-  { page: 'dashboard', label: 'Command View', icon: 'grid', supervisorOnly: true },
+const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
+  { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin'] },
   { page: 'board', label: 'Tracker Board', icon: 'board' },
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
   { page: 'activity', label: 'Activity Log', icon: 'pulse' },
-  { page: 'users', label: 'Users & Access', icon: 'users', supervisorOnly: true },
+  { page: 'users', label: 'Users & Access', icon: 'users', roles: ['supervisor', 'admin'] },
+  { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin'] },
 ];
 
 const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
@@ -22,7 +24,7 @@ const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -71,7 +73,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <nav className="scroll-slim mt-4 flex-1 space-y-0.5 overflow-y-auto px-3">
           <p className="px-2 pb-1.5 font-mono text-[9.5px] uppercase tracking-[0.24em] text-mist-600">Command</p>
-          {NAV.filter((n) => !n.supervisorOnly || isSup).map((n) => {
+          {NAV.filter((n) => !n.roles || n.roles.includes(user.role)).map((n) => {
             const active = ui.page === n.page;
             return (
               <button
@@ -104,7 +106,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-[12.5px] font-bold text-mist-100">{user.name}</p>
               <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
-                {isSup ? 'Supervisor' : 'Division Head'}
+                {user.role === 'admin' ? 'Administrator' : isSup ? 'Supervisor' : 'Division Head'}
               </p>
             </div>
             <button
@@ -158,6 +160,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2.5">
+            {/* print routing report */}
+            <button
+              onClick={() => setReportOpen(true)}
+              className="rounded-md border border-ink-600 bg-ink-850 p-2.5 text-mist-300 transition hover:border-flare-500/70 hover:text-flare-400"
+              title="Print paper routing report — daily / weekly / monthly"
+            >
+              <I n="printer" className="h-[18px] w-[18px]" />
+            </button>
+
             {/* notifications */}
             <div className="relative">
               <button

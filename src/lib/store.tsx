@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Stage, User } from './types';
+import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Stage, SysLog, User } from './types';
 import { USERS, divById, stageMeta, userById } from './types';
-import { freshSeed, deriveActivities } from './seed';
+import { freshSeed, deriveActivities, deriveLogs } from './seed';
 import { uid } from './util';
 
 const LS_KEY = 'ppc-ceoflow-v1';
@@ -11,7 +11,10 @@ function loadDb(): DB {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 1 && Array.isArray(d.papers) && Array.isArray(d.notifs)) return d as DB;
+      if (d && d.v === 1 && Array.isArray(d.papers) && Array.isArray(d.notifs)) {
+        if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
+        return d as DB;
+      }
     }
   } catch {
     /* corrupted storage — reseed */
@@ -19,12 +22,13 @@ function loadDb(): DB {
   return freshSeed();
 }
 
-export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users';
+export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users' | 'userlogs';
 
 export interface UIState {
   page: Page;
   drawerId: string | null;
   newOpen: boolean;
+  reportOpen: boolean;
   search: string;
   divFilter: string; // 'all' | division id
   viewer: string | null; // image url for full view
@@ -53,6 +57,7 @@ interface StoreCtx {
   openDrawer: (id: string) => void;
   closeDrawer: () => void;
   setNewOpen: (open: boolean) => void;
+  setReportOpen: (open: boolean) => void;
   setSearch: (s: string) => void;
   setDivFilter: (s: string) => void;
   setViewer: (url: string | null) => void;
@@ -93,6 +98,11 @@ function fireBrowser(title: string, body: string) {
   }
 }
 
+const withLog = (d: DB, entry: Omit<SysLog, 'id' | 'at'>): DB => ({
+  ...d,
+  logs: [{ ...entry, id: uid(), at: Date.now() }, ...d.logs].slice(0, 600),
+});
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [db, setDb] = useState<DB>(loadDb);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -100,6 +110,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     page: 'dashboard',
     drawerId: null,
     newOpen: false,
+    reportOpen: false,
     search: '',
     divFilter: 'all',
     viewer: null,
@@ -122,7 +133,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       setUi((u) => ({
         ...u,
-        page: user.role === 'supervisor' ? 'dashboard' : 'board',
+        page: user.role === 'division' ? 'board' : 'dashboard',
         divFilter: 'all',
       }));
     }
@@ -133,7 +144,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const visiblePapers = useMemo(() => {
     if (!user) return [];
-    if (user.role === 'supervisor') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    if (user.role !== 'division') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
     const mine = (p: Paper) =>
       p.divisionId === user.divisionId ||
       p.intendedId === user.divisionId ||
@@ -144,7 +155,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const visibleNotifs = useMemo(() => {
     if (!user) return [];
     const vis = db.notifs.filter((n) =>
-      user.role === 'supervisor'
+      user.role !== 'division'
         ? true
         : n.scope.type === 'division' && n.scope.divisionId === user.divisionId
     );
@@ -170,22 +181,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const notif: Notif = { ...n, id: uid(), at: Date.now(), readBy: [currentUser.id] };
     // Taskbar notification — only when the event targets the signed-in user's scope
     const targetsMe =
-      currentUser.role === 'supervisor'
-        ? n.scope.type === 'supervisors'
-        : n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId;
+      currentUser.role === 'admin'
+        ? true
+        : currentUser.role === 'supervisor'
+          ? n.scope.type === 'supervisors'
+          : n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId;
     if (targetsMe) fireBrowser('CEO Flow — ' + (n.ref ?? 'Update'), n.text);
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };
 
   const canEdit = (p: Paper): boolean => {
     if (!user) return false;
-    return user.role === 'supervisor' || user.divisionId === p.divisionId;
+    return user.role !== 'division' || user.divisionId === p.divisionId;
   };
 
   const login = (username: string, password: string): boolean => {
     const u = USERS.find((x) => x.username.toLowerCase() === username.trim().toLowerCase());
     if (!u || u.password !== password) return false;
-    setDb((d) => ({ ...d, session: u.id }));
+    setDb((d) =>
+      withLog({ ...d, session: u.id }, { userId: u.id, userName: u.name, type: 'login', text: 'Signed in to CEO Flow — session start' })
+    );
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         void Notification.requestPermission();
@@ -197,8 +212,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    setDb((d) => ({ ...d, session: null }));
-    setUi((u) => ({ ...u, drawerId: null, newOpen: false, viewer: null, search: '' }));
+    setDb((d) =>
+      user
+        ? withLog({ ...d, session: null }, { userId: user.id, userName: user.name, type: 'logout', text: 'Signed out — session closed' })
+        : { ...d, session: null }
+    );
+    setUi((u) => ({ ...u, drawerId: null, newOpen: false, reportOpen: false, viewer: null, search: '' }));
   };
 
   const resetDemo = () => {
@@ -207,7 +226,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    setDb(freshSeed());
+    setDb(
+      user
+        ? withLog(freshSeed(), { userId: user.id, userName: user.name, type: 'reset', text: 'Restored demo dataset to the original seed' })
+        : freshSeed()
+    );
     pushToast('ok', 'Demo data restored to the original seed');
   };
 
@@ -258,13 +281,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         },
         user
       );
-      if (user.role !== 'supervisor') {
+      if (user.role === 'division') {
         next = pushNotif(
           next,
           { text: `${ref} posted by ${user.name} for ${div?.code ?? ''}`, kind: 'new', docId: paper.id, ref, scope: { type: 'supervisors' } },
           user
         );
       }
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'create',
+        text: `Logged ${ref} — ${paper.title.slice(0, 70)} → ${div?.code ?? ''}`,
+        ref,
+        docId: paper.id,
+      });
       return next;
     });
     fireBrowser('CEO Flow — ' + ref, `New paperwork logged and transmitted to ${div?.code ?? 'division'}`);
@@ -314,6 +345,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           user
         );
       }
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'stage',
+        text: `Moved ${p.ref} to ${meta.label}${note?.trim() ? ` — ${note.trim()}` : ''}`,
+        ref: p.ref,
+        docId: p.id,
+      });
       return next;
     });
     pushToast('ok', `${p.ref} moved to ${meta.label}`);
@@ -366,13 +405,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         },
         user
       );
-      if (user.role !== 'supervisor') {
+      if (user.role === 'division') {
         next = pushNotif(
           next,
           { text: `${p.ref} re-routed ${from?.code} → ${to.code} by ${user.name}`, kind: 'route', docId: p.id, ref: p.ref, scope: { type: 'supervisors' } },
           user
         );
       }
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'route',
+        text: `Forwarded ${p.ref} from ${from?.code ?? '?'} to ${to.code}`,
+        ref: p.ref,
+        docId: p.id,
+      });
       return next;
     });
     pushToast('ok', `${p.ref} forwarded to ${to.code} — it now sits in their Received tray`);
@@ -383,10 +430,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
     const entry = { id: uid(), at: Date.now(), byName: user.name, action: 'note' as const, text: text.trim() };
-    setDb((d) => ({
-      ...d,
-      papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, custody: [...pp.custody, entry] })) : x)),
-    }));
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, custody: [...pp.custody, entry] })) : x)),
+        },
+        { userId: user.id, userName: user.name, type: 'note', text: `Remark on ${p.ref} — ${text.trim().slice(0, 70)}`, ref: p.ref, docId: p.id }
+      )
+    );
     pushToast('ok', 'Remark added to the chain of custody');
   };
 
@@ -401,12 +453,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       action: 'attachment' as const,
       text: `Attached ${atts.length} file${atts.length > 1 ? 's' : ''} — ${atts.map((a) => a.name).join(', ').slice(0, 80)}`,
     };
-    setDb((d) => ({
-      ...d,
-      papers: d.papers.map((x) =>
-        x.id === id ? touch(x, (pp) => ({ ...pp, attachments: [...pp.attachments, ...atts], custody: [...pp.custody, entry] })) : x
-      ),
-    }));
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          papers: d.papers.map((x) =>
+            x.id === id ? touch(x, (pp) => ({ ...pp, attachments: [...pp.attachments, ...atts], custody: [...pp.custody, entry] })) : x
+          ),
+        },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'attachment',
+          text: `Attached ${atts.length} file(s) to ${p.ref}`,
+          ref: p.ref,
+          docId: p.id,
+        }
+      )
+    );
     const geos = atts.filter((a) => a.geotagged).length;
     pushToast('ok', geos > 0 ? `${atts.length} file(s) attached — ${geos} geotagged photo(s) linked to the map` : `${atts.length} file(s) attached`);
   };
@@ -444,6 +508,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     openDrawer: (id) => setUi((u) => ({ ...u, drawerId: id })),
     closeDrawer: () => setUi((u) => ({ ...u, drawerId: null })),
     setNewOpen: (open) => setUi((u) => ({ ...u, newOpen: open })),
+    setReportOpen: (open) => setUi((u) => ({ ...u, reportOpen: open })),
     setSearch: (s) => setUi((u) => ({ ...u, search: s })),
     setDivFilter: (s) => setUi((u) => ({ ...u, divFilter: s })),
     setViewer: (url) => setUi((u) => ({ ...u, viewer: url })),

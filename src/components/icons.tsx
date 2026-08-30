@@ -5,7 +5,7 @@ export type IconName =
   | 'search' | 'pin' | 'clip' | 'cam' | 'clock' | 'check' | 'checkc' | 'arr'
   | 'x' | 'plus' | 'out' | 'flag' | 'eye' | 'dl' | 'ext' | 'chevD' | 'chevR'
   | 'route' | 'note' | 'send' | 'alert' | 'wrench' | 'refresh' | 'lock' | 'cal'
-  | 'layers' | 'shield' | 'inbox' | 'trash';
+  | 'layers' | 'shield' | 'inbox' | 'trash' | 'printer' | 'history';
 
 const P: Record<IconName, React.ReactNode> = {
   grid: (
@@ -199,6 +199,21 @@ const P: Record<IconName, React.ReactNode> = {
       <path d="M4.5 6.5h15M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
       <path d="M6.5 6.5 7.3 19a1.6 1.6 0 0 0 1.6 1.5h6.2a1.6 1.6 0 0 0 1.6-1.5l.8-12.5" />
       <path d="M10 10.5v6M14 10.5v6" />
+    </>
+  ),
+  printer: (
+    <>
+      <path d="M7 8V3.5h10V8" />
+      <rect x="3.5" y="8" width="17" height="8.5" rx="1.4" />
+      <path d="M7 13.5h10V21H7z" />
+      <path d="M17.4 10.8h.1" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M4 5v4h4" />
+      <path d="M4.6 9A8 8 0 1 1 4 12" />
+      <path d="M12 8v4.2l2.8 1.8" />
     </>
   ),
 };

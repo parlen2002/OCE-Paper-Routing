@@ -7,6 +7,8 @@ import { Dashboard } from './components/Dashboard';
 import { DocDrawer } from './components/DocDrawer';
 import { NewDocModal } from './components/NewDocModal';
 import { ActivityPage, DivisionsPage, DocumentsPage, UsersPage } from './components/Pages';
+import { LogsPage } from './components/LogsPage';
+import { ReportModal } from './components/ReportModal';
 import { Toasts } from './components/ui';
 import { I } from './components/icons';
 
@@ -58,7 +60,9 @@ function AppInner() {
   }
 
   const page =
-    user.role === 'division' && (ui.page === 'dashboard' || ui.page === 'users') ? 'board' : ui.page;
+    user.role === 'division' && (ui.page === 'dashboard' || ui.page === 'users' || ui.page === 'userlogs')
+      ? 'board'
+      : ui.page;
 
   return (
     <>
@@ -69,9 +73,11 @@ function AppInner() {
         {page === 'divisions' && <DivisionsPage />}
         {page === 'activity' && <ActivityPage />}
         {page === 'users' && <UsersPage />}
+        {page === 'userlogs' && user.role === 'admin' && <LogsPage />}
       </Shell>
       <DocDrawer />
       <NewDocModal />
+      <ReportModal />
       <ImageViewer />
       <Toasts />
     </>

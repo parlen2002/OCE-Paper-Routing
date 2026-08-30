@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CLUSTERS, DIVISIONS, KINDS, STAGES, USERS, divById } from '../lib/types';
-import type { Kind, Stage } from '../lib/types';
+import { CLUSTERS, DIVISIONS, INSPECTORATE, KINDS, STAGES, divById } from '../lib/types';
+import type { Kind, Role, Stage, User, UserStatus } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, EmptyState, KindTag, PageHead, PriorityTag, StageChip } from './ui';
 import { dayLabel, fmtDT, timeAgo } from '../lib/util';
@@ -203,6 +203,45 @@ export function DivisionsPage() {
           </div>
         </section>
       ))}
+
+      {/* Inspectorate Team — cross-division inspection unit */}
+      <section className="anim-fade-up">
+        <div className="mb-3 flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-tealx-500" style={{ boxShadow: '0 0 10px #2dd4bf88' }} />
+          <h2 className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Cross-division unit</h2>
+          <span className="h-px flex-1 bg-ink-700" />
+        </div>
+        {(() => {
+          const open = db.papers.filter((p) => p.divisionId === INSPECTORATE.id && p.stage !== 'completed').length;
+          const done = db.papers.filter((p) => p.divisionId === INSPECTORATE.id && p.stage === 'completed').length;
+          return (
+            <button
+              onClick={() => {
+                setDivFilter(INSPECTORATE.id);
+                go('board');
+              }}
+              className="flex w-full items-center gap-4 rounded-lg border border-tealx-500/35 bg-ink-900/80 p-4 text-left transition hover:border-tealx-500/70 hover:bg-ink-800/70"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-tealx-500/50 bg-tealx-500/10 text-tealx-400">
+                <I n="shield" className="h-5 w-5" sw={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="font-display text-[17px] font-bold uppercase tracking-wide text-mist-50">{INSPECTORATE.name}</span>
+                  <span className="rounded-sm border border-tealx-500/50 bg-tealx-500/10 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-tealx-400">
+                    {INSPECTORATE.code}
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-mist-400">{INSPECTORATE.desc}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block font-display text-[24px] font-bold leading-none text-tealx-400 tabular">{open}</span>
+                <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
+              </span>
+            </button>
+          );
+        })()}
+      </section>
     </div>
   );
 }
@@ -313,67 +352,283 @@ export function ActivityPage() {
   );
 }
 
-/* ------------------------------------------------ users & access */
+/* ------------------------------------------------ users & accounts (admin) */
+const ROLE_CHIP: Record<Role, { label: string; color: string }> = {
+  admin: { label: 'Admin', color: '#fbc94a' },
+  supervisor: { label: 'Dept. Head', color: '#ff8a4c' },
+  division: { label: 'Division', color: '#56c8f0' },
+};
+
+const STATUS_CHIP: Record<UserStatus, { label: string; color: string }> = {
+  active: { label: 'Active', color: '#45d483' },
+  pending: { label: 'Pending', color: '#f5b924' },
+  disabled: { label: 'Disabled', color: '#f4645c' },
+};
+
+function EditUserModal({ target, onClose }: { target: User; onClose: () => void }) {
+  const { updateUser } = useStore();
+  const [name, setName] = useState(target.name);
+  const [title, setTitle] = useState(target.title);
+  const [role, setRole] = useState<Role>(target.role);
+  const [divisionId, setDivisionId] = useState(target.divisionId ?? '');
+  const [status, setStatus] = useState<UserStatus>(target.status);
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
+
+  const save = () => {
+    if (name.trim().length < 3) return setErr('Full name is required (min. 3 characters).');
+    if (role === 'division' && !divisionId) return setErr('A division assignment is required for division accounts.');
+    if (password && password.length < 6) return setErr('New password must be at least 6 characters — or leave blank to keep the current one.');
+    updateUser(target.id, {
+      name: name.trim(),
+      title: title.trim(),
+      role,
+      divisionId: role === 'division' ? divisionId : undefined,
+      status,
+      password: password || undefined,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[62] flex items-start justify-center overflow-y-auto p-4 sm:p-10">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="anim-pop relative w-full max-w-lg rounded-xl border border-ink-600 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.8)]">
+        <div className="mb-4 flex items-center gap-3">
+          <Avatar name={target.name} size="lg" />
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-flare-400">Edit account</p>
+            <h3 className="truncate font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">@{target.username}</h3>
+          </div>
+          <button onClick={onClose} className="ml-auto rounded-md border border-ink-600 p-2 text-mist-400 transition hover:border-redx-500/60 hover:text-redx-400">
+            <I n="x" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Full name</span>
+              <input className="field" value={name} onChange={(e) => { setName(e.target.value); setErr(''); }} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Title / designation</span>
+              <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Role</span>
+              <select className="field" value={role} onChange={(e) => { setRole(e.target.value as Role); setErr(''); }}>
+                <option value="division">Division</option>
+                <option value="supervisor">Dept. Head</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team</span>
+              <select className="field" value={divisionId} disabled={role !== 'division'} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
+                <option value="">— none —</option>
+                {DIVISIONS.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+                <option value={INSPECTORATE.id}>{INSPECTORATE.name}</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Status</span>
+              <select className="field" value={status} onChange={(e) => setStatus(e.target.value as UserStatus)}>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Reset password (optional)</span>
+            <input className="field font-mono" type="text" placeholder="Leave blank to keep current password" value={password} onChange={(e) => { setPassword(e.target.value); setErr(''); }} />
+          </label>
+
+          {err && (
+            <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
+              <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
+              {err}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={save}>
+              <I n="check" className="h-4 w-4" sw={2.2} />
+              Save changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function UsersPage() {
-  const { user, db } = useStore();
-  if (user?.role !== 'supervisor') return null;
+  const { user, db, approveUser, denyUser, go } = useStore();
+  const [editing, setEditing] = useState<User | null>(null);
+  if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
+  const isAdmin = user?.role === 'admin';
+
+  const pending = db.users.filter((u) => u.status === 'pending');
 
   return (
     <div>
       <PageHead
-        kicker="Access control"
-        title="Users & access"
-        sub="Authentication is mandatory — nothing in this system is visible without an authorized account. Supervisors hold the whole office; division accounts hold their queue."
+        kicker={isAdmin ? 'Administrator' : 'Access control'}
+        title="Users & accounts"
+        sub={
+          isAdmin
+            ? 'Approve sign-up requests, edit accounts, reset passwords and control who holds a key to the system. Every change is written to the system log.'
+            : 'Authentication is mandatory — nothing in this system is visible without an authorized account. Account verification is handled by the administrator.'
+        }
+        right={
+          isAdmin ? (
+            <button className="btn btn-ghost" onClick={() => go('userlogs')}>
+              <I n="history" className="h-4 w-4" sw={2} />
+              User history & logs
+            </button>
+          ) : undefined
+        }
       />
 
-      <div className="anim-fade-up mb-6 grid gap-3 sm:grid-cols-3">
-        {[
-          { icon: 'shield' as IconName, color: '#56c8f0', t: 'Supervisor scope', d: 'Full visibility across all nine divisions, re-routing authority, and every signal on the bell.' },
-          { icon: 'lock' as IconName, color: '#ff8a4c', t: 'Division scope', d: 'Own queue plus the custody trail of everything that ever passed through the desk. Other desks stay read-only.' },
-          { icon: 'bell' as IconName, color: '#45d483', t: 'Signals & taskbar', d: 'New postings, forwards and completions raise in-app signals and OS taskbar notifications when permitted.' },
-        ].map((c, i) => (
-          <div key={c.t} className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 70}ms` }}>
-            <span style={{ color: c.color }}><I n={c.icon} className="h-5 w-5" sw={1.8} /></span>
-            <h3 className="mt-2 font-display text-[17px] font-bold uppercase tracking-wider text-mist-50">{c.t}</h3>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-mist-400">{c.d}</p>
+      {isAdmin && (
+        <section className="anim-fade-up mb-6 rounded-lg border border-amberx-500/35 bg-ink-900/80 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <I n="bell" className="h-4 w-4 text-amberx-400" sw={2} />
+            <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Verification queue</h3>
+            {pending.length > 0 && (
+              <span className="rounded bg-amberx-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-amberx-400 tabular">
+                {pending.length} waiting
+              </span>
+            )}
+            <span className="h-px flex-1 bg-ink-700" />
           </div>
-        ))}
+
+          {pending.length === 0 ? (
+            <p className="py-5 text-center font-mono text-[10.5px] uppercase tracking-[0.18em] text-mist-600">
+              No pending account requests — the queue is clear
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {pending.map((u) => {
+                const div = divById(u.requestedDivisionId ?? u.divisionId ?? '');
+                return (
+                  <div key={u.id} className="anim-pop flex items-center gap-3 rounded-md border border-ink-600 bg-ink-850 p-3.5">
+                    <Avatar name={u.name} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-bold text-mist-50">{u.name}</p>
+                      <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
+                        @{u.username} · requested {u.requestedTitle ?? u.title}
+                      </p>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        {div && <DivChip div={div} />}
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-mist-600">
+                          {u.requestedAt ? timeAgo(u.requestedAt) : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-1.5">
+                      <button onClick={() => approveUser(u.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]">
+                        <I n="check" className="h-3.5 w-3.5" sw={2.4} />
+                        Approve
+                      </button>
+                      <button onClick={() => denyUser(u.id)} className="btn btn-ghost px-3 py-1.5 text-[11.5px] hover:border-redx-500/60 hover:text-redx-400">
+                        <I n="x" className="h-3.5 w-3.5" sw={2.4} />
+                        Deny
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      <div className="anim-fade-up overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80" style={{ animationDelay: '120ms' }}>
+        <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
+          <I n="users" className="h-3.5 w-3.5 text-cyanx-400" sw={2} />
+          <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Account register</h3>
+          <span className="rounded bg-ink-700 px-2 py-0.5 font-mono text-[10px] font-bold text-mist-200 tabular">{db.users.length}</span>
+        </div>
+        <div className="scroll-slim overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left">
+            <thead>
+              <tr className="border-b border-ink-700 font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">
+                <th className="px-4 py-2.5 font-semibold">Officer</th>
+                <th className="px-3 py-2.5 font-semibold">Role</th>
+                <th className="px-3 py-2.5 font-semibold">Division / team</th>
+                <th className="px-3 py-2.5 font-semibold">Status</th>
+                <th className="px-3 py-2.5 font-semibold">Last event</th>
+                {isAdmin && <th className="px-4 py-2.5 text-right font-semibold">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {db.users.map((u, i) => {
+                const div = u.divisionId ? divById(u.divisionId) : undefined;
+                const onDuty = db.session === u.id;
+                const lastEvent = db.logs.find((l) => l.userId === u.id);
+                const rc = ROLE_CHIP[u.role];
+                const sc = STATUS_CHIP[u.status];
+                return (
+                  <tr key={u.id} className="anim-fade-up border-b border-ink-700/60 transition hover:bg-ink-800/50" style={{ animationDelay: `${i * 30}ms` }}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Avatar name={u.name} />
+                          {onDuty && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-ink-900 bg-greenx-500" title="On duty now" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-bold text-mist-100">{u.name}</p>
+                          <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">@{u.username} · {u.title}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: rc.color, background: `${rc.color}1a`, border: `1px solid ${rc.color}55` }}>
+                        {rc.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">{div ? <DivChip div={div} /> : <span className="font-mono text-[9.5px] uppercase tracking-wider text-mist-600">—</span>}</td>
+                    <td className="px-3 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: sc.color, background: `${sc.color}14`, border: `1px solid ${sc.color}50` }}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${u.status === 'active' ? 'bg-greenx-500' : u.status === 'pending' ? 'bg-amberx-500' : 'bg-redx-500'}`} />
+                        {sc.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
+                      {lastEvent ? `${lastEvent.type} · ${timeAgo(lastEvent.at)}` : 'no activity yet'}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3 text-right">
+                        {u.id === user?.id ? (
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-mist-600">this is you</span>
+                        ) : (
+                          <button onClick={() => setEditing(u)} className="btn btn-ghost px-3 py-1.5 text-[11px]">
+                            <I n="wrench" className="h-3.5 w-3.5" sw={2} />
+                            Edit
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="border-t border-ink-700 px-4 py-2.5 font-mono text-[9px] uppercase tracking-[0.16em] text-mist-600">
+          Sign-ups from the gate screen land in the verification queue · every edit is stamped into the system log
+        </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {USERS.map((u, i) => {
-          const div = u.divisionId ? divById(u.divisionId) : undefined;
-          const onDuty = db.session === u.id;
-          const queue = div ? db.papers.filter((p) => p.divisionId === div.id && p.stage !== 'completed').length : db.papers.filter((p) => p.stage !== 'completed').length;
-          return (
-            <div key={u.id} className="anim-fade-up flex items-center gap-3.5 rounded-lg border border-ink-700 bg-ink-900/80 p-4 transition hover:border-ink-500" style={{ animationDelay: `${i * 45}ms` }}>
-              <div className="relative">
-                <Avatar name={u.name} size="lg" />
-                {onDuty && (
-                  <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-ink-900 bg-greenx-500" title="On duty now" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13.5px] font-bold text-mist-50">
-                  {u.name}
-                  {onDuty && <span className="ml-2 rounded bg-greenx-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-greenx-500">on duty</span>}
-                </p>
-                <p className="truncate font-mono text-[9.5px] uppercase tracking-[0.14em] text-mist-500">@{u.username} · {u.title}</p>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  {u.role === 'supervisor' ? (
-                    <span className="rounded-sm border border-flare-500/60 bg-flare-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-flare-400">
-                      Supervisor
-                    </span>
-                  ) : (
-                    div && <DivChip div={div} />
-                  )}
-                  <span className="font-mono text-[9px] uppercase tracking-wider text-mist-600 tabular">{queue} in scope</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {editing && isAdmin && <EditUserModal target={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }

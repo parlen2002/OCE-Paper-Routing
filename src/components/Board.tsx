@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, PRIORITIES, STAGES, divById } from '../lib/types';
+import { DIVISIONS, INSPECTORATE, PRIORITIES, STAGES, divById } from '../lib/types';
 import type { Paper, Stage } from '../lib/types';
 import { I } from './icons';
 import { DivChip, KindTag, PriorityTag } from './ui';
@@ -143,13 +143,15 @@ export function Board() {
             >
               All divisions
             </button>
-            {DIVISIONS.map((d) => (
+            {[...DIVISIONS, INSPECTORATE].map((d) => (
               <button
                 key={d.id}
                 onClick={() => setDivFilter(d.id === ui.divFilter ? 'all' : d.id)}
                 className={`rounded-md border px-2.5 py-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-wider transition ${
                   ui.divFilter === d.id
-                    ? 'border-cyanx-500 bg-cyanx-500/12 text-cyanx-400'
+                    ? d.id === INSPECTORATE.id
+                      ? 'border-tealx-500 bg-tealx-500/12 text-tealx-400'
+                      : 'border-cyanx-500 bg-cyanx-500/12 text-cyanx-400'
                     : 'border-ink-600 bg-ink-850 text-mist-400 hover:text-mist-100'
                 }`}
                 title={d.name}

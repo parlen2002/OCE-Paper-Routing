@@ -3,6 +3,7 @@ export type Cluster = 'ops' | 'tech';
 export type Kind = 'work-order' | 'permit' | 'memo' | 'complaint' | 'inspection';
 export type Priority = 'routine' | 'priority' | 'urgent';
 export type Role = 'supervisor' | 'division' | 'admin';
+export type UserStatus = 'active' | 'pending' | 'disabled';
 
 export interface Division {
   id: string;
@@ -22,6 +23,11 @@ export interface User {
   role: Role;
   title: string;
   divisionId?: string;
+  shortTitle?: string;
+  status: UserStatus;
+  requestedDivisionId?: string;
+  requestedTitle?: string;
+  requestedAt?: number;
 }
 
 export interface Attachment {
@@ -82,7 +88,7 @@ export interface Notif {
   id: string;
   at: number;
   text: string;
-  kind: 'new' | 'move' | 'route' | 'complete';
+  kind: 'new' | 'move' | 'route' | 'complete' | 'account';
   docId?: string;
   ref?: string;
   scope: { type: 'division'; divisionId: string } | { type: 'supervisors' };
@@ -107,7 +113,11 @@ export type LogType =
   | 'route'
   | 'note'
   | 'attachment'
-  | 'reset';
+  | 'reset'
+  | 'signup'
+  | 'approve'
+  | 'deny'
+  | 'edit';
 
 export interface SysLog {
   id: string;
@@ -126,6 +136,7 @@ export interface DB {
   papers: Paper[];
   notifs: Notif[];
   logs: SysLog[];
+  users: User[];
   seq: number;
 }
 
@@ -157,105 +168,104 @@ export const DIVISIONS: Division[] = [
   {
     id: 'const',
     code: 'CONST',
-    name: 'Construction & Projects',
+    name: 'Construction Division',
     cluster: 'ops',
     head: 'Engr. Ramil Domingo',
     headUser: 'rdomingo',
-    desc: 'Vertical & structural projects, seawalls, public buildings and special works.',
-  },
-  {
-    id: 'roads',
-    code: 'ROADS',
-    name: 'Roads & Bridges',
-    cluster: 'ops',
-    head: 'Engr. Liza Bartolome',
-    headUser: 'lbartolome',
-    desc: 'Road concreting, bridges, culverts, shoulders and right-of-way works.',
+    desc: 'Vertical & structural projects, seawalls, road concreting, public buildings and special works.',
   },
   {
     id: 'maint',
     code: 'MAINT',
-    name: 'Maintenance',
+    name: 'Maintenance Division',
     cluster: 'ops',
     head: 'Engr. Nardo Salvador',
     headUser: 'nsalvador',
-    desc: 'Sidewalks, public structures upkeep, clearing operations and repair crews.',
+    desc: 'Upkeep of public structures, drainage & declogging, clearing operations and repair crews.',
+  },
+  {
+    id: 'psd',
+    code: 'PSD',
+    name: 'Public Services Division',
+    cluster: 'ops',
+    head: 'Engr. Liza Bartolome',
+    headUser: 'lbartolome',
+    desc: 'Public service works, sidewalks, market facilities, parks support and community-requested jobs.',
+  },
+  {
+    id: 'survey',
+    code: 'SURVEY',
+    name: 'Survey and Mapping Division',
+    cluster: 'tech',
+    head: 'Engr. Dante Villamor',
+    headUser: 'dvillamor',
+    desc: 'Land surveys, right-of-way verification, topographic mapping and geodetic control for projects.',
   },
   {
     id: 'elec',
-    code: 'ELEC-MECH',
-    name: 'Electrical & Mechanical',
+    code: 'ELEC',
+    name: 'Electrical Division',
     cluster: 'ops',
     head: 'Engr. Petra Yumul',
     headUser: 'pyumul',
-    desc: 'Street lighting, pumps, shop equipment and mechanical installations.',
+    desc: 'Street lighting, building electrical works, pumps and electrical installations city-wide.',
   },
   {
-    id: 'drain',
-    code: 'DRAIN',
-    name: 'Drainage & Flood Control',
+    id: 'mtqc',
+    code: 'MTQC',
+    name: 'Materials Testing and Quality Checking Division',
+    cluster: 'tech',
+    head: 'Engr. Mona Abad',
+    headUser: 'mabad',
+    desc: 'Concrete core testing, materials quality control, compliance checks and test result certification.',
+  },
+  {
+    id: 'motorpool',
+    code: 'MPOOL',
+    name: 'Motorpool Division',
     cluster: 'ops',
     head: 'Engr. Boyet Ramos',
     headUser: 'bramos',
-    desc: 'Canals, declogging, pumping stations and flood mitigation works.',
+    desc: 'Heavy equipment and service vehicle fleet — deployment, preventive maintenance and dispatch.',
   },
   {
     id: 'plan',
     code: 'PLAN',
-    name: 'Planning & Design',
+    name: 'Planning Design and Programming Division',
     cluster: 'tech',
     head: 'Engr. Grace Panganiban',
     headUser: 'gpanganiban',
-    desc: 'Detailed engineering designs, programs of works and cost estimates.',
-  },
-  {
-    id: 'permits',
-    code: 'PERMITS',
-    name: 'Building Official & Permits',
-    cluster: 'tech',
-    head: 'Engr. Victor Halili',
-    headUser: 'vhalili',
-    desc: 'Building permits, occupancy evaluation and plan compliance checks.',
-  },
-  {
-    id: 'insp',
-    code: 'INSP',
-    name: 'Inspection & Safety',
-    cluster: 'tech',
-    head: 'Engr. Mona Abad',
-    headUser: 'mabad',
-    desc: 'Structural inspections, materials testing and safety compliance.',
+    desc: 'Detailed engineering designs, programs of works, cost estimates and annual infrastructure programming.',
   },
   {
     id: 'admin',
-    code: 'RECORDS',
-    name: 'Records & Administration',
+    code: 'ADMIN',
+    name: 'Administrative Division',
     cluster: 'tech',
     head: 'Ms. Carol Estrella',
     headUser: 'cestrella',
-    desc: 'Intake desk, records custody, archiving and office administration.',
+    desc: 'Intake desk, records custody & archiving, HR support and general office administration.',
   },
 ];
 
-export const USERS: User[] = [
-  { id: 'u-sup1', name: 'Engr. Ana Villanueva', username: 'avillanueva', password: 'cityeng2026', role: 'supervisor', title: 'Supervisor — Field Operations Cluster' },
-  { id: 'u-sup2', name: 'Engr. Cesar Tiongson', username: 'ctiongson', password: 'cityeng2026', role: 'supervisor', title: 'Supervisor — Technical Services Cluster' },
-  { id: 'u-const', name: 'Engr. Ramil Domingo', username: 'rdomingo', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'const' },
-  { id: 'u-roads', name: 'Engr. Liza Bartolome', username: 'lbartolome', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'roads' },
-  { id: 'u-maint', name: 'Engr. Nardo Salvador', username: 'nsalvador', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'maint' },
-  { id: 'u-elec', name: 'Engr. Petra Yumul', username: 'pyumul', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'elec' },
-  { id: 'u-drain', name: 'Engr. Boyet Ramos', username: 'bramos', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'drain' },
-  { id: 'u-plan', name: 'Engr. Grace Panganiban', username: 'gpanganiban', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'plan' },
-  { id: 'u-permits', name: 'Engr. Victor Halali', username: 'vhalali', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'permits' },
-  { id: 'u-insp', name: 'Engr. Mona Abad', username: 'mabad', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'insp' },
-  { id: 'u-admin', name: 'Ms. Carol Estrella', username: 'cestrella', password: 'cityeng2026', role: 'division', title: 'Records Officer', divisionId: 'admin' },
-  { id: 'u-sysadmin', name: 'System Admin', username: 'admin', password: 'cityeng2026', role: 'admin', title: 'System Administrator' },
-];
+/** Cross-division inspection unit — not one of the nine divisions, but keeps the inspections workflow intact. */
+export const INSPECTORATE: Division = {
+  id: 'insp-team',
+  code: 'INSP-TEAM',
+  name: 'Inspectorate Team',
+  cluster: 'tech',
+  head: 'Under the Office of the City Engineer',
+  headUser: '',
+  desc: 'Cross-division team that conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
+};
 
-export const divById = (id: string): Division | undefined => DIVISIONS.find((d) => d.id === id);
-export const userById = (id: string | null): User | undefined => USERS.find((u) => u.id === id);
+export const divById = (id: string): Division | undefined =>
+  DIVISIONS.find((d) => d.id === id) ?? (id === INSPECTORATE.id ? INSPECTORATE : undefined);
 
 export const CLUSTERS: Record<Cluster, { label: string; supervisor: string }> = {
-  ops: { label: 'Field Operations Cluster', supervisor: 'Engr. Ana Villanueva' },
-  tech: { label: 'Technical Services Cluster', supervisor: 'Engr. Cesar Tiongson' },
+  ops: { label: 'Field Operations Cluster', supervisor: 'Engr. Aries S. Grande — City Engineer' },
+  tech: { label: 'Technical Services Cluster', supervisor: 'Engr. Julio B. Sergio — Asst. City Engineer' },
 };
+
+export const cityEngineerName = (users: User[]): string =>
+  users.find((u) => u.role === 'supervisor' && u.title.includes('(City Engineer)'))?.name ?? 'Engr. Aries S. Grande';

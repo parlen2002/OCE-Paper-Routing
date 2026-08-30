@@ -211,27 +211,33 @@ export function Dashboard() {
         </section>
       </div>
 
-      {/* supervisors strip */}
+      {/* department heads strip */}
       <div className="anim-fade-up mt-4 grid gap-3 sm:grid-cols-2" style={{ animationDelay: '260ms' }}>
         {(['ops', 'tech'] as const).map((cl) => {
-          const sup = cl === 'ops' ? 'u-sup1' : 'u-sup2';
-          const su = (user.id === sup ? user : null) ?? null;
-          const name = cl === 'ops' ? 'Engr. Ana Villanueva' : 'Engr. Cesar Tiongson';
+          const supId = cl === 'ops' ? 'u-sup1' : 'u-sup2';
+          const su = db.users.find((x) => x.id === supId);
+          const name = su?.name ?? (cl === 'ops' ? 'Engr. Aries S. Grande' : 'Engr. Julio B. Sergio');
           const divs = DIVISIONS.filter((d) => d.cluster === cl);
           return (
             <div key={cl} className="flex items-center gap-4 rounded-lg border border-ink-700 bg-ink-900/80 p-4">
               <Avatar name={name} size="lg" />
               <div className="min-w-0">
-                <p className="text-[13.5px] font-bold text-mist-100">{name}{su && <span className="ml-2 rounded bg-greenx-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-greenx-500">you · on duty</span>}</p>
-                <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
-                  Supervisor — {cl === 'ops' ? 'Field Operations' : 'Technical Services'} cluster
+                <p className="text-[13.5px] font-bold text-mist-100">
+                  {name}
+                  {user.id === supId && <span className="ml-2 rounded bg-greenx-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-greenx-500">you · on duty</span>}
                 </p>
+                <p className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-mist-500">{su?.title ?? 'CGPP Department Head II'}</p>
                 <p className="mt-1 flex flex-wrap gap-1">
                   {divs.map((d) => (
                     <span key={d.id} className="rounded-sm bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-mist-400">
                       {d.code}
                     </span>
                   ))}
+                  {cl === 'tech' && (
+                    <span className="rounded-sm border border-tealx-500/40 bg-tealx-500/10 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-tealx-400">
+                      INSP-TEAM
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

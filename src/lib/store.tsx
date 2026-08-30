@@ -1,23 +1,23 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Stage, SysLog, User } from './types';
-import { USERS, divById, stageMeta, userById } from './types';
-import { freshSeed, deriveActivities, deriveLogs } from './seed';
+import { divById, stageMeta } from './types';
+import { freshSeed, deriveActivities } from './seed';
 import { uid } from './util';
 
-const LS_KEY = 'ppc-ceoflow-v1';
+const LS_KEY = 'ppc-ceoflow-v2';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 1 && Array.isArray(d.papers) && Array.isArray(d.notifs)) {
-        if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
+      if (d && d.v === 2 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+        if (!Array.isArray(d.logs)) d.logs = [];
         return d as DB;
       }
     }
   } catch {
-    /* corrupted storage — reseed */
+    /* corrupted or legacy storage — reseed */
   }
   return freshSeed();
 }
@@ -50,7 +50,11 @@ interface StoreCtx {
   visibleNotifs: Notif[];
   unread: number;
   canEdit: (p: Paper) => boolean;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => string | null;
+  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string }) => string | null;
+  approveUser: (id: string) => void;
+  denyUser: (id: string) => void;
+  updateUser: (id: string, patch: Partial<User>) => void;
   logout: () => void;
   resetDemo: () => void;
   go: (page: Page) => void;
@@ -118,7 +122,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const uiRef = useRef(ui);
   uiRef.current = ui;
 
-  const user = userById(db.session) ?? null;
+  const user = db.users.find((x) => x.id === db.session && x.status === 'active') ?? null;
 
   useEffect(() => {
     try {
@@ -195,9 +199,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return user.role !== 'division' || user.divisionId === p.divisionId;
   };
 
-  const login = (username: string, password: string): boolean => {
-    const u = USERS.find((x) => x.username.toLowerCase() === username.trim().toLowerCase());
-    if (!u || u.password !== password) return false;
+  const login = (username: string, password: string): string | null => {
+    const u = db.users.find((x) => x.username.toLowerCase() === username.trim().toLowerCase());
+    if (!u) return 'Access denied — account not found in the authorized register.';
+    if (u.password !== password) return 'Access denied — incorrect password for this account.';
+    if (u.status === 'pending')
+      return 'Account is pending administrator verification. Sign-in is disabled until your request is approved.';
+    if (u.status === 'disabled') return 'This account has been disabled by the administrator.';
     setDb((d) =>
       withLog({ ...d, session: u.id }, { userId: u.id, userName: u.name, type: 'login', text: 'Signed in to CEO Flow — session start' })
     );
@@ -208,7 +216,103 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    return true;
+    return null;
+  };
+
+  const signup: StoreCtx['signup'] = (input) => {
+    const name = input.name.trim();
+    const username = input.username.trim().toLowerCase();
+    if (name.length < 3) return 'Please enter your full name as it should appear on documents.';
+    if (!/^[a-z0-9._-]{3,20}$/.test(username)) return 'Username must be 3-20 characters — letters, numbers, dots or dashes.';
+    if (db.users.some((x) => x.username.toLowerCase() === username)) return 'That username is already taken — choose another.';
+    if (input.password.length < 6) return 'Password must be at least 6 characters long.';
+    const div = divById(input.divisionId);
+    const nu: User = {
+      id: uid(),
+      name,
+      username,
+      password: input.password,
+      role: 'division',
+      title: input.title.trim() || 'Division Staff',
+      divisionId: input.divisionId,
+      status: 'pending',
+      requestedDivisionId: input.divisionId,
+      requestedTitle: input.title.trim() || 'Division Staff',
+      requestedAt: Date.now(),
+    };
+    setDb((d) => {
+      let next: DB = { ...d, users: [...d.users, nu] };
+      next = withLog(next, {
+        userId: nu.id,
+        userName: nu.name,
+        type: 'signup',
+        text: `Submitted an account request (${div?.code ?? input.divisionId}) — pending administrator verification`,
+      });
+      next = pushNotif(
+        next,
+        {
+          text: `Account request — ${nu.name} (${div?.name ?? 'division'}) is awaiting administrator verification`,
+          kind: 'account',
+          scope: { type: 'supervisors' },
+        },
+        nu
+      );
+      return next;
+    });
+    fireBrowser('CEO Flow — account request', `${nu.name} requested access (${div?.code ?? ''}) — pending verification`);
+    return null;
+  };
+
+  const approveUser = (id: string) => {
+    if (!user || user.role !== 'admin') return;
+    const target = db.users.find((x) => x.id === id);
+    if (!target) return;
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, status: 'active' as const } : x)) },
+        { userId: user.id, userName: user.name, type: 'approve', text: `Approved account request of ${target.name} (@${target.username})` }
+      )
+    );
+    pushToast('ok', `${target.name} verified — they can now sign in`);
+  };
+
+  const denyUser = (id: string) => {
+    if (!user || user.role !== 'admin') return;
+    const target = db.users.find((x) => x.id === id);
+    if (!target) return;
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, status: 'disabled' as const } : x)) },
+        { userId: user.id, userName: user.name, type: 'deny', text: `Denied account request of ${target.name} (@${target.username})` }
+      )
+    );
+    pushToast('warn', `Request from ${target.name} denied — account disabled`);
+  };
+
+  const updateUser: StoreCtx['updateUser'] = (id, patch) => {
+    if (!user || user.role !== 'admin') return;
+    const target = db.users.find((x) => x.id === id);
+    if (!target) return;
+    const cleaned: Partial<User> = { ...patch };
+    if (!cleaned.password) delete cleaned.password;
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, ...cleaned } : x)) },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'edit',
+          text: `Edited account of ${target.name}${
+            cleaned.status && cleaned.status !== target.status ? ` — status set to ${cleaned.status}` : ''
+          }${cleaned.role && cleaned.role !== target.role ? ` — role set to ${cleaned.role}` : ''}${
+            cleaned.divisionId && cleaned.divisionId !== target.divisionId
+              ? ` — assigned to ${divById(cleaned.divisionId)?.code ?? cleaned.divisionId}`
+              : ''
+          }`,
+        }
+      )
+    );
+    pushToast('ok', `Account of ${target.name} updated`);
   };
 
   const logout = () => {
@@ -520,6 +624,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     markAllRead,
     markRead,
     pushToast,
+    signup,
+    approveUser,
+    denyUser,
+    updateUser,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -11,7 +11,7 @@ const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
   { page: 'activity', label: 'Activity Log', icon: 'pulse' },
-  { page: 'users', label: 'Users & Access', icon: 'users', roles: ['supervisor', 'admin'] },
+  { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['supervisor', 'admin'] },
   { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin'] },
 ];
 
@@ -20,6 +20,7 @@ const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
   route: { icon: 'route', color: '#ff8a4c' },
   move: { icon: 'arr', color: '#f5b924' },
   complete: { icon: 'checkc', color: '#45d483' },
+  account: { icon: 'user', color: '#fbc94a' },
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -106,7 +107,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-[12.5px] font-bold text-mist-100">{user.name}</p>
               <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
-                {user.role === 'admin' ? 'Administrator' : isSup ? 'Supervisor' : 'Division Head'}
+                {user.shortTitle ?? (isSup ? 'Supervisor' : 'Division Head')}
               </p>
             </div>
             <button

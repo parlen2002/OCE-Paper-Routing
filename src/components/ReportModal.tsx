@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, divById, stageMeta, type Custody, type Paper } from '../lib/types';
+import { DIVISIONS, INSPECTORATE, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
 import { I, Seal } from './icons';
 import { fmtDT } from '../lib/util';
 
@@ -85,7 +85,7 @@ export function ReportModal() {
       return codes.join(' → ');
     };
 
-    const divSummary = DIVISIONS.map((d) => {
+    const divSummary = [...DIVISIONS, INSPECTORATE].map((d) => {
       let inbound = 0;
       let outbound = 0;
       for (const p of db.papers) {
@@ -296,8 +296,8 @@ export function ReportModal() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b7089]">Noted by</p>
                 <div className="mt-10 border-t-2 border-[#182a3e] pt-1.5">
-                  <p className="text-[12px] font-bold">City Engineer</p>
-                  <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">Office of the City Engineer</p>
+                  <p className="text-[12px] font-bold">{cityEngineerName(db.users)}</p>
+                  <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">CGPP Department Head II (City Engineer)</p>
                 </div>
               </div>
             </div>

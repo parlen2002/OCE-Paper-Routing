@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, KINDS, PRIORITIES } from '../lib/types';
+import { DIVISIONS, INSPECTORATE, KINDS, PRIORITIES } from '../lib/types';
 import type { Attachment, Kind, Priority } from '../lib/types';
 import { I } from './icons';
 import { Modal } from './ui';
@@ -127,7 +127,7 @@ export function NewDocModal() {
                 Intended recipient division *
               </span>
               <select className={`field ${err(!divisionId)}`} value={divisionId} onChange={(e) => setDivisionId(e.target.value)}>
-                {DIVISIONS.map((d) => (
+                {[...DIVISIONS, INSPECTORATE].map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.code} · {d.name}
                   </option>

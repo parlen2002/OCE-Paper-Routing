@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, STAGES, divById } from '../lib/types';
+import { DIVISIONS, INSPECTORATE, STAGES, divById } from '../lib/types';
 import type { CustodyAction, Paper, Stage } from '../lib/types';
 import { I, type IconName } from './icons';
 import { DivChip, KindTag, PriorityTag, StageChip } from './ui';
@@ -342,8 +342,8 @@ export function DocDrawer() {
                     {user.role === 'supervisor' ? 'Re-route to division' : 'Forward to division'}
                   </span>
                   <select className="field" value={forwardVal} disabled={!editable} onChange={(e) => doForward(e.target.value)}>
-                    <option value="">— choose division —</option>
-                    {DIVISIONS.filter((d) => d.id !== paper.divisionId).map((d) => (
+                    <option value="">— choose division or team —</option>
+                    {[...DIVISIONS, INSPECTORATE].filter((d) => d.id !== paper.divisionId).map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.code} · {d.name}
                       </option>

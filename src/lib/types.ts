@@ -2,7 +2,7 @@ export type Stage = 'received' | 'review' | 'progress' | 'verification' | 'compl
 export type Cluster = 'ops' | 'tech';
 export type Kind = 'work-order' | 'permit' | 'memo' | 'complaint' | 'inspection';
 export type Priority = 'routine' | 'priority' | 'urgent';
-export type Role = 'supervisor' | 'division' | 'admin';
+export type Role = 'supervisor' | 'division' | 'admin' | 'employee';
 export type UserStatus = 'active' | 'pending' | 'disabled';
 
 export interface Division {
@@ -86,6 +86,11 @@ export interface Paper {
   recipientIds?: string[];
   /** Desk ids that acknowledged receipt of a circular. */
   receivedBy?: string[];
+  /** Employee (user id) designated person-in-charge of the work order. */
+  assignedTo?: string;
+  assignedByName?: string;
+  /** Employee submitted it to the division head — awaiting verification. */
+  pendingHeadReview?: boolean;
 }
 
 export interface Notif {
@@ -96,6 +101,8 @@ export interface Notif {
   docId?: string;
   ref?: string;
   scope: { type: 'division'; divisionId: string } | { type: 'supervisors' };
+  /** Deliver directly to this user's bell regardless of scope (e.g. assigned employee). */
+  targetUserId?: string;
   readBy: string[];
 }
 

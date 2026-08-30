@@ -1,17 +1,17 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Stage, SysLog, User } from './types';
+import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './types';
 import { divById, stageMeta } from './types';
 import { freshSeed, deriveActivities } from './seed';
 import { uid } from './util';
 
-const LS_KEY = 'ppc-ceoflow-v7';
+const LS_KEY = 'ppc-ceoflow-v8';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 7 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 8 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = [];
         return d as DB;
       }
@@ -22,7 +22,7 @@ function loadDb(): DB {
   return freshSeed();
 }
 
-export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users' | 'userlogs';
+export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users' | 'userlogs' | 'myboard' | 'personnel';
 
 export interface UIState {
   page: Page;
@@ -51,7 +51,7 @@ interface StoreCtx {
   unread: number;
   canEdit: (p: Paper) => boolean;
   login: (username: string, password: string) => string | null;
-  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string }) => string | null;
+  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string; role?: Role }) => string | null;
   approveUser: (id: string) => void;
   denyUser: (id: string) => void;
   updateUser: (id: string, patch: Partial<User>) => void;
@@ -90,7 +90,11 @@ interface StoreCtx {
   }) => void;
   ackPaper: (id: string) => void;
   userUnitId: string | null;
-  moveStage: (id: string, stage: Stage, note?: string) => void;
+  employeesOf: (unitId: string | undefined) => User[];
+  moveStage: (id: string, stage: Stage, note?: string, employeeId?: string) => void;
+  assignPaper: (id: string, employeeId: string | null) => void;
+  submitToHead: (id: string) => void;
+  returnToEmployee: (id: string) => void;
   routePaper: (id: string, toDivisionId: string, note?: string) => void;
   addNote: (id: string, text: string) => void;
   addAttachments: (id: string, atts: Attachment[]) => void;
@@ -152,7 +156,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       setUi((u) => ({
         ...u,
-        page: user.role === 'division' ? 'board' : 'dashboard',
+        page: user.role === 'employee' ? 'myboard' : user.role === 'division' ? 'board' : 'dashboard',
         divFilter: 'all',
       }));
     }
@@ -163,7 +167,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const visiblePapers = useMemo(() => {
     if (!user) return [];
-    if (user.role !== 'division') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    if (user.role === 'admin' || user.role === 'supervisor') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    // employees: strictly their own work orders
+    if (user.role === 'employee')
+      return db.papers.filter((p) => p.assignedTo === user.id).sort((a, b) => b.updatedAt - a.updatedAt);
     const mine = (p: Paper) =>
       p.divisionId === user.divisionId ||
       p.intendedId === user.divisionId ||
@@ -175,9 +182,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const visibleNotifs = useMemo(() => {
     if (!user) return [];
     const vis = db.notifs.filter((n) =>
-      user.role !== 'division'
+      user.role === 'admin' || user.role === 'supervisor'
         ? true
-        : n.scope.type === 'division' && n.scope.divisionId === user.divisionId
+        : (n.scope.type === 'division' && n.scope.divisionId === user.divisionId) || n.targetUserId === user.id
     );
     return [...vis].sort((a, b) => b.at - a.at);
   }, [db.notifs, user]);
@@ -205,14 +212,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ? true
         : currentUser.role === 'supervisor'
           ? n.scope.type === 'supervisors'
-          : n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId;
+          : n.targetUserId === currentUser.id ||
+            (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId);
     if (targetsMe) fireBrowser('CEO Flow — ' + (n.ref ?? 'Update'), n.text);
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };
 
   const canEdit = (p: Paper): boolean => {
     if (!user) return false;
-    if (user.role !== 'division') return true;
+    if (user.role === 'admin' || user.role === 'supervisor') return true;
+    // employees: only their own assigned work orders
+    if (user.role === 'employee') return p.assignedTo === user.id;
     // circulars: any addressed desk may act on the paper
     if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(user.divisionId ?? '');
     return user.divisionId === p.divisionId;
@@ -228,6 +238,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ? 'desk-ace'
           : 'desk-ce'
         : null;
+
+  const employeesOf = (unitId: string | undefined): User[] =>
+    db.users.filter((u) => u.role === 'employee' && u.divisionId === unitId && u.status === 'active');
 
   const ackPaper: StoreCtx['ackPaper'] = (id) => {
     if (!user) return;
@@ -306,17 +319,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (db.users.some((x) => x.username.toLowerCase() === username)) return 'That username is already taken — choose another.';
     if (input.password.length < 6) return 'Password must be at least 6 characters long.';
     const div = divById(input.divisionId);
+    const role: Role = input.role === 'employee' ? 'employee' : 'division';
     const nu: User = {
       id: uid(),
       name,
       username,
       password: input.password,
-      role: 'division',
-      title: input.title.trim() || 'Division Staff',
+      role,
+      title: input.title.trim() || (role === 'employee' ? 'Division Employee' : 'Division Staff'),
       divisionId: input.divisionId,
       status: 'pending',
       requestedDivisionId: input.divisionId,
-      requestedTitle: input.title.trim() || 'Division Staff',
+      requestedTitle: input.title.trim() || (role === 'employee' ? 'Division Employee' : 'Division Staff'),
       requestedAt: Date.now(),
     };
     setDb((d) => {
@@ -325,7 +339,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         userId: nu.id,
         userName: nu.name,
         type: 'signup',
-        text: `Submitted an account request (${div?.code ?? input.divisionId}) — pending administrator verification`,
+        text: `Submitted an account request (${role === 'employee' ? 'employee' : 'division staff'} · ${div?.code ?? input.divisionId}) — pending administrator verification`,
       });
       next = pushNotif(
         next,
@@ -515,29 +529,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ...next, updatedAt: Date.now() };
   };
 
-  const moveStage: StoreCtx['moveStage'] = (id, stage, note) => {
+  const moveStage: StoreCtx['moveStage'] = (id, stage, note, employeeId) => {
     if (!user) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
-    if (p.stage === stage) return;
+    if (p.stage === stage && employeeId === undefined) return;
     if (!canEdit(p)) {
       pushToast('warn', `Only ${divById(p.divisionId)?.name ?? 'the assigned division'} or a supervisor can move this paper`);
       return;
     }
+    // Employees work their own board but may not close a work order — completion is verified by the division head.
+    if (user.role === 'employee' && stage === 'completed') {
+      pushToast('warn', 'Completion is verified by your division head — submit the paper for review instead');
+      return;
+    }
     const meta = stageMeta(stage);
+    const emp = employeeId !== undefined ? db.users.find((u) => u.id === employeeId && u.role === 'employee') : undefined;
+    const picNote = emp ? ` · person-in-charge: ${emp.name}` : '';
     const entry = {
       id: uid(),
       at: Date.now(),
       byName: user.name,
       action: 'stage' as const,
       stage,
-      text: note?.trim() ? `${meta.label} — ${note.trim()}` : `Moved to ${meta.label}`,
+      text: note?.trim() ? `${meta.label} — ${note.trim()}${picNote}` : `Moved to ${meta.label}${picNote}`,
     };
     setDb((d) => {
       let next: DB = {
         ...d,
-        papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, stage, custody: [...pp.custody, entry] })) : x)),
+        papers: d.papers.map((x) =>
+          x.id === id
+            ? touch(x, (pp) => ({
+                ...pp,
+                stage,
+                assignedTo: employeeId !== undefined ? employeeId || undefined : pp.assignedTo,
+                assignedByName: emp ? emp.name : employeeId === '' ? undefined : pp.assignedByName,
+                pendingHeadReview: false,
+                custody: [...pp.custody, entry],
+              }))
+            : x
+        ),
       };
+      if (emp && emp.id !== p.assignedTo) {
+        next = pushNotif(
+          next,
+          {
+            text: `${p.ref} assigned to you — ${p.title.slice(0, 58)}`,
+            kind: 'new',
+            docId: p.id,
+            ref: p.ref,
+            scope: { type: 'division', divisionId: p.divisionId },
+            targetUserId: emp.id,
+          },
+          user
+        );
+      }
       if (stage === 'completed') {
         next = pushNotif(
           next,
@@ -555,13 +601,159 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         userId: user.id,
         userName: user.name,
         type: 'stage',
-        text: `Moved ${p.ref} to ${meta.label}${note?.trim() ? ` — ${note.trim()}` : ''}`,
+        text: `Moved ${p.ref} to ${meta.label}${note?.trim() ? ` — ${note.trim()}` : ''}${picNote}`,
         ref: p.ref,
         docId: p.id,
       });
       return next;
     });
-    pushToast('ok', `${p.ref} moved to ${meta.label}`);
+    pushToast('ok', emp ? `${p.ref} moved to ${meta.label} — ${emp.name} is person-in-charge` : `${p.ref} moved to ${meta.label}`);
+  };
+
+  /** Division heads / executives / admin designate (or clear) the person-in-charge. */
+  const assignPaper: StoreCtx['assignPaper'] = (id, employeeId) => {
+    if (!user) return;
+    if (user.role === 'employee' || user.role === 'division') {
+      pushToast('warn', 'Only the division head or an executive can designate the person-in-charge');
+      return;
+    }
+    const p = db.papers.find((x) => x.id === id);
+    if (!p) return;
+    const emp = employeeId ? db.users.find((u) => u.id === employeeId && u.role === 'employee') : null;
+    if (employeeId && !emp) return;
+    if ((p.assignedTo ?? '') === (employeeId ?? '')) return;
+    const entry = {
+      id: uid(),
+      at: Date.now(),
+      byName: user.name,
+      action: 'note' as const,
+      text: emp
+        ? `Person-in-charge designated — ${emp.name} (${emp.title})`
+        : `Person-in-charge cleared — paper is unassigned`,
+    };
+    setDb((d) => {
+      let next: DB = {
+        ...d,
+        papers: d.papers.map((x) =>
+          x.id === id ? touch(x, (pp) => ({ ...pp, assignedTo: employeeId || undefined, assignedByName: emp?.name, custody: [...pp.custody, entry] })) : x
+        ),
+      };
+      if (emp) {
+        next = pushNotif(
+          next,
+          {
+            text: `${p.ref} assigned to you by ${user.name} — ${p.title.slice(0, 56)}`,
+            kind: 'new',
+            docId: p.id,
+            ref: p.ref,
+            scope: { type: 'division', divisionId: p.divisionId },
+            targetUserId: emp.id,
+          },
+          user
+        );
+      }
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'stage',
+        text: emp ? `Assigned ${p.ref} to ${emp.name} as person-in-charge` : `Cleared person-in-charge on ${p.ref}`,
+        ref: p.ref,
+        docId: p.id,
+      });
+      return next;
+    });
+    pushToast('ok', emp ? `${p.ref} — ${emp.name} is now person-in-charge` : `${p.ref} is now unassigned`);
+  };
+
+  /** Employee submits their work order to the division head for verification. */
+  const submitToHead: StoreCtx['submitToHead'] = (id) => {
+    if (!user || user.role !== 'employee') return;
+    const p = db.papers.find((x) => x.id === id);
+    if (!p || p.assignedTo !== user.id || p.pendingHeadReview || p.stage === 'completed') return;
+    const unit = divById(p.divisionId);
+    const entry = {
+      id: uid(),
+      at: Date.now(),
+      byName: user.name,
+      action: 'note' as const,
+      text: `Submitted to division head for verification — ${unit?.name ?? p.divisionId}`,
+    };
+    setDb((d) => {
+      let next: DB = {
+        ...d,
+        papers: d.papers.map((x) =>
+          x.id === id ? touch(x, (pp) => ({ ...pp, stage: 'verification' as Stage, pendingHeadReview: true, custody: [...pp.custody, entry] })) : x
+        ),
+      };
+      next = pushNotif(
+        next,
+        {
+          text: `${p.ref} submitted by ${user.name} — awaiting your verification (${unit?.code ?? ''})`,
+          kind: 'move',
+          docId: p.id,
+          ref: p.ref,
+          scope: { type: 'supervisors' },
+        },
+        user
+      );
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'stage',
+        text: `Submitted ${p.ref} to division head for verification`,
+        ref: p.ref,
+        docId: p.id,
+      });
+      return next;
+    });
+    pushToast('ok', `${p.ref} submitted — your division head will verify it`);
+  };
+
+  /** Division head / executive returns a submitted work order to the employee for rework. */
+  const returnToEmployee: StoreCtx['returnToEmployee'] = (id) => {
+    if (!user || (user.role !== 'supervisor' && user.role !== 'admin')) return;
+    const p = db.papers.find((x) => x.id === id);
+    if (!p || !p.pendingHeadReview) return;
+    const emp = p.assignedTo ? db.users.find((u) => u.id === p.assignedTo) : null;
+    const entry = {
+      id: uid(),
+      at: Date.now(),
+      byName: user.name,
+      action: 'note' as const,
+      text: `Returned by division head for rework — verification not yet passed`,
+    };
+    setDb((d) => {
+      let next: DB = {
+        ...d,
+        papers: d.papers.map((x) =>
+          x.id === id ? touch(x, (pp) => ({ ...pp, stage: 'progress' as Stage, pendingHeadReview: false, custody: [...pp.custody, entry] })) : x
+        ),
+      };
+      if (emp) {
+        next = pushNotif(
+          next,
+          {
+            text: `${p.ref} returned for rework by ${user.name} — revise and resubmit`,
+            kind: 'route',
+            docId: p.id,
+            ref: p.ref,
+            scope: { type: 'division', divisionId: p.divisionId },
+            targetUserId: emp.id,
+          },
+          user
+        );
+      }
+      next = withLog(next, {
+        userId: user.id,
+        userName: user.name,
+        type: 'stage',
+        text: `Returned ${p.ref} to ${emp?.name ?? 'employee'} for rework`,
+        ref: p.ref,
+        docId: p.id,
+      });
+      return next;
+    });
+    pushToast('warn', `${p.ref} returned to ${emp?.name ?? 'the employee'} for rework`);
   };
 
   const routePaper: StoreCtx['routePaper'] = (id, toDivisionId, note) => {
@@ -569,6 +761,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const p = db.papers.find((x) => x.id === id);
     const to = divById(toDivisionId);
     if (!p || !to || p.divisionId === toDivisionId) return;
+    if (user.role === 'employee') {
+      pushToast('warn', 'Employees cannot pass a paper to another division — only your division head can route it');
+      return;
+    }
     if (!canEdit(p)) {
       pushToast('warn', 'Only the holding division or a supervisor can forward this paper');
       return;
@@ -784,6 +980,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     canEdit,
     userUnitId,
     ackPaper,
+    employeesOf,
+    assignPaper,
+    submitToHead,
+    returnToEmployee,
     login,
     logout,
     resetDemo,

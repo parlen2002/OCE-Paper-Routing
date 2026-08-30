@@ -161,43 +161,84 @@ function AssignModal({
 }) {
   const { db, employeesOf, moveStage } = useStore();
   const paper = db.papers.find((p) => p.id === paperId);
-  const [empSel, setEmpSel] = useState<string>('__keep__');
+  const [sel, setSel] = useState<string[] | null>(null); // null = keep current roster
   const [note, setNote] = useState('');
   if (!paper) return null;
   const emps = employeesOf(paper.divisionId);
   const meta = STAGES.find((s) => s.id === stage)!;
+  const current = paper.assignees ?? [];
+  const active = sel ?? current;
+  const toggle = (id: string) =>
+    setSel((s) => {
+      const base = s ?? current;
+      return base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+    });
 
   return (
     <div className="fixed inset-0 z-[62] flex items-start justify-center overflow-y-auto p-4 sm:p-12">
       <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="anim-pop relative w-full max-w-md rounded-xl border border-ink-600 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.8)]">
+      <div className="anim-pop relative w-full max-w-lg rounded-xl border border-ink-600 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.8)]">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-flare-400">Move paperwork</p>
         <h3 className="mt-0.5 font-display text-[22px] font-bold uppercase leading-tight tracking-wide text-mist-50">
           {paper.ref} → <span style={{ color: meta.color }}>{meta.label}</span>
         </h3>
         <p className="mt-1 truncate text-[12px] text-mist-400">{paper.title}</p>
 
-        <label className="mt-4 block">
-          <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">
-            Person-in-charge · {divById(paper.divisionId)?.code ?? ''} employees
-          </span>
-          <select className="field" value={empSel} onChange={(e) => setEmpSel(e.target.value)}>
-            <option value="__keep__">
-              {paper.assignedByName ? `Keep current — ${paper.assignedByName}` : 'Keep unassigned'}
-            </option>
-            {emps.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} — {e.title}
-              </option>
-            ))}
-            {paper.assignedTo && <option value="">Unassign person-in-charge</option>}
-          </select>
-          <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
-            {emps.length === 0
-              ? 'No active employees in this division yet — the move proceeds without a PIC'
-              : 'The employee gets the paper on their personal board and a taskbar signal'}
-          </span>
-        </label>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">
+              Persons-in-charge · {divById(paper.divisionId)?.code ?? ''} roster
+            </span>
+            <span className="ml-auto rounded-sm bg-tealx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold text-tealx-400 tabular">
+              {active.length} selected
+            </span>
+          </div>
+          <div className="max-h-[240px] space-y-1.5 overflow-y-auto rounded-lg border border-ink-600 bg-ink-950/40 p-2 scroll-slim">
+            {emps.length === 0 && (
+              <p className="px-2 py-5 text-center font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+                No active employees / job-order personnel in this division yet
+              </p>
+            )}
+            {emps.map((e) => {
+              const on = active.includes(e.id);
+              const isJO = e.role === 'joborder';
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => toggle(e.id)}
+                  className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition active:scale-[0.99] ${
+                    on
+                      ? 'border-tealx-500/60 bg-tealx-500/[0.08]'
+                      : 'border-ink-700 bg-ink-850/60 hover:border-ink-500'
+                  }`}
+                >
+                  <span
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition ${
+                      on ? 'border-tealx-500 bg-tealx-500 text-ink-950' : 'border-ink-500 bg-transparent'
+                    }`}
+                  >
+                    {on && <I n="check" className="h-2.5 w-2.5" sw={3.2} />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[12.5px] font-bold ${on ? 'text-tealx-400' : 'text-mist-100'}`}>{e.name}</span>
+                    <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-mist-500">{e.title}</span>
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wider ${
+                      isJO ? 'bg-amberx-500/15 text-amberx-400' : 'bg-tealx-500/12 text-tealx-400'
+                    }`}
+                  >
+                    {isJO ? 'Job-Order' : 'Employee'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+            Tick every person-in-charge for this movement — each gets the paper on their personal board and a taskbar signal
+          </p>
+        </div>
 
         <label className="mt-3 block">
           <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">
@@ -213,7 +254,7 @@ function AssignModal({
           <button
             className="btn btn-primary"
             onClick={() => {
-              moveStage(paperId, stage, note || undefined, empSel === '__keep__' ? undefined : empSel);
+              moveStage(paperId, stage, note || undefined, sel === null ? undefined : active);
               onClose();
             }}
           >
@@ -227,14 +268,24 @@ function AssignModal({
 }
 
 export function Board() {
-  const { user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf } = useStore();
+  const { db, user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
 
-  const isEmployee = user?.role === 'employee';
-  const isSup = user?.role === 'admin' || user?.role === 'supervisor';
+  const isEmployee = user?.role === 'employee' || user?.role === 'joborder';
+  const isSup = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
   const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
+
+  /** Print only what this role's board is showing — admins/execs/moderators choose the division board. */
+  const printBoard = () => {
+    const label = isEmployee
+      ? `${user?.name ?? ''} — personal work board${myDiv ? ` (${myDiv.code})` : ''}`
+      : ui.divFilter === 'all'
+        ? 'All divisions — tracker board'
+        : `${divById(ui.divFilter)?.name ?? ui.divFilter} — board`;
+    setReportOpen(true, { board: true, mine: isEmployee, presetDiv: isEmployee ? user?.divisionId ?? 'all' : ui.divFilter, label });
+  };
 
   const filtered = useMemo(() => {
     const q = ui.search.trim().toLowerCase();
@@ -249,7 +300,8 @@ export function Board() {
         return false;
       if (isSup && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
       if (!q) return true;
-      const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''} ${p.assignedByName ?? ''}`.toLowerCase();
+      const pics = (p.assignees ?? []).map((id) => db.users.find((u) => u.id === id)?.name ?? '').join(' ');
+      const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''} ${pics}`.toLowerCase();
       return hay.includes(q);
     });
   }, [visiblePapers, ui.search, ui.divFilter, isSup, isEmployee, scope, user]);
@@ -263,8 +315,9 @@ export function Board() {
     if (!id) return;
     const paper = visiblePapers.find((p) => p.id === id);
     if (!paper || paper.stage === stage) return;
-    // Division heads & executives choose the person-in-charge while moving the paper.
-    const canAssign = user && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'division');
+    // Division heads, executives, moderators & admin choose the persons-in-charge while moving the paper.
+    const canAssign =
+      user && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'division' || user.role === 'moderator');
     if (canAssign && employeesOf(paper.divisionId).length > 0) {
       setPendingMove({ id, stage });
       return;
@@ -357,6 +410,10 @@ export function Board() {
         <span className="ml-auto hidden font-mono text-[10px] uppercase tracking-[0.18em] text-mist-500 md:block">
           {filtered.length} paper{filtered.length === 1 ? '' : 's'} in view · drag cards across stages
         </span>
+        <button className="btn btn-ghost" onClick={printBoard} title="Print this board exactly as you see it — daily, weekly or monthly">
+          <I n="printer" className="h-4 w-4" sw={2} />
+          {isEmployee ? 'Print my board' : ui.divFilter === 'all' ? 'Print board — all divisions' : `Print ${divById(ui.divFilter)?.code ?? ''} board`}
+        </button>
         {!isEmployee && (
           <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
             <I n="plus" className="h-4 w-4" sw={2.2} />

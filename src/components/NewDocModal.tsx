@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES } from '../lib/types';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, divById } from '../lib/types';
 import type { Attachment, Kind, Priority } from '../lib/types';
 import { I } from './icons';
 import { Modal } from './ui';
@@ -8,10 +8,11 @@ import { buildAttachments } from '../lib/attach';
 import { fmtCoord } from '../lib/util';
 
 export function NewDocModal() {
-  const { user, ui, setNewOpen, createPaper, pushToast } = useStore();
+  const { user, ui, setNewOpen, createPaper, pushToast, employeesOf } = useStore();
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<Kind>('work-order');
   const [priority, setPriority] = useState<Priority>('routine');
+  const [pics, setPics] = useState<string[]>([]);
   const [origin, setOrigin] = useState('');
   const [recipients, setRecipients] = useState<string[]>(['admin']);
   const [due, setDue] = useState('');
@@ -55,6 +56,7 @@ export function NewDocModal() {
       dueAt: due ? new Date(due + 'T17:00:00').getTime() : undefined,
       remarks: remarks || undefined,
       attachments: pending,
+      assigneeIds: pics,
     });
   };
 
@@ -219,6 +221,53 @@ export function NewDocModal() {
               )}
             </span>
           </div>
+
+          {/* persons-in-charge at intake */}
+          {(() => {
+            const roster = recipients.length > 0 ? employeesOf(recipients[0]) : [];
+            if (roster.length === 0) return null;
+            const valid = pics.filter((id) => roster.some((r) => r.id === id));
+            return (
+              <div>
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
+                    Persons-in-charge <span className="text-mist-600">— optional, multiple allowed</span>
+                  </span>
+                  <span className="ml-auto rounded-sm bg-tealx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold text-tealx-400 tabular">
+                    {valid.length} designated
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 rounded-lg border border-ink-600 bg-ink-950/40 p-2.5">
+                  {roster.map((e) => {
+                    const on = pics.includes(e.id);
+                    const isJO = e.role === 'joborder';
+                    return (
+                      <button
+                        type="button"
+                        key={e.id}
+                        onClick={() => setPics((p) => (p.includes(e.id) ? p.filter((x) => x !== e.id) : [...p, e.id]))}
+                        title={`${e.name} — ${e.title}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] ${
+                          on
+                            ? 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400'
+                            : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-tealx-500/40 hover:text-mist-200'
+                        }`}
+                      >
+                        {on && <I n="check" className="h-3 w-3" sw={2.6} />}
+                        {e.name.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
+                        <span className={`rounded-sm px-1 py-px text-[7.5px] ${isJO ? 'bg-amberx-500/15 text-amberx-400' : 'bg-tealx-500/12 text-tealx-400'}`}>
+                          {isJO ? 'JO' : 'EMP'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+                  {divById(recipients[0])?.code} roster — designated personnel receive the work order on their personal boards immediately
+                </span>
+              </div>
+            );
+          })()}
 
           <label className="block">
             <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">Remarks</span>

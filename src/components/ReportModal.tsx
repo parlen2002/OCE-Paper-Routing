@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { ALL_UNITS, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
+import { ALL_UNITS, STAGES, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
 import { I, Seal } from './icons';
 import { fmtDT } from '../lib/util';
 
@@ -49,8 +49,33 @@ export function ReportModal() {
   const { ui, setReportOpen, db, user } = useStore();
   const [period, setPeriod] = useState<Period>('daily');
   const [date, setDate] = useState(toDateInput(Date.now()));
+  const [mode, setMode] = useState<'routing' | 'board'>('routing');
+  const [divSel, setDivSel] = useState<string>('all');
+
+  // consume the preset passed by whichever board opened the dialog
+  useEffect(() => {
+    if (ui.reportOpen) {
+      const p = ui.reportPreset;
+      setMode(p?.board ? 'board' : 'routing');
+      setDivSel(p?.presetDiv ?? 'all');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ui.reportOpen]);
 
   const range = useMemo(() => periodRange(period, fromInput(date)), [period, date]);
+
+  const isField = user?.role === 'employee' || user?.role === 'joborder';
+  const boardPapers = useMemo(() => {
+    let list = db.papers;
+    if (ui.reportPreset?.mine && user) list = list.filter((p) => (p.assignees ?? []).includes(user.id));
+    else if (divSel !== 'all') list = list.filter((p) => p.divisionId === divSel);
+    return list;
+  }, [db.papers, divSel, ui.reportPreset, user]);
+  const boardScopeLabel = ui.reportPreset?.mine && user
+    ? `${user.name} — personal work board`
+    : divSel === 'all'
+      ? 'All divisions & offices'
+      : divById(divSel)?.name ?? divSel;
 
   const report = useMemo(() => {
     const { from, to } = range;
@@ -119,29 +144,71 @@ export function ReportModal() {
         {/* controls */}
         <div className="no-print anim-fade-up mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-ink-600 bg-ink-900/95 px-3 py-2.5 shadow-xl">
           <I n="printer" className="h-4 w-4 text-flare-400" sw={2} />
-          <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">Routing report</span>
+          <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">Print center</span>
 
           <div className="flex overflow-hidden rounded-md border border-ink-600">
-            {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+            {([
+              { v: 'routing', label: 'Routing report' },
+              { v: 'board', label: 'Board snapshot' },
+            ] as const).map((m) => (
               <button
-                key={p}
-                onClick={() => setPeriod(p)}
+                key={m.v}
+                onClick={() => setMode(m.v)}
                 className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
-                  period === p ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+                  mode === m.v ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
                 }`}
               >
-                {p}
+                {m.label}
               </button>
             ))}
           </div>
 
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => e.target.value && setDate(e.target.value)}
-            className="field w-[150px] py-1.5 font-mono text-[11.5px]"
-          />
-          <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
+          {mode === 'routing' ? (
+            <>
+              <div className="flex overflow-hidden rounded-md border border-ink-600">
+                {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
+                      period === p ? 'bg-cyanx-500/15 text-cyanx-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+                className="field w-[150px] py-1.5 font-mono text-[11.5px]"
+              />
+              <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
+            </>
+          ) : (
+            <>
+              {isField ? (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-tealx-500/50 bg-tealx-500/10 px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-tealx-400">
+                  <I n="users" className="h-3 w-3" sw={2.2} />
+                  {boardScopeLabel}
+                </span>
+              ) : (
+                <select className="field w-auto py-1.5 font-mono text-[11px]" value={divSel} onChange={(e) => setDivSel(e.target.value)}>
+                  <option value="all">All divisions & offices</option>
+                  {ALL_UNITS.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} · {d.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">
+                {boardPapers.length} paper{boardPapers.length === 1 ? '' : 's'} in scope
+              </span>
+            </>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             <button className="btn btn-ghost py-1.5" onClick={close}>
@@ -154,7 +221,74 @@ export function ReportModal() {
           </div>
         </div>
 
-        {/* ------- the sheet ------- */}
+        {/* ------- board snapshot sheet ------- */}
+        {mode === 'board' && (
+          <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
+            <div className="px-9 py-8">
+              <div className="flex items-center gap-4 border-b-[3px] border-[#182a3e] pb-4">
+                <Seal className="h-14 w-14" />
+                <div className="flex-1 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5b7089]">Republic of the Philippines</p>
+                  <p className="font-display text-[22px] font-bold uppercase leading-tight tracking-wide">City of Puerto Princesa</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#31506e]">Office of the City Engineer</p>
+                  <p className="mt-0.5 text-[9.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">CEO Flow — Paperwork Flow Command</p>
+                </div>
+                <div className="w-14 text-right font-mono text-[9px] uppercase leading-relaxed text-[#8a9ab0]">
+                  Form
+                  <br />
+                  CEO-BRD-01
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-end justify-between">
+                <div>
+                  <h1 className="font-display text-[26px] font-bold uppercase leading-none tracking-wide">Tracker Board Snapshot</h1>
+                  <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[#5b7089]">Scope · {boardScopeLabel}</p>
+                </div>
+                <span className="stamp text-[11px] text-[#0e7490]">Snapshot</span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-5 gap-2">
+                {STAGES.map((s) => {
+                  const list = boardPapers.filter((p) => p.stage === s.id);
+                  return (
+                    <div key={s.id} className="border border-[#c8d3e0]">
+                      <div className="border-b-2 px-2 py-1.5" style={{ borderColor: s.color }}>
+                        <p className="font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-[#31506e]">{s.label}</p>
+                        <p className="font-display text-[20px] font-bold leading-none tabular">{list.length}</p>
+                      </div>
+                      <div className="space-y-1.5 p-1.5">
+                        {list.map((p) => {
+                          const pics = (p.assignees ?? []).map((id) => db.users.find((u) => u.id === id)?.name).filter(Boolean) as string[];
+                          return (
+                            <div key={p.id} className="border border-[#dde5ee] bg-[#faf8f2] px-1.5 py-1.5">
+                              <p className="font-mono text-[7.5px] font-bold tracking-wider text-[#5b7089]">{p.ref}</p>
+                              <p className="text-[8.5px] font-semibold leading-tight">{p.title}</p>
+                              <p className="mt-0.5 font-mono text-[7px] uppercase tracking-wider text-[#8a9ab0]">
+                                {divById(p.divisionId)?.code ?? ''}
+                                {pics.length > 0 && ` · PIC: ${pics.join(', ')}`}
+                              </p>
+                            </div>
+                          );
+                        })}
+                        {list.length === 0 && (
+                          <p className="px-1 py-2 text-center font-mono text-[7px] uppercase tracking-[0.16em] text-[#aab7c8]">clear</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="mt-8 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+                Generated by CEO Flow · {fmtDT(Date.now())} · {boardPapers.length} papers in scope · electronic chain of custody excerpt
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ------- the routing sheet ------- */}
+        {mode === 'routing' && (
         <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
           <div className="px-9 py-8">
             {/* letterhead */}

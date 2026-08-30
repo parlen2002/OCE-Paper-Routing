@@ -438,58 +438,87 @@ export function DocDrawer() {
           </Section>
 
           {/* actions */}
-          {/* person-in-charge */}
-          {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'division' || paper.assignedTo) && (
-            <Section title="Person-in-charge" icon="users">
+          {/* persons-in-charge */}
+          {(user.role === 'admin' ||
+            user.role === 'supervisor' ||
+            user.role === 'division' ||
+            user.role === 'moderator' ||
+            (paper.assignees?.length ?? 0) > 0) && (
+            <Section title={`Persons-in-charge · ${paper.assignees?.length ?? 0}`} icon="users">
               {(() => {
                 const emps = employeesOf(paper.divisionId);
-                const pic = paper.assignedTo ? db.users.find((u) => u.id === paper.assignedTo) : undefined;
-                const iAmPic = user.role === 'employee' && paper.assignedTo === user.id;
-                const canAssignRole = user.role === 'admin' || user.role === 'supervisor' || user.role === 'division';
+                const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
+                const iAmPic = (user.role === 'employee' || user.role === 'joborder') && (paper.assignees ?? []).includes(user.id);
+                const canAssignRole =
+                  user.role === 'admin' || user.role === 'supervisor' || user.role === 'division' || user.role === 'moderator';
+                const togglePic = (id: string) => {
+                  const cur = paper.assignees ?? [];
+                  assignPaper(paper.id, cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+                };
                 return (
                   <div className="space-y-2.5">
                     {canAssignRole ? (
-                      <label className="block">
-                        <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
-                          Designate the employee in charge · {div?.code ?? ''} roster
-                        </span>
-                        <select
-                          className="field"
-                          value={paper.assignedTo ?? ''}
-                          onChange={(e) => assignPaper(paper.id, e.target.value || null)}
-                        >
-                          <option value="">— unassigned (division pool) —</option>
-                          {emps.map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {e.name} — {e.title}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
-                          {emps.length === 0
-                            ? 'No active employees in this division yet — add them via signup verification in Users & Accounts'
-                            : 'The designated employee tracks and updates this work order on their personal board'}
-                        </span>
-                      </label>
-                    ) : (
-                      pic && (
-                        <div className="flex items-center gap-3 rounded-md border border-tealx-500/40 bg-tealx-500/[0.06] px-3 py-2.5">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-tealx-500/50 bg-tealx-500/12 text-tealx-400">
-                            <I n="users" className="h-4 w-4" sw={1.8} />
+                      <div>
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
+                            Designate the persons-in-charge · {div?.code ?? ''} roster
                           </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-[13px] font-bold text-mist-100">
-                              {pic.name}
-                              {iAmPic && (
-                                <span className="ml-2 rounded bg-tealx-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-tealx-400">
-                                  you
+                          <span className="ml-auto rounded-sm bg-tealx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold text-tealx-400 tabular">
+                            {pics.length} designated
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {emps.map((e) => {
+                            const on = (paper.assignees ?? []).includes(e.id);
+                            const isJO = e.role === 'joborder';
+                            return (
+                              <button
+                                key={e.id}
+                                type="button"
+                                onClick={() => togglePic(e.id)}
+                                title={`${e.name} — ${e.title}`}
+                                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] ${
+                                  on
+                                    ? 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400'
+                                    : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-tealx-500/40 hover:text-mist-200'
+                                }`}
+                              >
+                                {on && <I n="check" className="h-3 w-3" sw={2.6} />}
+                                {e.name.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
+                                <span className={`rounded-sm px-1 py-px text-[7.5px] ${isJO ? 'bg-amberx-500/15 text-amberx-400' : 'bg-tealx-500/12 text-tealx-400'}`}>
+                                  {isJO ? 'JO' : 'EMP'}
                                 </span>
-                              )}
+                              </button>
+                            );
+                          })}
+                          {emps.length === 0 && (
+                            <p className="px-1 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+                              No active employees / job-order personnel in this division yet — verify their sign-ups in Users & Accounts
                             </p>
-                            <p className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-mist-500">
-                              {pic.title} · {div?.name}
-                            </p>
-                          </div>
+                          )}
+                        </div>
+                        <span className="mt-1.5 block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+                          Multiple persons-in-charge allowed — each tracks this work order on their personal board
+                        </span>
+                      </div>
+                    ) : (
+                      pics.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {pics.map((p) => (
+                            <span
+                              key={p.id}
+                              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider ${
+                                p.id === user.id
+                                  ? 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400'
+                                  : 'border-ink-600 bg-ink-850 text-mist-300'
+                              }`}
+                              title={`${p.name} — ${p.title}`}
+                            >
+                              <I n="users" className="h-3 w-3" sw={2} />
+                              {p.name.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
+                              {p.id === user.id && <span className="rounded-sm bg-tealx-500/20 px-1 py-px text-[7.5px]">you</span>}
+                            </span>
+                          ))}
                         </div>
                       )
                     )}
@@ -499,7 +528,7 @@ export function DocDrawer() {
                       <div className="rounded-md border border-amberx-500/45 bg-amberx-500/[0.07] px-3 py-2.5">
                         <p className="flex items-center gap-2 text-[12px] font-semibold text-amberx-400">
                           <I n="shield" className="h-3.5 w-3.5 shrink-0" sw={2} />
-                          Submitted by {paper.assignedByName ?? 'the employee'} — awaiting division head verification
+                          Submitted by {pics.map((p) => p.name).join(', ') || 'the persons-in-charge'} — awaiting division head verification
                         </p>
                         <p className="mt-1 text-[11px] leading-relaxed text-mist-400">
                           {iAmPic
@@ -544,10 +573,12 @@ export function DocDrawer() {
                     disabled={!editable}
                     onChange={(e) => doMove(e.target.value as Stage)}
                   >
-                    {STAGES.filter((s) => !(user.role === 'employee' && s.id === 'completed')).map((s) => (
+                    {STAGES.filter((s) => !((user.role === 'employee' || user.role === 'joborder') && s.id === 'completed')).map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.label}
-                        {user.role === 'employee' && s.id === 'verification' ? ' — final stage for employees' : ''}
+                        {(user.role === 'employee' || user.role === 'joborder') && s.id === 'verification'
+                          ? ' — final stage before head verification'
+                          : ''}
                       </option>
                     ))}
                   </select>
@@ -559,11 +590,13 @@ export function DocDrawer() {
                   <select
                     className="field"
                     value={forwardVal}
-                    disabled={!editable || user.role === 'employee'}
+                    disabled={!editable || user.role === 'employee' || user.role === 'joborder'}
                     onChange={(e) => doForward(e.target.value)}
                   >
                     <option value="">
-                      {user.role === 'employee' ? '— routing is done by your division head —' : '— choose recipient —'}
+                      {user.role === 'employee' || user.role === 'joborder'
+                        ? '— routing is done by your division head —'
+                        : '— choose recipient —'}
                     </option>
                     <optgroup label="Executive desks">
                       {DESKS.filter((d) => d.id !== paper.divisionId).map((d) => (

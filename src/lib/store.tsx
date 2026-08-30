@@ -24,11 +24,19 @@ function loadDb(): DB {
 
 export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users' | 'userlogs' | 'myboard' | 'personnel';
 
+export interface ReportPreset {
+  board?: boolean;
+  presetDiv?: string; // 'all' | division id
+  label?: string;
+  mine?: boolean; // personal work board of the signed-in user
+}
+
 export interface UIState {
   page: Page;
   drawerId: string | null;
   newOpen: boolean;
   reportOpen: boolean;
+  reportPreset: ReportPreset | null;
   profileOpen: boolean;
   search: string;
   divFilter: string; // 'all' | division id
@@ -62,7 +70,7 @@ interface StoreCtx {
   openDrawer: (id: string) => void;
   closeDrawer: () => void;
   setNewOpen: (open: boolean) => void;
-  setReportOpen: (open: boolean) => void;
+  setReportOpen: (open: boolean, preset?: ReportPreset | null) => void;
   setSearch: (s: string) => void;
   setDivFilter: (s: string) => void;
   setViewer: (v: { docId: string; attId: string } | null) => void;
@@ -140,6 +148,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     drawerId: null,
     newOpen: false,
     reportOpen: false,
+    reportPreset: null,
     profileOpen: false,
     search: '',
     divFilter: 'all',
@@ -403,12 +412,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!target) return;
     const cleaned: Partial<User> = { ...patch };
     if (!cleaned.password) delete cleaned.password;
-    // '' = explicit clear; undefined = not specified, so keep whatever the account already has
-    const clearDiv = cleaned.divisionId === '';
-    if (cleaned.divisionId === undefined || clearDiv) delete cleaned.divisionId;
+    // tri-state: undefined = keep current · '' = explicitly clear · value = set
+    if (cleaned.divisionId === undefined) delete cleaned.divisionId;
+    else if (cleaned.divisionId === '') cleaned.divisionId = undefined;
     setDb((d) =>
       withLog(
-        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, ...cleaned, ...(clearDiv ? { divisionId: undefined } : {}) } : x)) },
+        { ...d, users: d.users.map((x) => (x.id === id ? { ...x, ...cleaned } : x)) },
         {
           userId: user.id,
           userName: user.name,
@@ -418,7 +427,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }${cleaned.role && cleaned.role !== target.role ? ` — role set to ${cleaned.role}` : ''}${
             cleaned.divisionId && cleaned.divisionId !== target.divisionId
               ? ` — assigned to ${divById(cleaned.divisionId)?.code ?? cleaned.divisionId}`
-              : ''
+              : cleaned.divisionId === undefined && 'divisionId' in (patch as object) && patch.divisionId === ''
+                ? ' — division assignment cleared'
+                : ''
           }`,
         }
       )
@@ -1135,7 +1146,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     openDrawer: (id) => setUi((u) => ({ ...u, drawerId: id })),
     closeDrawer: () => setUi((u) => ({ ...u, drawerId: null })),
     setNewOpen: (open) => setUi((u) => ({ ...u, newOpen: open })),
-    setReportOpen: (open) => setUi((u) => ({ ...u, reportOpen: open })),
+    setReportOpen: (open, preset) => setUi((u) => ({ ...u, reportOpen: open, reportPreset: preset ?? null })),
     setSearch: (s) => setUi((u) => ({ ...u, search: s })),
     setDivFilter: (s) => setUi((u) => ({ ...u, divFilter: s })),
     setViewer: (url) => setUi((u) => ({ ...u, viewer: url })),

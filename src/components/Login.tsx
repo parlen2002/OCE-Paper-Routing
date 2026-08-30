@@ -38,7 +38,7 @@ export function Login() {
   const [suPass2, setSuPass2] = useState('');
   const [suDiv, setSuDiv] = useState('const');
   const [suTitle, setSuTitle] = useState('');
-  const [suRole, setSuRole] = useState<'division' | 'employee'>('division');
+  const [suRole, setSuRole] = useState<'division' | 'employee' | 'joborder'>('division');
   const [suErr, setSuErr] = useState('');
   const [suDone, setSuDone] = useState(false);
 
@@ -277,7 +277,8 @@ export function Login() {
                         <div className="flex overflow-hidden rounded-md border border-ink-600">
                           {([
                             { v: 'division', label: 'Division staff' },
-                            { v: 'employee', label: 'Employee / field staff' },
+                            { v: 'employee', label: 'Employee' },
+                            { v: 'joborder', label: 'Job-Order' },
                           ] as const).map((r) => (
                             <button
                               key={r.v}
@@ -285,9 +286,11 @@ export function Login() {
                               onClick={() => { setSuRole(r.v); setSuErr(''); }}
                               className={`flex-1 px-2 py-2 font-mono text-[9.5px] font-bold uppercase tracking-wider transition ${
                                 suRole === r.v
-                                  ? r.v === 'employee'
-                                    ? 'bg-tealx-500/15 text-tealx-400'
-                                    : 'bg-cyanx-500/12 text-cyanx-400'
+                                  ? r.v === 'division'
+                                    ? 'bg-cyanx-500/12 text-cyanx-400'
+                                    : r.v === 'employee'
+                                      ? 'bg-tealx-500/15 text-tealx-400'
+                                      : 'bg-amberx-500/15 text-amberx-400'
                                   : 'bg-ink-850 text-mist-500 hover:text-mist-200'
                               }`}
                             >
@@ -296,9 +299,9 @@ export function Login() {
                           ))}
                         </div>
                         <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
-                          {suRole === 'employee'
-                            ? 'Gets a personal work board for assigned work orders only'
-                            : 'Runs the division queue; can receive and route paperwork'}
+                          {suRole === 'division'
+                            ? 'Runs the division queue; can receive and route paperwork'
+                            : 'Gets a personal work board for assigned work orders only'}
                         </span>
                       </div>
                       <div>

@@ -20,9 +20,11 @@ const KIND: Record<LogType, { label: string; icon: IconName; color: string }> = 
   deny: { label: 'Denied', icon: 'x', color: '#f8837c' },
   edit: { label: 'Edited', icon: 'wrench', color: '#8adcf8' },
   delete: { label: 'Deleted', icon: 'trash', color: '#f4645c' },
+  profile: { label: 'Profile', icon: 'user', color: '#45e0cd' },
+  resetreq: { label: 'Reset req', icon: 'refresh', color: '#f8837c' },
 };
 
-const AUTH: LogType[] = ['login', 'logout', 'signup', 'approve', 'deny', 'edit'];
+const AUTH: LogType[] = ['login', 'logout', 'signup', 'approve', 'deny', 'edit', 'profile', 'resetreq'];
 
 const D = 864e5;
 const toDateInput = (ts: number) => {

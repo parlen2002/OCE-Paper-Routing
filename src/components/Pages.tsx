@@ -440,6 +440,8 @@ const ROLE_CHIP: Record<Role, { label: string; color: string }> = {
   supervisor: { label: 'Dept. Head', color: '#ff8a4c' },
   division: { label: 'Div. Head', color: '#56c8f0' },
   employee: { label: 'Employee', color: '#45e0cd' },
+  joborder: { label: 'Job-Order', color: '#f5b924' },
+  moderator: { label: 'Moderator', color: '#8adcf8' },
 };
 
 const STATUS_CHIP: Record<UserStatus, { label: string; color: string }> = {
@@ -458,15 +460,25 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
 
+  const needsDivision = role === 'division' || role === 'employee' || role === 'joborder';
+
   const save = () => {
     if (name.trim().length < 3) return setErr('Full name is required (min. 3 characters).');
-    if (role === 'division' && !divisionId) return setErr('A division assignment is required for division accounts.');
+    if (needsDivision && !divisionId) return setErr('A division / team assignment is required for this role.');
     if (password && password.length < 6) return setErr('New password must be at least 6 characters — or leave blank to keep the current one.');
+    // tri-state: value = set · '' = explicitly clear · undefined (key omitted) = keep current
+    const divPatch = needsDivision
+      ? divisionId
+      : divisionId === ''
+        ? target.divisionId
+          ? ''
+          : undefined
+        : divisionId;
     updateUser(target.id, {
       name: name.trim(),
       title: title.trim(),
       role,
-      divisionId: role === 'division' ? divisionId : undefined,
+      ...(divPatch === undefined ? {} : { divisionId: divPatch }),
       status,
       password: password || undefined,
     });
@@ -503,7 +515,10 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Role</span>
               <select className="field" value={role} onChange={(e) => { setRole(e.target.value as Role); setErr(''); }}>
-                <option value="division">Division</option>
+                <option value="division">Division Head</option>
+                <option value="employee">Employee</option>
+                <option value="joborder">Job-Order</option>
+                <option value="moderator">Moderator</option>
                 <option value="supervisor">Dept. Head</option>
                 <option value="admin">Admin</option>
               </select>
@@ -555,7 +570,7 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
 }
 
 export function UsersPage() {
-  const { user, db, approveUser, denyUser, go } = useStore();
+  const { user, db, approveUser, denyUser, go, approvePasswordReset, updateUser } = useStore();
   const [editing, setEditing] = useState<User | null>(null);
   if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
   const isAdmin = user?.role === 'admin';
@@ -635,6 +650,57 @@ export function UsersPage() {
           )}
         </section>
       )}
+
+      {isAdmin && (() => {
+        const resets = db.users.filter((u) => u.passwordResetAt && u.status !== 'disabled');
+        if (resets.length === 0) return null;
+        return (
+          <section className="anim-fade-up mb-6 rounded-lg border border-redx-500/35 bg-ink-900/80 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <I n="refresh" className="h-4 w-4 text-redx-400" sw={2} />
+              <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Password reset requests</h3>
+              <span className="rounded bg-redx-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-redx-400 tabular">
+                {resets.length} waiting
+              </span>
+              <span className="h-px flex-1 bg-ink-700" />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {resets.map((u) => {
+                const div = divById(u.divisionId ?? '');
+                return (
+                  <div key={u.id} className="anim-pop flex items-center gap-3 rounded-md border border-ink-600 bg-ink-850 p-3.5">
+                    <Avatar name={u.name} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-bold text-mist-50">{u.name}</p>
+                      <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">@{u.username} · {u.title}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-redx-400">
+                        <I n="clock" className="h-2.5 w-2.5" sw={2.4} />
+                        requested {u.passwordResetAt ? timeAgo(u.passwordResetAt) : ''} {div ? `· ${div.code}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-1.5">
+                      <button onClick={() => approvePasswordReset(u.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]" title="Verify and set password to 123456">
+                        <I n="check" className="h-3.5 w-3.5" sw={2.4} />
+                        Reset to 123456
+                      </button>
+                      <button
+                        onClick={() => updateUser(u.id, { passwordResetAt: undefined })}
+                        className="btn btn-ghost px-3 py-1.5 text-[11.5px] hover:border-redx-500/60 hover:text-redx-400"
+                      >
+                        <I n="x" className="h-3.5 w-3.5" sw={2.4} />
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-2.5 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+              Approving sets the account password to 123456 and notifies the officer — every reset is stamped into the system log
+            </p>
+          </section>
+        );
+      })()}
 
       <div className="anim-fade-up overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80" style={{ animationDelay: '120ms' }}>
         <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
@@ -728,7 +794,7 @@ export function PersonnelPage() {
   const [sel, setSel] = useState<string | null>(employees[0]?.id ?? null);
   if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
 
-  const papersOf = (id: string) => db.papers.filter((p) => p.assignedTo === id);
+  const papersOf = (id: string) => db.papers.filter((p) => (p.assignees ?? []).includes(id));
   const selected = employees.find((e) => e.id === sel) ?? employees[0] ?? null;
   const selPapers = selected ? papersOf(selected.id) : [];
   const selDiv = selected?.divisionId ? divById(selected.divisionId) : undefined;

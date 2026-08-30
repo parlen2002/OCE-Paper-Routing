@@ -6,10 +6,10 @@ import { Avatar } from './ui';
 import { timeAgo } from '../lib/util';
 
 const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
-  { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin'] },
-  { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division'] },
-  { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee'] },
-  { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin'] },
+  { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin', 'moderator'] },
+  { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division', 'moderator'] },
+  { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee', 'joborder'] },
+  { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin', 'moderator'] },
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
   { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin'] },
@@ -112,6 +112,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {user.shortTitle ?? (isSup ? 'Supervisor' : 'Division Head')}
               </p>
             </div>
+            <button
+              onClick={() => store.setProfileOpen(true)}
+              title="My profile — change password"
+              className="rounded p-1.5 text-mist-500 transition hover:bg-ink-700 hover:text-cyanx-400"
+            >
+              <I n="user" className="h-4 w-4" />
+            </button>
             <button
               onClick={logout}
               title="Sign out"
@@ -264,6 +271,100 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="mx-auto max-w-[1500px] px-5 py-6">{children}</main>
+      </div>
+
+      {ui.profileOpen && <ProfileModal />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------ profile: change / reset password */
+function ProfileModal() {
+  const { user, db, ui, setProfileOpen, changePassword, requestPasswordReset } = useStore();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [err, setErr] = useState('');
+  if (!user) return null;
+  const me = db.users.find((x) => x.id === user.id) ?? user;
+  const close = () => setProfileOpen(false);
+
+  const submit = () => {
+    setErr('');
+    if (next !== confirm) return setErr('New password and confirmation do not match.');
+    const reason = changePassword(cur, next);
+    if (reason) return setErr(reason);
+    setCur('');
+    setNext('');
+    setConfirm('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[66] flex items-start justify-center overflow-y-auto p-4 sm:p-12">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={close} />
+      <div className="anim-pop relative w-full max-w-md rounded-xl border border-ink-600 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.8)]">
+        <div className="flex items-center gap-3">
+          <Avatar name={user.name} size="lg" />
+          <div className="min-w-0">
+            <p className="font-mono text-[9.5px] font-medium uppercase tracking-[0.22em] text-flare-400">My profile</p>
+            <h3 className="truncate font-display text-[22px] font-bold uppercase leading-tight tracking-wide text-mist-50">{user.name}</h3>
+            <p className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-mist-500">
+              @{user.username} · {user.title}
+            </p>
+          </div>
+          <button onClick={close} className="ml-auto rounded-md border border-ink-600 p-2 text-mist-400 transition hover:border-redx-500/60 hover:text-redx-400">
+            <I n="x" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Current password</span>
+            <input type="password" className="field font-mono" value={cur} onChange={(e) => { setCur(e.target.value); setErr(''); }} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">New password</span>
+              <input type="password" className="field font-mono" value={next} onChange={(e) => { setNext(e.target.value); setErr(''); }} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Confirm new</span>
+              <input type="password" className="field font-mono" value={confirm} onChange={(e) => { setConfirm(e.target.value); setErr(''); }} />
+            </label>
+          </div>
+
+          {err && (
+            <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
+              <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
+              {err}
+            </p>
+          )}
+
+          <button className="btn btn-primary w-full justify-center" onClick={submit} disabled={!cur || !next || !confirm}>
+            <I n="check" className="h-4 w-4" sw={2.2} />
+            Update password
+          </button>
+
+          <div className="rounded-md border border-ink-700 bg-ink-850/70 px-3.5 py-3">
+            <p className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-400">Forgot your password?</p>
+            {me.passwordResetAt ? (
+              <p className="mt-1.5 flex items-start gap-2 text-[11.5px] leading-relaxed text-amberx-400">
+                <I n="clock" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
+                Reset request sent {timeAgo(me.passwordResetAt)} — the program admin will verify it and set your password to 123456.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-mist-500">
+                  Send a request to the program admin. Once verified, your password is reset to <b className="font-mono text-mist-300">123456</b> — change it again after signing in.
+                </p>
+                <button className="btn btn-ghost mt-2 w-full justify-center" onClick={requestPasswordReset}>
+                  <I n="refresh" className="h-3.5 w-3.5" sw={2.2} />
+                  Request admin password reset
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -33,12 +33,14 @@ function Section({ title, icon, children, right }: { title: string; icon: IconNa
   );
 }
 
-/** Stages picked files first, then commits them only when the officer presses Save. */
+/** Stages picked files first; a confirmation prompt must approve them before they are saved to the paper. */
 function AttachControl({ paperId }: { paperId: string }) {
-  const { user, addAttachments, pushToast } = useStore();
+  const { db, user, addAttachments, pushToast } = useStore();
   const [busy, setBusy] = useState(false);
   const [staged, setStaged] = useState<Attachment[]>([]);
+  const [confirmAdd, setConfirmAdd] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const paper = db.papers.find((p) => p.id === paperId);
 
   const pick = async (files: FileList | null) => {
     if (!files || files.length === 0 || !user) return;
@@ -54,6 +56,7 @@ function AttachControl({ paperId }: { paperId: string }) {
     if (staged.length === 0) return;
     addAttachments(paperId, staged);
     setStaged([]);
+    setConfirmAdd(false);
   };
 
   return (
@@ -72,7 +75,7 @@ function AttachControl({ paperId }: { paperId: string }) {
           {busy ? 'Reading files…' : 'Add JPG / PDF'}
         </button>
         {staged.length > 0 && (
-          <button className="btn btn-primary text-[12px]" onClick={commit}>
+          <button className="btn btn-primary text-[12px]" onClick={() => setConfirmAdd(true)}>
             <I n="check" className="h-3.5 w-3.5" sw={2.2} />
             Save {staged.length} file{staged.length > 1 ? 's' : ''}
           </button>
@@ -110,6 +113,56 @@ function AttachControl({ paperId }: { paperId: string }) {
           </li>
         </ul>
       )}
+
+      {/* add-confirmation prompt */}
+      {confirmAdd && staged.length > 0 && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={() => setConfirmAdd(false)} />
+          <div className="anim-pop relative w-full max-w-md rounded-xl border border-cyanx-500/45 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.85)]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-cyanx-500/50 bg-cyanx-500/12 text-cyanx-400">
+                <I n="clip" className="h-5 w-5" sw={1.8} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-cyanx-400">Confirm — add attachments</p>
+                <h3 className="mt-0.5 font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">
+                  Attach {staged.length} file{staged.length > 1 ? 's' : ''}?
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-md border border-ink-600 bg-ink-850 p-3.5">
+              <p className="font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
+                {paper ? `${paper.ref} · holder ${divById(paper.divisionId)?.code ?? '—'}` : 'paper record'}
+              </p>
+              <ul className="mt-2 space-y-1">
+                {staged.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 text-[12px] text-mist-200">
+                    <I n={a.kind === 'image' ? 'cam' : 'file'} className="h-3.5 w-3.5 shrink-0 text-mist-500" sw={1.8} />
+                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                    {a.geotagged && (
+                      <span className="rounded-sm bg-tealx-500/12 px-1 py-px font-mono text-[8px] font-bold uppercase text-tealx-400">gps</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <p className="mt-3 text-[12.5px] leading-relaxed text-mist-400">
+              The file{staged.length > 1 ? 's' : ''} will be stamped into the chain of custody under your name.
+              {staged.some((a) => a.geotagged) ? ' Geotagged photos will be linked to the site map.' : ''}
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setConfirmAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={commit}>
+                <I n="check" className="h-4 w-4" sw={2.2} />
+                Confirm & attach
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -143,8 +196,15 @@ export function DocDrawer() {
   const [forwardVal, setForwardVal] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<Attachment | null>(null);
 
   if (!paper || !user) return null;
+
+  // If this is the only geotagged file, removing it also drops the map link.
+  const lastGeotag =
+    confirmRemove != null &&
+    confirmRemove.geotagged &&
+    paper.attachments.filter((a) => a.geotagged).length === 1;
 
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
@@ -491,7 +551,7 @@ export function DocDrawer() {
                         Save
                       </a>
                       <button
-                        onClick={() => removeAttachment(paper.id, a.id)}
+                        onClick={() => setConfirmRemove(a)}
                         title={`Remove ${a.name} from this paper`}
                         className="inline-flex items-center gap-1 rounded-sm bg-ink-700/80 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mist-500 transition hover:bg-redx-500/15 hover:text-redx-400"
                       >
@@ -762,6 +822,18 @@ export function DocDrawer() {
         </div>
         {editOpen && <EditDocModal paper={paper} onClose={() => setEditOpen(false)} />}
         {delOpen && <ConfirmDeleteModal paper={paper} onClose={() => setDelOpen(false)} onDelete={() => deletePaper(paper.id)} />}
+        {confirmRemove && (
+          <ConfirmRemoveFileModal
+            paper={paper}
+            att={confirmRemove}
+            lastGeotag={lastGeotag}
+            onClose={() => setConfirmRemove(null)}
+            onConfirm={() => {
+              removeAttachment(paper.id, confirmRemove.id);
+              setConfirmRemove(null);
+            }}
+          />
+        )}
       </aside>
     </div>
   );
@@ -888,6 +960,77 @@ function EditDocModal({ paper, onClose }: { paper: Paper; onClose: () => void })
               Save changes
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ confirm: remove an attachment */
+function ConfirmRemoveFileModal({
+  paper,
+  att,
+  lastGeotag,
+  onClose,
+  onConfirm,
+}: {
+  paper: Paper;
+  att: Attachment;
+  lastGeotag: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="anim-pop relative w-full max-w-md rounded-xl border border-redx-500/45 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.85)]">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-redx-500/50 bg-redx-500/12 text-redx-400">
+            <I n="trash" className="h-5 w-5" sw={1.8} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-redx-400">Confirm — remove attachment</p>
+            <h3 className="mt-0.5 font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">Remove this file?</h3>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3 rounded-md border border-ink-600 bg-ink-850 p-3">
+          {att.kind === 'image' ? (
+            <img src={att.url} alt={att.name} className="h-14 w-16 shrink-0 rounded object-cover" />
+          ) : (
+            <span className="flex h-14 w-16 shrink-0 items-center justify-center rounded bg-flare-500/12 text-flare-400">
+              <I n="file" className="h-6 w-6" sw={1.4} />
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-bold text-mist-100" title={att.name}>
+              {att.name}
+            </p>
+            <p className="mt-0.5 font-mono text-[9.5px] uppercase tracking-wider text-mist-500">
+              {att.kind} · {paper.ref} {att.geotagged ? '· geotagged' : ''}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-3 text-[12.5px] leading-relaxed text-mist-400">
+          The file will be detached from {paper.ref} and the removal recorded in the chain of custody under your name.
+        </p>
+        {lastGeotag && (
+          <p className="mt-2 flex items-start gap-2 rounded-md border border-amberx-500/40 bg-amberx-500/10 px-3 py-2 text-[12px] leading-relaxed text-amberx-400">
+            <I n="pin" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
+            This is the last geotagged photo — the site map and GPS link will be removed from the paper as well.
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="btn btn-ghost" onClick={onClose}>Keep file</button>
+          <button
+            className="btn border border-redx-500/60 bg-redx-500/15 text-redx-400 hover:bg-redx-500/25"
+            onClick={onConfirm}
+          >
+            <I n="trash" className="h-4 w-4" sw={2} />
+            Remove file
+          </button>
         </div>
       </div>
     </div>

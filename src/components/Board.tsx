@@ -277,14 +277,9 @@ export function Board() {
   const isSup = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
   const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
 
-  /** Print only what this role's board is showing — admins/execs/moderators choose the division board. */
+  /** Print the routing report for exactly what this role's board is showing — scope is enforced per role in the print center. */
   const printBoard = () => {
-    const label = isEmployee
-      ? `${user?.name ?? ''} — personal work board${myDiv ? ` (${myDiv.code})` : ''}`
-      : ui.divFilter === 'all'
-        ? 'All divisions — tracker board'
-        : `${divById(ui.divFilter)?.name ?? ui.divFilter} — board`;
-    setReportOpen(true, { board: true, mine: isEmployee, presetDiv: isEmployee ? user?.divisionId ?? 'all' : ui.divFilter, label });
+    setReportOpen(true, { presetDiv: isEmployee ? 'all' : ui.divFilter });
   };
 
   const filtered = useMemo(() => {

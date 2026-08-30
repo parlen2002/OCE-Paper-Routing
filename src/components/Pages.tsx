@@ -572,7 +572,8 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
 export function UsersPage() {
   const { user, db, approveUser, denyUser, go, approvePasswordReset, updateUser } = useStore();
   const [editing, setEditing] = useState<User | null>(null);
-  if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
+  // Users & Accounts management is an administrator-only function.
+  if (user?.role !== 'admin') return null;
   const isAdmin = user?.role === 'admin';
 
   const pending = db.users.filter((u) => u.status === 'pending');

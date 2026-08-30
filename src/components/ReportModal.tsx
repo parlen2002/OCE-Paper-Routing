@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { ALL_UNITS, STAGES, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
+import { ALL_UNITS, cityEngineerName, divById, stageMeta, type Custody, type Paper } from '../lib/types';
 import { I, Seal } from './icons';
 import { fmtDT } from '../lib/util';
 
@@ -46,36 +46,40 @@ interface Row {
 }
 
 export function ReportModal() {
-  const { ui, setReportOpen, db, user } = useStore();
+  const { ui, setReportOpen, db, user, visiblePapers } = useStore();
   const [period, setPeriod] = useState<Period>('daily');
   const [date, setDate] = useState(toDateInput(Date.now()));
-  const [mode, setMode] = useState<'routing' | 'board'>('routing');
   const [divSel, setDivSel] = useState<string>('all');
 
   // consume the preset passed by whichever board opened the dialog
   useEffect(() => {
-    if (ui.reportOpen) {
-      const p = ui.reportPreset;
-      setMode(p?.board ? 'board' : 'routing');
-      setDivSel(p?.presetDiv ?? 'all');
-    }
+    if (ui.reportOpen) setDivSel(ui.reportPreset?.presetDiv ?? 'all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui.reportOpen]);
 
   const range = useMemo(() => periodRange(period, fromInput(date)), [period, date]);
 
   const isField = user?.role === 'employee' || user?.role === 'joborder';
-  const boardPapers = useMemo(() => {
-    let list = db.papers;
-    if (ui.reportPreset?.mine && user) list = list.filter((p) => (p.assignees ?? []).includes(user.id));
-    else if (divSel !== 'all') list = list.filter((p) => p.divisionId === divSel);
-    return list;
-  }, [db.papers, divSel, ui.reportPreset, user]);
-  const boardScopeLabel = ui.reportPreset?.mine && user
-    ? `${user.name} — personal work board`
-    : divSel === 'all'
+  const canSelectAll = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
+
+  /**
+   * Print scope is the tracker-board scope of the signed-in officer:
+   * admin / department heads (executives) / moderator — every paper (may narrow to one division board);
+   * division head — only papers within their division's queue and trail;
+   * employee / job-order — only their own assigned work orders.
+   */
+  const reportPapers = useMemo(() => {
+    if (canSelectAll && divSel !== 'all') return visiblePapers.filter((p) => p.divisionId === divSel);
+    return visiblePapers;
+  }, [visiblePapers, divSel, canSelectAll]);
+
+  const scopeLabel = canSelectAll
+    ? divSel === 'all'
       ? 'All divisions & offices'
-      : divById(divSel)?.name ?? divSel;
+      : (divById(divSel)?.name ?? divSel)
+    : isField
+      ? `Personal scope — ${user?.name ?? ''}`
+      : `Division scope — ${divById(user?.divisionId ?? '')?.name ?? ''} only`;
 
   const report = useMemo(() => {
     const { from, to } = range;
@@ -84,7 +88,7 @@ export function ReportModal() {
     let forwarded = 0;
     let completed = 0;
 
-    for (const p of db.papers) {
+    for (const p of reportPapers) {
       const moves = p.custody.filter((e) => e.at >= from && e.at < to && (e.action === 'created' || e.action === 'routed'));
       for (const e of p.custody) {
         if (e.at >= from && e.at < to) {
@@ -111,28 +115,34 @@ export function ReportModal() {
       return codes.join(' → ') + (multi ? ` · circulated ×${p.recipientIds!.length} (${(p.receivedBy ?? []).length} ack.)` : '');
     };
 
-    const divSummary = ALL_UNITS.map((d) => {
+    const summaryUnits = canSelectAll
+      ? ALL_UNITS
+      : user?.role === 'division' && user.divisionId
+        ? ALL_UNITS.filter((d) => d.id === user.divisionId)
+        : [];
+
+    const divSummary = summaryUnits.map((d) => {
       let inbound = 0;
       let outbound = 0;
-      for (const p of db.papers) {
+      for (const p of reportPapers) {
         for (const e of p.custody) {
           if (e.at < from || e.at >= to) continue;
           if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId === d.id) inbound++;
           if (e.action === 'routed' && e.fromDivisionId === d.id) outbound++;
         }
       }
-      const holding = db.papers.filter((p) => p.divisionId === d.id && p.stage !== 'completed').length;
-      const done = db.papers.filter(
+      const holding = reportPapers.filter((p) => p.divisionId === d.id && p.stage !== 'completed').length;
+      const done = reportPapers.filter(
         (p) => p.divisionId === d.id && p.custody.some((e) => e.action === 'stage' && e.stage === 'completed' && e.at >= from && e.at < to)
       ).length;
       return { d, inbound, outbound, holding, done };
     });
 
-    const pending = db.papers.filter((p) => p.stage !== 'completed').length;
-    return { rows, logged, forwarded, completed, pending, trail, divSummary };
-  }, [db.papers, range]);
+    const pending = reportPapers.filter((p) => p.stage !== 'completed').length;
+    return { rows, logged, forwarded, completed, pending, trail, divSummary, showSummary: divSummary.length > 0 };
+  }, [reportPapers, range, canSelectAll, user]);
 
-  if (!ui.reportOpen) return null;
+  if (!ui.reportOpen || !user) return null;
   const close = () => setReportOpen(false);
   const title = period === 'daily' ? 'DAILY' : period === 'weekly' ? 'WEEKLY' : 'MONTHLY';
 
@@ -147,67 +157,48 @@ export function ReportModal() {
           <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">Print center</span>
 
           <div className="flex overflow-hidden rounded-md border border-ink-600">
-            {([
-              { v: 'routing', label: 'Routing report' },
-              { v: 'board', label: 'Board snapshot' },
-            ] as const).map((m) => (
+            {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
               <button
-                key={m.v}
-                onClick={() => setMode(m.v)}
+                key={p}
+                onClick={() => setPeriod(p)}
                 className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
-                  mode === m.v ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+                  period === p ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
                 }`}
               >
-                {m.label}
+                {p}
               </button>
             ))}
           </div>
 
-          {mode === 'routing' ? (
-            <>
-              <div className="flex overflow-hidden rounded-md border border-ink-600">
-                {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
-                      period === p ? 'bg-cyanx-500/15 text-cyanx-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="field w-[150px] py-1.5 font-mono text-[11.5px]"
+          />
+          <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
 
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => e.target.value && setDate(e.target.value)}
-                className="field w-[150px] py-1.5 font-mono text-[11.5px]"
-              />
-              <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
-            </>
+          {canSelectAll ? (
+            <select className="field w-auto py-1.5 font-mono text-[11px]" value={divSel} onChange={(e) => setDivSel(e.target.value)}>
+              <option value="all">All divisions & offices</option>
+              {ALL_UNITS.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} · {d.name}
+                </option>
+              ))}
+            </select>
           ) : (
-            <>
-              {isField ? (
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-tealx-500/50 bg-tealx-500/10 px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-tealx-400">
-                  <I n="users" className="h-3 w-3" sw={2.2} />
-                  {boardScopeLabel}
-                </span>
-              ) : (
-                <select className="field w-auto py-1.5 font-mono text-[11px]" value={divSel} onChange={(e) => setDivSel(e.target.value)}>
-                  <option value="all">All divisions & offices</option>
-                  {ALL_UNITS.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.code} · {d.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">
-                {boardPapers.length} paper{boardPapers.length === 1 ? '' : 's'} in scope
-              </span>
-            </>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider ${
+                isField
+                  ? 'border-tealx-500/50 bg-tealx-500/10 text-tealx-400'
+                  : 'border-cyanx-500/50 bg-cyanx-500/10 text-cyanx-400'
+              }`}
+              title="The report is limited to the papers on your own tracker board"
+            >
+              <I n={isField ? 'users' : 'sitemap'} className="h-3 w-3" sw={2.2} />
+              {scopeLabel}
+            </span>
           )}
 
           <div className="ml-auto flex items-center gap-2">
@@ -221,74 +212,12 @@ export function ReportModal() {
           </div>
         </div>
 
-        {/* ------- board snapshot sheet ------- */}
-        {mode === 'board' && (
-          <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
-            <div className="px-9 py-8">
-              <div className="flex items-center gap-4 border-b-[3px] border-[#182a3e] pb-4">
-                <Seal className="h-14 w-14" />
-                <div className="flex-1 text-center">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5b7089]">Republic of the Philippines</p>
-                  <p className="font-display text-[22px] font-bold uppercase leading-tight tracking-wide">City of Puerto Princesa</p>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#31506e]">Office of the City Engineer</p>
-                  <p className="mt-0.5 text-[9.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">CEO Flow — Paperwork Flow Command</p>
-                </div>
-                <div className="w-14 text-right font-mono text-[9px] uppercase leading-relaxed text-[#8a9ab0]">
-                  Form
-                  <br />
-                  CEO-BRD-01
-                </div>
-              </div>
-
-              <div className="mt-5 flex items-end justify-between">
-                <div>
-                  <h1 className="font-display text-[26px] font-bold uppercase leading-none tracking-wide">Tracker Board Snapshot</h1>
-                  <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[#5b7089]">Scope · {boardScopeLabel}</p>
-                </div>
-                <span className="stamp text-[11px] text-[#0e7490]">Snapshot</span>
-              </div>
-
-              <div className="mt-5 grid grid-cols-5 gap-2">
-                {STAGES.map((s) => {
-                  const list = boardPapers.filter((p) => p.stage === s.id);
-                  return (
-                    <div key={s.id} className="border border-[#c8d3e0]">
-                      <div className="border-b-2 px-2 py-1.5" style={{ borderColor: s.color }}>
-                        <p className="font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-[#31506e]">{s.label}</p>
-                        <p className="font-display text-[20px] font-bold leading-none tabular">{list.length}</p>
-                      </div>
-                      <div className="space-y-1.5 p-1.5">
-                        {list.map((p) => {
-                          const pics = (p.assignees ?? []).map((id) => db.users.find((u) => u.id === id)?.name).filter(Boolean) as string[];
-                          return (
-                            <div key={p.id} className="border border-[#dde5ee] bg-[#faf8f2] px-1.5 py-1.5">
-                              <p className="font-mono text-[7.5px] font-bold tracking-wider text-[#5b7089]">{p.ref}</p>
-                              <p className="text-[8.5px] font-semibold leading-tight">{p.title}</p>
-                              <p className="mt-0.5 font-mono text-[7px] uppercase tracking-wider text-[#8a9ab0]">
-                                {divById(p.divisionId)?.code ?? ''}
-                                {pics.length > 0 && ` · PIC: ${pics.join(', ')}`}
-                              </p>
-                            </div>
-                          );
-                        })}
-                        {list.length === 0 && (
-                          <p className="px-1 py-2 text-center font-mono text-[7px] uppercase tracking-[0.16em] text-[#aab7c8]">clear</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="mt-8 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
-                Generated by CEO Flow · {fmtDT(Date.now())} · {boardPapers.length} papers in scope · electronic chain of custody excerpt
-              </p>
-            </div>
-          </div>
-        )}
+        <p className="no-print mb-3 flex items-center gap-2 px-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+          <I n="lock" className="h-3 w-3" sw={2} />
+          Report scope matches your tracker board — other divisions' routing stays private to them and to the administrators
+        </p>
 
         {/* ------- the routing sheet ------- */}
-        {mode === 'routing' && (
         <div className="print-sheet anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
           <div className="px-9 py-8">
             {/* letterhead */}
@@ -307,17 +236,17 @@ export function ReportModal() {
               </div>
             </div>
 
-            <div className="mt-5 flex items-end justify-between">
+            <div className="mt-5 flex items-end justify-between gap-3">
               <div>
                 <h1 className="font-display text-[26px] font-bold uppercase leading-none tracking-wide">
                   {title} Paper Routing Report
                 </h1>
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[#5b7089]">
-                  Coverage · {range.label}
+                  Coverage · {range.label} &nbsp;·&nbsp; Scope · {scopeLabel}
                 </p>
               </div>
               <span
-                className="stamp text-[11px]"
+                className="stamp shrink-0 text-[11px]"
                 style={{ color: period === 'daily' ? '#0e7490' : period === 'weekly' ? '#b45309' : '#7c2d12' }}
               >
                 {title}
@@ -330,7 +259,7 @@ export function ReportModal() {
                 { l: 'Papers logged', v: report.logged },
                 { l: 'Forwarded / re-routed', v: report.forwarded },
                 { l: 'Completed in period', v: report.completed },
-                { l: 'Still open (all time)', v: report.pending },
+                { l: 'Still open in scope', v: report.pending },
               ].map((s) => (
                 <div key={s.l} className="border border-[#c8d3e0] px-3 py-2.5">
                   <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#8a9ab0]">{s.l}</p>
@@ -345,7 +274,7 @@ export function ReportModal() {
             </h2>
             {report.rows.length === 0 ? (
               <p className="mt-4 border border-dashed border-[#c8d3e0] px-4 py-8 text-center font-mono text-[10.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">
-                No paper routing recorded for this period
+                No paper routing recorded for this period within your scope
               </p>
             ) : (
               <table className="mt-3 w-full border-collapse text-[10.5px] leading-snug">
@@ -389,35 +318,39 @@ export function ReportModal() {
               </table>
             )}
 
-            {/* division summary */}
-            <h2 className="mt-7 border-b-2 border-[#182a3e] pb-1 font-display text-[15px] font-bold uppercase tracking-[0.14em]">
-              2 · Division movement summary
-            </h2>
-            <table className="mt-3 w-full border-collapse text-[10.5px]">
-              <thead>
-                <tr className="border-y-2 border-[#182a3e] text-left font-mono text-[8.5px] uppercase tracking-[0.14em] text-[#5b7089]">
-                  <th className="py-1.5 pr-2">Division</th>
-                  <th className="py-1.5 pr-2 text-right">Received in</th>
-                  <th className="py-1.5 pr-2 text-right">Forwarded out</th>
-                  <th className="py-1.5 pr-2 text-right">Holding (open)</th>
-                  <th className="py-1.5 text-right">Completed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.divSummary.map(({ d, inbound, outbound, holding, done }) => (
-                  <tr key={d.id} className="border-b border-[#dde5ee]">
-                    <td className="py-1.5 pr-2">
-                      <span className="font-mono text-[9.5px] font-bold">{d.code}</span>
-                      <span className="ml-2 text-[#5b7089]">{d.name}</span>
-                    </td>
-                    <td className="py-1.5 pr-2 text-right font-mono tabular">{inbound}</td>
-                    <td className="py-1.5 pr-2 text-right font-mono tabular">{outbound}</td>
-                    <td className="py-1.5 pr-2 text-right font-mono tabular">{holding}</td>
-                    <td className="py-1.5 text-right font-mono tabular">{done}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* division movement summary — administrators, executives & moderator see all; division heads see their own only */}
+            {report.showSummary && (
+              <>
+                <h2 className="mt-7 border-b-2 border-[#182a3e] pb-1 font-display text-[15px] font-bold uppercase tracking-[0.14em]">
+                  2 · Division movement summary{!canSelectAll ? ' — your division' : ''}
+                </h2>
+                <table className="mt-3 w-full border-collapse text-[10.5px]">
+                  <thead>
+                    <tr className="border-y-2 border-[#182a3e] text-left font-mono text-[8.5px] uppercase tracking-[0.14em] text-[#5b7089]">
+                      <th className="py-1.5 pr-2">Division</th>
+                      <th className="py-1.5 pr-2 text-right">Received in</th>
+                      <th className="py-1.5 pr-2 text-right">Forwarded out</th>
+                      <th className="py-1.5 pr-2 text-right">Holding (open)</th>
+                      <th className="py-1.5 text-right">Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.divSummary.map(({ d, inbound, outbound, holding, done }) => (
+                      <tr key={d.id} className="border-b border-[#dde5ee]">
+                        <td className="py-1.5 pr-2">
+                          <span className="font-mono text-[9.5px] font-bold">{d.code}</span>
+                          <span className="ml-2 text-[#5b7089]">{d.name}</span>
+                        </td>
+                        <td className="py-1.5 pr-2 text-right font-mono tabular">{inbound}</td>
+                        <td className="py-1.5 pr-2 text-right font-mono tabular">{outbound}</td>
+                        <td className="py-1.5 pr-2 text-right font-mono tabular">{holding}</td>
+                        <td className="py-1.5 text-right font-mono tabular">{done}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
 
             {/* certification */}
             <div className="mt-10 grid grid-cols-2 gap-10">
@@ -438,11 +371,10 @@ export function ReportModal() {
             </div>
 
             <p className="mt-8 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
-              Generated by CEO Flow · {fmtDT(Date.now())} · excerpt of the electronic chain of custody · {db.papers.length} documents on record
+              Generated by CEO Flow · {fmtDT(Date.now())} · excerpt of the electronic chain of custody · {reportPapers.length} documents in scope
             </p>
           </div>
         </div>
-        )}
       </div>
     </div>
   );

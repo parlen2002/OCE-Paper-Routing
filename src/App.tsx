@@ -54,9 +54,13 @@ function AppInner() {
         {page === 'myboard' && (user.role === 'employee' || user.role === 'joborder') && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
-        {page === 'activity' && user.role !== 'division' && user.role !== 'employee' && <ActivityPage />}
-        {page === 'users' && <UsersPage />}
-        {page === 'userlogs' && user.role !== 'division' && user.role !== 'employee' && <LogsPage />}
+        {page === 'activity' && user.role !== 'division' && user.role !== 'employee' && user.role !== 'joborder' && (
+          <ActivityPage />
+        )}
+        {page === 'users' && user.role === 'admin' && <UsersPage />}
+        {page === 'userlogs' && user.role !== 'division' && user.role !== 'employee' && user.role !== 'joborder' && (
+          <LogsPage />
+        )}
         {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && (
           <PersonnelPage />
         )}

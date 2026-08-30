@@ -13,7 +13,7 @@ const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
   { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin'] },
-  { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['supervisor', 'admin'] },
+  { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['admin'] },
   { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin', 'supervisor'] },
 ];
 

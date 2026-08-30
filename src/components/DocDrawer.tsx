@@ -137,27 +137,29 @@ export function DocDrawer() {
                 <I n="alert" className="h-2.5 w-2.5" sw={2.4} /> Overdue
               </span>
             )}
-            {user.role === 'admin' && (
+            {(user.role === 'admin' || user.role === 'moderator') && (
               <span className="ml-auto flex items-center gap-1.5">
                 <button
                   onClick={() => setEditOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-cyanx-500/60 hover:text-cyanx-400"
-                  title="Administrator — edit this board entry"
+                  title={user.role === 'admin' ? 'Administrator — edit this board entry' : 'Moderator — edit this board entry'}
                 >
                   <I n="wrench" className="h-3 w-3" sw={2.2} />
                   Edit
                 </button>
-                <button
-                  onClick={() => setDelOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-redx-500/60 hover:bg-redx-500/10 hover:text-redx-400"
-                  title="Administrator — delete this board entry"
-                >
-                  <I n="trash" className="h-3 w-3" sw={2.2} />
-                  Delete
-                </button>
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => setDelOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-redx-500/60 hover:bg-redx-500/10 hover:text-redx-400"
+                    title="Administrator — delete this board entry"
+                  >
+                    <I n="trash" className="h-3 w-3" sw={2.2} />
+                    Delete
+                  </button>
+                )}
               </span>
             )}
-            <button onClick={closeDrawer} className={`${user.role === 'admin' ? '' : 'ml-auto'} rounded p-1.5 text-mist-400 transition hover:bg-ink-700 hover:text-mist-50`} title="Close (Esc)">
+            <button onClick={closeDrawer} className={`${user.role === 'admin' || user.role === 'moderator' ? '' : 'ml-auto'} rounded p-1.5 text-mist-400 transition hover:bg-ink-700 hover:text-mist-50`} title="Close (Esc)">
               <I n="x" className="h-4 w-4" sw={2} />
             </button>
           </div>

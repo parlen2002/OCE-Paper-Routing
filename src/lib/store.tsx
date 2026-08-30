@@ -25,10 +25,7 @@ function loadDb(): DB {
 export type Page = 'dashboard' | 'board' | 'documents' | 'divisions' | 'activity' | 'users' | 'userlogs' | 'myboard' | 'personnel';
 
 export interface ReportPreset {
-  board?: boolean;
   presetDiv?: string; // 'all' | division id
-  label?: string;
-  mine?: boolean; // personal work board of the signed-in user
 }
 
 export interface UIState {
@@ -1050,7 +1047,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updatePaper: StoreCtx['updatePaper'] = (id, patch) => {
-    if (!user || user.role !== 'admin') return;
+    if (!user || (user.role !== 'admin' && user.role !== 'moderator')) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
     const holderChanged = !!patch.divisionId && patch.divisionId !== p.divisionId;

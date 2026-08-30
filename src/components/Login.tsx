@@ -38,6 +38,7 @@ export function Login() {
   const [suPass2, setSuPass2] = useState('');
   const [suDiv, setSuDiv] = useState('const');
   const [suTitle, setSuTitle] = useState('');
+  const [suRole, setSuRole] = useState<'division' | 'employee'>('division');
   const [suErr, setSuErr] = useState('');
   const [suDone, setSuDone] = useState(false);
 
@@ -64,7 +65,7 @@ export function Login() {
       setShakeKey((k) => k + 1);
       return;
     }
-    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle });
+    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, role: suRole });
     if (reason) {
       setSuErr(reason);
       setShakeKey((k) => k + 1);
@@ -272,8 +273,37 @@ export function Login() {
                         <input className="field font-mono" placeholder="jcruz" value={suUser} onChange={(e) => { setSuUser(e.target.value); setSuErr(''); }} />
                       </div>
                       <div>
+                        <label className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Access level</label>
+                        <div className="flex overflow-hidden rounded-md border border-ink-600">
+                          {([
+                            { v: 'division', label: 'Division staff' },
+                            { v: 'employee', label: 'Employee / field staff' },
+                          ] as const).map((r) => (
+                            <button
+                              key={r.v}
+                              type="button"
+                              onClick={() => { setSuRole(r.v); setSuErr(''); }}
+                              className={`flex-1 px-2 py-2 font-mono text-[9.5px] font-bold uppercase tracking-wider transition ${
+                                suRole === r.v
+                                  ? r.v === 'employee'
+                                    ? 'bg-tealx-500/15 text-tealx-400'
+                                    : 'bg-cyanx-500/12 text-cyanx-400'
+                                  : 'bg-ink-850 text-mist-500 hover:text-mist-200'
+                              }`}
+                            >
+                              {r.label}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+                          {suRole === 'employee'
+                            ? 'Gets a personal work board for assigned work orders only'
+                            : 'Runs the division queue; can receive and route paperwork'}
+                        </span>
+                      </div>
+                      <div>
                         <label className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Designation</label>
-                        <input className="field" placeholder="e.g. Division OIC" value={suTitle} onChange={(e) => { setSuTitle(e.target.value); setSuErr(''); }} />
+                        <input className="field" placeholder={suRole === 'employee' ? 'e.g. Lineman II' : 'e.g. Division OIC'} value={suTitle} onChange={(e) => { setSuTitle(e.target.value); setSuErr(''); }} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">

@@ -6,7 +6,7 @@ import { Board } from './components/Board';
 import { Dashboard } from './components/Dashboard';
 import { DocDrawer } from './components/DocDrawer';
 import { NewDocModal } from './components/NewDocModal';
-import { ActivityPage, DivisionsPage, DocumentsPage, UsersPage } from './components/Pages';
+import { ActivityPage, DivisionsPage, DocumentsPage, PersonnelPage, UsersPage } from './components/Pages';
 import { LogsPage } from './components/LogsPage';
 import { ReportModal } from './components/ReportModal';
 import { AttachmentViewer } from './components/AttachmentViewer';
@@ -36,21 +36,28 @@ function AppInner() {
     );
   }
 
+  const restricted: string[] = ['dashboard', 'users', 'userlogs', 'activity', 'personnel'];
   const page =
-    user.role === 'division' && (ui.page === 'dashboard' || ui.page === 'users' || ui.page === 'userlogs' || ui.page === 'activity')
-      ? 'board'
-      : ui.page;
+    user.role === 'employee'
+      ? restricted.includes(ui.page)
+        ? 'myboard'
+        : ui.page
+      : user.role === 'division' && restricted.includes(ui.page)
+        ? 'board'
+        : ui.page;
 
   return (
     <>
       <Shell>
         {page === 'dashboard' && <Dashboard />}
         {page === 'board' && <Board />}
+        {page === 'myboard' && user.role === 'employee' && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
-        {page === 'activity' && user.role !== 'division' && <ActivityPage />}
+        {page === 'activity' && user.role !== 'division' && user.role !== 'employee' && <ActivityPage />}
         {page === 'users' && <UsersPage />}
-        {page === 'userlogs' && user.role !== 'division' && <LogsPage />}
+        {page === 'userlogs' && user.role !== 'division' && user.role !== 'employee' && <LogsPage />}
+        {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor') && <PersonnelPage />}
       </Shell>
       <DocDrawer />
       <NewDocModal />

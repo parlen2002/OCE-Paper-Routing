@@ -53,6 +53,21 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {div && <DivChip div={div} tone="paper" />}
         <KindTag kind={paper.kind} />
+        {paper.assignedByName && (
+          <span
+            className="inline-flex items-center gap-1 rounded-sm border border-[#0f9d8a]/50 bg-[#2dd4bf]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#0d9488]"
+            title={`Person-in-charge: ${paper.assignedByName}`}
+          >
+            <I n="users" className="h-2.5 w-2.5" sw={2.4} />
+            {paper.assignedByName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
+          </span>
+        )}
+        {paper.pendingHeadReview && !done && (
+          <span className="inline-flex items-center gap-1 rounded-sm border border-[#b45309]/50 bg-[#f59e0b]/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#b45309]">
+            <I n="shield" className="h-2.5 w-2.5" sw={2.4} />
+            Head review
+          </span>
+        )}
         {multi && (
           <span
             className="inline-flex items-center gap-1 rounded-sm border border-cyanx-600/50 bg-cyanx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#0e7490]"
@@ -127,17 +142,96 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
   );
 }
 
+function AssignModal({
+  paperId,
+  stage,
+  onClose,
+}: {
+  paperId: string;
+  stage: Stage;
+  onClose: () => void;
+}) {
+  const { db, employeesOf, moveStage } = useStore();
+  const paper = db.papers.find((p) => p.id === paperId);
+  const [empSel, setEmpSel] = useState<string>('__keep__');
+  const [note, setNote] = useState('');
+  if (!paper) return null;
+  const emps = employeesOf(paper.divisionId);
+  const meta = STAGES.find((s) => s.id === stage)!;
+
+  return (
+    <div className="fixed inset-0 z-[62] flex items-start justify-center overflow-y-auto p-4 sm:p-12">
+      <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="anim-pop relative w-full max-w-md rounded-xl border border-ink-600 bg-ink-900 p-6 shadow-[0_40px_90px_-20px_rgba(0,0,0,0.8)]">
+        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-flare-400">Move paperwork</p>
+        <h3 className="mt-0.5 font-display text-[22px] font-bold uppercase leading-tight tracking-wide text-mist-50">
+          {paper.ref} → <span style={{ color: meta.color }}>{meta.label}</span>
+        </h3>
+        <p className="mt-1 truncate text-[12px] text-mist-400">{paper.title}</p>
+
+        <label className="mt-4 block">
+          <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">
+            Person-in-charge · {divById(paper.divisionId)?.code ?? ''} employees
+          </span>
+          <select className="field" value={empSel} onChange={(e) => setEmpSel(e.target.value)}>
+            <option value="__keep__">
+              {paper.assignedByName ? `Keep current — ${paper.assignedByName}` : 'Keep unassigned'}
+            </option>
+            {emps.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {e.title}
+              </option>
+            ))}
+            {paper.assignedTo && <option value="">Unassign person-in-charge</option>}
+          </select>
+          <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+            {emps.length === 0
+              ? 'No active employees in this division yet — the move proceeds without a PIC'
+              : 'The employee gets the paper on their personal board and a taskbar signal'}
+          </span>
+        </label>
+
+        <label className="mt-3 block">
+          <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">
+            Movement note (optional)
+          </span>
+          <input className="field" placeholder="e.g. Mobilize crew by Monday" value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="btn btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              moveStage(paperId, stage, note || undefined, empSel === '__keep__' ? undefined : empSel);
+              onClose();
+            }}
+          >
+            <I n="check" className="h-4 w-4" sw={2.2} />
+            Confirm move
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Board() {
-  const { user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen } = useStore();
+  const { user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf } = useStore();
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
+  const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
 
-  const isSup = user?.role !== 'division';
+  const isEmployee = user?.role === 'employee';
+  const isSup = user?.role === 'admin' || user?.role === 'supervisor';
   const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
 
   const filtered = useMemo(() => {
     const q = ui.search.trim().toLowerCase();
     return visiblePapers.filter((p) => {
+      if (isEmployee) return !q || `${p.ref} ${p.title} ${p.origin}`.toLowerCase().includes(q);
       if (
         !isSup &&
         scope === 'queue' &&
@@ -147,10 +241,10 @@ export function Board() {
         return false;
       if (isSup && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
       if (!q) return true;
-      const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase();
+      const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''} ${p.assignedByName ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [visiblePapers, ui.search, ui.divFilter, isSup, scope, user]);
+  }, [visiblePapers, ui.search, ui.divFilter, isSup, isEmployee, scope, user]);
 
   const byStage = (s: Stage) => filtered.filter((p) => p.stage === s);
 
@@ -158,7 +252,16 @@ export function Board() {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
     setOver(null);
-    if (id) moveStage(id, stage);
+    if (!id) return;
+    const paper = visiblePapers.find((p) => p.id === id);
+    if (!paper || paper.stage === stage) return;
+    // Division heads & executives choose the person-in-charge while moving the paper.
+    const canAssign = user && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'division');
+    if (canAssign && employeesOf(paper.divisionId).length > 0) {
+      setPendingMove({ id, stage });
+      return;
+    }
+    moveStage(id, stage);
   };
 
   return (
@@ -208,6 +311,16 @@ export function Board() {
               </button>
             ))}
           </>
+        ) : isEmployee ? (
+          <>
+            <span className="inline-flex items-center gap-2 rounded-md border border-tealx-500/50 bg-tealx-500/10 px-3 py-1.5 text-[12px] font-semibold text-tealx-400">
+              <I n="users" className="h-3.5 w-3.5" sw={2} />
+              My work board · {myDiv?.name}
+            </span>
+            <span className="hidden font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-500 sm:block">
+              Drag to update progress — completion is verified by your division head
+            </span>
+          </>
         ) : (
           <>
             <span className="inline-flex items-center gap-2 rounded-md border border-ink-600 bg-ink-850 px-3 py-1.5 text-[12px] font-semibold text-mist-200">
@@ -236,10 +349,12 @@ export function Board() {
         <span className="ml-auto hidden font-mono text-[10px] uppercase tracking-[0.18em] text-mist-500 md:block">
           {filtered.length} paper{filtered.length === 1 ? '' : 's'} in view · drag cards across stages
         </span>
-        <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
-          <I n="plus" className="h-4 w-4" sw={2.2} />
-          Log paperwork
-        </button>
+        {!isEmployee && (
+          <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
+            <I n="plus" className="h-4 w-4" sw={2.2} />
+            Log paperwork
+          </button>
+        )}
       </div>
 
       {/* columns */}
@@ -298,6 +413,10 @@ export function Board() {
           })}
         </div>
       </div>
+
+      {pendingMove && (
+        <AssignModal paperId={pendingMove.id} stage={pendingMove.stage} onClose={() => setPendingMove(null)} />
+      )}
     </div>
   );
 }

@@ -231,7 +231,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** The routable unit the signed-in officer answers for (division, or their executive desk). */
   const userUnitId: string | null = !user
     ? null
-    : user.role === 'division'
+    : user.role === 'division' || user.role === 'employee'
       ? user.divisionId ?? null
       : user.role === 'supervisor'
         ? user.title.includes('Assistant')
@@ -711,7 +711,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /** Division head / executive returns a submitted work order to the employee for rework. */
   const returnToEmployee: StoreCtx['returnToEmployee'] = (id) => {
-    if (!user || (user.role !== 'supervisor' && user.role !== 'admin')) return;
+    if (!user) return;
+    if (user.role === 'employee') return;
+    if (user.role === 'division' && !(user.divisionId && db.papers.find((x) => x.id === id)?.divisionId === user.divisionId)) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p || !p.pendingHeadReview) return;
     const emp = p.assignedTo ? db.users.find((u) => u.id === p.assignedTo) : null;

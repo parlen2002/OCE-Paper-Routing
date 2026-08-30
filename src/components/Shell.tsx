@@ -7,7 +7,9 @@ import { timeAgo } from '../lib/util';
 
 const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin'] },
-  { page: 'board', label: 'Tracker Board', icon: 'board' },
+  { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division'] },
+  { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee'] },
+  { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin'] },
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
   { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin'] },

@@ -68,7 +68,25 @@ function AttachControl({ paperId }: { paperId: string }) {
 
 export function DocDrawer() {
   const store = useStore();
-  const { db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer, deletePaper, updatePaper, ackPaper, userUnitId } = store;
+  const {
+    db,
+    user,
+    ui,
+    closeDrawer,
+    moveStage,
+    routePaper,
+    addNote,
+    canEdit,
+    setViewer,
+    deletePaper,
+    updatePaper,
+    ackPaper,
+    userUnitId,
+    assignPaper,
+    submitToHead,
+    returnToEmployee,
+    employeesOf,
+  } = store;
   const paper = useMemo(() => db.papers.find((p) => p.id === ui.drawerId) ?? null, [db.papers, ui.drawerId]);
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
@@ -420,6 +438,95 @@ export function DocDrawer() {
           </Section>
 
           {/* actions */}
+          {/* person-in-charge */}
+          {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'division' || paper.assignedTo) && (
+            <Section title="Person-in-charge" icon="users">
+              {(() => {
+                const emps = employeesOf(paper.divisionId);
+                const pic = paper.assignedTo ? db.users.find((u) => u.id === paper.assignedTo) : undefined;
+                const iAmPic = user.role === 'employee' && paper.assignedTo === user.id;
+                const canAssignRole = user.role === 'admin' || user.role === 'supervisor' || user.role === 'division';
+                return (
+                  <div className="space-y-2.5">
+                    {canAssignRole ? (
+                      <label className="block">
+                        <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
+                          Designate the employee in charge · {div?.code ?? ''} roster
+                        </span>
+                        <select
+                          className="field"
+                          value={paper.assignedTo ?? ''}
+                          onChange={(e) => assignPaper(paper.id, e.target.value || null)}
+                        >
+                          <option value="">— unassigned (division pool) —</option>
+                          {emps.map((e) => (
+                            <option key={e.id} value={e.id}>
+                              {e.name} — {e.title}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+                          {emps.length === 0
+                            ? 'No active employees in this division yet — add them via signup verification in Users & Accounts'
+                            : 'The designated employee tracks and updates this work order on their personal board'}
+                        </span>
+                      </label>
+                    ) : (
+                      pic && (
+                        <div className="flex items-center gap-3 rounded-md border border-tealx-500/40 bg-tealx-500/[0.06] px-3 py-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-tealx-500/50 bg-tealx-500/12 text-tealx-400">
+                            <I n="users" className="h-4 w-4" sw={1.8} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold text-mist-100">
+                              {pic.name}
+                              {iAmPic && (
+                                <span className="ml-2 rounded bg-tealx-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-tealx-400">
+                                  you
+                                </span>
+                              )}
+                            </p>
+                            <p className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-mist-500">
+                              {pic.title} · {div?.name}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* head-review flow */}
+                    {paper.pendingHeadReview && paper.stage !== 'completed' && (
+                      <div className="rounded-md border border-amberx-500/45 bg-amberx-500/[0.07] px-3 py-2.5">
+                        <p className="flex items-center gap-2 text-[12px] font-semibold text-amberx-400">
+                          <I n="shield" className="h-3.5 w-3.5 shrink-0" sw={2} />
+                          Submitted by {paper.assignedByName ?? 'the employee'} — awaiting division head verification
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-mist-400">
+                          {iAmPic
+                            ? 'Your division head reviews the work order next. You can keep adding remarks and evidence while it is under review.'
+                            : 'Verify the work by moving it to Verification or Completed — or return it to the employee with instructions.'}
+                        </p>
+                        {!iAmPic && canAssignRole && (
+                          <button onClick={() => returnToEmployee(paper.id)} className="btn btn-ghost mt-2 px-3 py-1.5 text-[11px]">
+                            <I n="history" className="h-3.5 w-3.5" sw={2.2} />
+                            Return to employee
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {iAmPic && !paper.pendingHeadReview && paper.stage !== 'completed' && (
+                      <button onClick={() => submitToHead(paper.id)} className="btn btn-primary w-full justify-center">
+                        <I n="send" className="h-4 w-4" sw={2} />
+                        Submit to division head for verification
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+            </Section>
+          )}
+
           <Section title="Move this paper" icon="send">
             <div className="rounded-lg border border-ink-700 bg-ink-850/70 p-3.5">
               <input
@@ -437,9 +544,10 @@ export function DocDrawer() {
                     disabled={!editable}
                     onChange={(e) => doMove(e.target.value as Stage)}
                   >
-                    {STAGES.map((s) => (
+                    {STAGES.filter((s) => !(user.role === 'employee' && s.id === 'completed')).map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.label}
+                        {user.role === 'employee' && s.id === 'verification' ? ' — final stage for employees' : ''}
                       </option>
                     ))}
                   </select>
@@ -448,8 +556,15 @@ export function DocDrawer() {
                   <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
                     Forward / re-route — division, team or executive desk
                   </span>
-                  <select className="field" value={forwardVal} disabled={!editable} onChange={(e) => doForward(e.target.value)}>
-                    <option value="">— choose recipient —</option>
+                  <select
+                    className="field"
+                    value={forwardVal}
+                    disabled={!editable || user.role === 'employee'}
+                    onChange={(e) => doForward(e.target.value)}
+                  >
+                    <option value="">
+                      {user.role === 'employee' ? '— routing is done by your division head —' : '— choose recipient —'}
+                    </option>
                     <optgroup label="Executive desks">
                       {DESKS.filter((d) => d.id !== paper.divisionId).map((d) => (
                         <option key={d.id} value={d.id}>

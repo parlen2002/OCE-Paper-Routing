@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CLUSTERS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById } from '../lib/types';
+import { CLUSTERS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, divById } from '../lib/types';
 import type { Kind, Role, Stage, User, UserStatus } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, EmptyState, KindTag, PageHead, PriorityTag, StageChip } from './ui';
@@ -438,7 +438,8 @@ export function ActivityPage() {
 const ROLE_CHIP: Record<Role, { label: string; color: string }> = {
   admin: { label: 'Admin', color: '#fbc94a' },
   supervisor: { label: 'Dept. Head', color: '#ff8a4c' },
-  division: { label: 'Division', color: '#56c8f0' },
+  division: { label: 'Div. Head', color: '#56c8f0' },
+  employee: { label: 'Employee', color: '#45e0cd' },
 };
 
 const STATUS_CHIP: Record<UserStatus, { label: string; color: string }> = {
@@ -713,6 +714,216 @@ export function UsersPage() {
       </div>
 
       {editing && isAdmin && <EditUserModal target={editing} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------ personnel boards (admin & executives) */
+export function PersonnelPage() {
+  const { db, user, openDrawer, returnToEmployee } = useStore();
+  const employees = useMemo(
+    () => db.users.filter((u) => u.role === 'employee' && u.status !== 'disabled').sort((a, b) => a.name.localeCompare(b.name)),
+    [db.users]
+  );
+  const [sel, setSel] = useState<string | null>(employees[0]?.id ?? null);
+  if (user?.role !== 'admin' && user?.role !== 'supervisor') return null;
+
+  const papersOf = (id: string) => db.papers.filter((p) => p.assignedTo === id);
+  const selected = employees.find((e) => e.id === sel) ?? employees[0] ?? null;
+  const selPapers = selected ? papersOf(selected.id) : [];
+  const selDiv = selected?.divisionId ? divById(selected.divisionId) : undefined;
+
+  const totalOpen = employees.reduce((a, e) => a + papersOf(e.id).filter((p) => p.stage !== 'completed').length, 0);
+  const totalReview = employees.reduce((a, e) => a + papersOf(e.id).filter((p) => p.pendingHeadReview && p.stage !== 'completed').length, 0);
+  const week = Date.now() - 7 * 864e5;
+  const totalDone = employees.reduce(
+    (a, e) => a + papersOf(e.id).filter((p) => p.stage === 'completed' && p.updatedAt >= week).length,
+    0
+  );
+
+  const stats = [
+    { label: 'Employees on record', value: employees.length, color: '#45e0cd' },
+    { label: 'Open work orders', value: totalOpen, color: '#56c8f0' },
+    { label: 'Awaiting head verification', value: totalReview, color: '#f5b924' },
+    { label: 'Closed this week', value: totalDone, color: '#45d483' },
+  ];
+
+  return (
+    <div>
+      <PageHead
+        kicker="Admin & executive oversight"
+        title="Personnel boards"
+        sub="Every work order designated to an individual employee, in one place — on top of the division boards. Completion is verified by the division head before a paper can close."
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {stats.map((s, i) => (
+          <div key={s.label} className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 60}ms` }}>
+            <p className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.2em] text-mist-500">{s.label}</p>
+            <p className="mt-1 font-display text-[40px] font-bold leading-none tabular" style={{ color: s.color }}>
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
+        {/* roster */}
+        <section className="anim-fade-up self-start rounded-lg border border-ink-700 bg-ink-900/80 p-3" style={{ animationDelay: '120ms' }}>
+          <p className="px-1.5 pb-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.22em] text-mist-500">
+            Employee roster · {employees.length}
+          </p>
+          <div className="scroll-slim max-h-[62vh] space-y-1.5 overflow-y-auto pr-1">
+            {employees.map((e) => {
+              const ps = papersOf(e.id);
+              const open = ps.filter((p) => p.stage !== 'completed').length;
+              const review = ps.filter((p) => p.pendingHeadReview && p.stage !== 'completed').length;
+              const d = e.divisionId ? divById(e.divisionId) : undefined;
+              const active = selected?.id === e.id;
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => setSel(e.id)}
+                  className={`flex w-full items-center gap-3 rounded-md border px-2.5 py-2.5 text-left transition ${
+                    active
+                      ? 'border-tealx-500/60 bg-tealx-500/[0.07] shadow-[0_0_0_1px_rgba(45,212,191,0.2)]'
+                      : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'
+                  }`}
+                >
+                  <Avatar name={e.name} />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[13px] font-bold ${active ? 'text-tealx-400' : 'text-mist-100'}`}>{e.name}</span>
+                    <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-mist-500">
+                      {e.title} {d ? `· ${d.code}` : ''}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-display text-[20px] font-bold leading-none text-mist-100 tabular">{open}</span>
+                    <span className="block font-mono text-[8px] uppercase tracking-wider text-mist-600">open</span>
+                  </span>
+                  {review > 0 && (
+                    <span className="shrink-0 rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase text-amberx-400">
+                      {review} review
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {employees.length === 0 && (
+              <p className="px-2 py-8 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
+                No employees yet — approve employee sign-ups in Users & Accounts
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* selected employee board */}
+        <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: '180ms' }}>
+          {selected ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <Avatar name={selected.name} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-[22px] font-bold uppercase tracking-wide text-mist-50">{selected.name}</p>
+                  <p className="truncate font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-500">
+                    {selected.title} · @{selected.username} {selDiv ? `· ${selDiv.name}` : ''}
+                  </p>
+                </div>
+                {selDiv && <DivChip div={selDiv} />}
+                <span className="rounded bg-ink-700 px-2 py-1 font-mono text-[10px] font-bold text-mist-200 tabular">
+                  {selPapers.length} paper{selPapers.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              {selPapers.length === 0 ? (
+                <EmptyState icon="users" title="No work orders designated" sub="Assign papers to this employee from the Tracker Board or any document drawer." />
+              ) : (
+                <div className="scroll-slim -mx-1 overflow-x-auto px-1 pb-2">
+                  <div className="grid min-w-[900px] grid-cols-5 gap-2.5">
+                    {STAGES.map((s) => {
+                      const list = selPapers.filter((p) => p.stage === s.id);
+                      return (
+                        <div key={s.id} className="rounded-md border border-ink-700/70 bg-ink-950/40 p-2">
+                          <div className="mb-2 flex items-center gap-1.5 px-0.5">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
+                            <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-mist-400">{s.label}</p>
+                            <span className="ml-auto font-mono text-[9px] font-bold text-mist-500 tabular">{list.length}</span>
+                          </div>
+                          <div className="space-y-2">
+                            {list.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => openDrawer(p.id)}
+                                className="paper-card group relative w-full cursor-pointer overflow-hidden rounded-md p-2.5 pl-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_-12px_rgba(0,0,0,0.7)]"
+                              >
+                                <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: PRIORITIES[p.priority].color }} />
+                                <p className="font-mono text-[9px] font-bold tracking-wider text-[#5b7089]">{p.ref}</p>
+                                <p className="mt-0.5 line-clamp-2 font-display text-[13.5px] font-bold leading-tight tracking-wide text-[#132437]">
+                                  {p.title}
+                                </p>
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  {p.pendingHeadReview && p.stage !== 'completed' ? (
+                                    <span className="rounded-sm border border-[#b45309]/50 bg-[#f59e0b]/12 px-1 py-0.5 font-mono text-[7.5px] font-bold uppercase tracking-wider text-[#b45309]">
+                                      head review
+                                    </span>
+                                  ) : (
+                                    <span className="font-mono text-[8px] uppercase tracking-wider text-[#7b8ba0]">{timeAgo(p.updatedAt)}</span>
+                                  )}
+                                  <span className="ml-auto font-mono text-[8.5px] text-[#a1b2c6] opacity-0 transition group-hover:opacity-100">open →</span>
+                                </div>
+                              </button>
+                            ))}
+                            {list.length === 0 && (
+                              <p className="rounded border border-dashed border-ink-700 px-2 py-3 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-mist-600">
+                                clear
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* submitted-for-review tray */}
+              {selPapers.filter((p) => p.pendingHeadReview && p.stage !== 'completed').length > 0 && (
+                <div className="mt-4 rounded-md border border-amberx-500/40 bg-amberx-500/[0.06] p-3.5">
+                  <p className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-amberx-400">
+                    <I n="shield" className="h-3.5 w-3.5" sw={2} />
+                    Submitted for your verification
+                  </p>
+                  <div className="mt-2.5 space-y-2">
+                    {selPapers
+                      .filter((p) => p.pendingHeadReview && p.stage !== 'completed')
+                      .map((p) => (
+                        <div key={p.id} className="flex items-center gap-3 rounded-md border border-ink-600 bg-ink-850 px-3 py-2.5">
+                          <button onClick={() => openDrawer(p.id)} className="min-w-0 flex-1 text-left">
+                            <span className="font-mono text-[9.5px] font-bold tracking-wider text-cyanx-400">{p.ref}</span>
+                            <span className="block truncate text-[12.5px] font-semibold text-mist-100">{p.title}</span>
+                          </button>
+                          <button onClick={() => returnToEmployee(p.id)} className="btn btn-ghost px-3 py-1.5 text-[11px]">
+                            <I n="history" className="h-3.5 w-3.5" sw={2.2} />
+                            Return
+                          </button>
+                          <button onClick={() => openDrawer(p.id)} className="btn btn-primary px-3 py-1.5 text-[11px]">
+                            <I n="check" className="h-3.5 w-3.5" sw={2.4} />
+                            Verify
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                  <p className="mt-2 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+                    Verify opens the paper — move it to Verification or Completed to accept the employee's submission
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <EmptyState icon="users" title="No employee selected" />
+          )}
+        </section>
+      </div>
     </div>
   );
 }

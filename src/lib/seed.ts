@@ -10,6 +10,7 @@ import type {
   SysLog,
   User,
 } from './types';
+import { ALL_UNITS } from './types';
 import { uid, makeStubPdf } from './util';
 
 const H = 36e5;
@@ -518,9 +519,82 @@ export function freshSeed(): DB {
       byName: CAROL,
       diverted: false,
     },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0145',
+      title: 'Memorandum Circular 2026-04 — year-end physical inventory of property & equipment',
+      kind: 'memo',
+      priority: 'priority',
+      origin: 'Office of the City Engineer — Memorandum Circular',
+      divisionId: 'desk-ce',
+      intendedId: 'desk-ce',
+      stage: 'progress',
+      attachments: [],
+      custody: [
+        c(now - 1.1 * D, CAROL, 'created', 'Circular logged and addressed to all divisions and offices — acknowledgement required', {
+          toDivisionId: 'desk-ce',
+        }),
+        c(now - 1.05 * D, CE, 'routed', 'For dissemination; every desk to submit inventory forms to Administrative Division', {
+          fromDivisionId: 'desk-ce',
+          toDivisionId: 'admin',
+        }),
+        c(now - 0.9 * D, 'Ms. Carol Estrella', 'received', 'Receipt acknowledged for Administrative Division', { toDivisionId: 'admin' }),
+        c(now - 0.8 * D, 'Engr. Ramil Domingo', 'received', 'Receipt acknowledged for Construction Division', { toDivisionId: 'const' }),
+        c(now - 0.75 * D, 'Engr. Nardo Salvador', 'received', 'Receipt acknowledged for Maintenance Division', { toDivisionId: 'maint' }),
+        c(now - 0.6 * D, 'Engr. Liza Bartolome', 'received', 'Receipt acknowledged for Public Services Division', { toDivisionId: 'psd' }),
+        c(now - 0.4 * D, 'Engr. Boyet Ramos', 'received', 'Receipt acknowledged for Motorpool Division', { toDivisionId: 'motorpool' }),
+      ],
+      createdAt: now - 1.1 * D,
+      updatedAt: now - 0.4 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      diverted: false,
+      recipientIds: ALL_UNITS.map((u) => u.id),
+      receivedBy: ['admin', 'const', 'maint', 'psd', 'motorpool'],
+    },
   ];
 
   const notifs: Notif[] = [
+    {
+      id: uid(),
+      at: now - 0.35 * D,
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      kind: 'new',
+      docId: papers[17].id,
+      ref: 'CEO-2026-0145',
+      scope: { type: 'division', divisionId: 'survey' },
+      readBy: [],
+    },
+    {
+      id: uid(),
+      at: now - 0.35 * D,
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      kind: 'new',
+      docId: papers[17].id,
+      ref: 'CEO-2026-0145',
+      scope: { type: 'division', divisionId: 'elec' },
+      readBy: [],
+    },
+    {
+      id: uid(),
+      at: now - 0.35 * D,
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      kind: 'new',
+      docId: papers[17].id,
+      ref: 'CEO-2026-0145',
+      scope: { type: 'division', divisionId: 'mtqc' },
+      readBy: [],
+    },
+    {
+      id: uid(),
+      at: now - 0.35 * D,
+      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 12 desks acknowledged',
+      kind: 'new',
+      docId: papers[17].id,
+      ref: 'CEO-2026-0145',
+      scope: { type: 'division', divisionId: 'it' },
+      readBy: [],
+    },
     {
       id: uid(),
       at: now - 0.3 * D,
@@ -612,7 +686,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 4, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 145 };
+  return { v: 5, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 146 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

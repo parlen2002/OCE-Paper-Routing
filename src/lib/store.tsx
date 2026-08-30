@@ -4,14 +4,14 @@ import { divById, stageMeta } from './types';
 import { freshSeed, deriveActivities } from './seed';
 import { uid } from './util';
 
-const LS_KEY = 'ppc-ceoflow-v4';
+const LS_KEY = 'ppc-ceoflow-v5';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 4 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 5 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = [];
         return d as DB;
       }
@@ -83,11 +83,13 @@ interface StoreCtx {
     kind: Kind;
     priority: Priority;
     origin: string;
-    divisionId: string;
+    recipientIds: string[];
     dueAt?: number;
     remarks?: string;
     attachments: Attachment[];
   }) => void;
+  ackPaper: (id: string) => void;
+  userUnitId: string | null;
   moveStage: (id: string, stage: Stage, note?: string) => void;
   routePaper: (id: string, toDivisionId: string, note?: string) => void;
   addNote: (id: string, text: string) => void;
@@ -165,6 +167,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const mine = (p: Paper) =>
       p.divisionId === user.divisionId ||
       p.intendedId === user.divisionId ||
+      (p.recipientIds ?? []).includes(user.divisionId ?? '') ||
       p.custody.some((e) => e.toDivisionId === user.divisionId || e.fromDivisionId === user.divisionId);
     return db.papers.filter(mine).sort((a, b) => b.updatedAt - a.updatedAt);
   }, [db.papers, user]);
@@ -209,7 +212,70 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const canEdit = (p: Paper): boolean => {
     if (!user) return false;
-    return user.role !== 'division' || user.divisionId === p.divisionId;
+    if (user.role !== 'division') return true;
+    // circulars: any addressed desk may act on the paper
+    if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(user.divisionId ?? '');
+    return user.divisionId === p.divisionId;
+  };
+
+  /** The routable unit the signed-in officer answers for (division, or their executive desk). */
+  const userUnitId: string | null = !user
+    ? null
+    : user.role === 'division'
+      ? user.divisionId ?? null
+      : user.role === 'supervisor'
+        ? user.title.includes('Assistant')
+          ? 'desk-ace'
+          : 'desk-ce'
+        : null;
+
+  const ackPaper: StoreCtx['ackPaper'] = (id) => {
+    if (!user) return;
+    const unit = userUnitId;
+    const p = db.papers.find((x) => x.id === id);
+    if (!p || !unit) return;
+    if (!(p.recipientIds ?? []).includes(unit)) {
+      pushToast('warn', 'Your desk is not an addressee of this paper');
+      return;
+    }
+    if ((p.receivedBy ?? []).includes(unit)) return;
+    const unitName = divById(unit)?.name ?? unit;
+    const entry = {
+      id: uid(),
+      at: Date.now(),
+      byName: user.name,
+      action: 'received' as const,
+      toDivisionId: unit,
+      text: `Receipt acknowledged for ${unitName}`,
+    };
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          papers: d.papers.map((x) =>
+            x.id === id
+              ? touch(x, (pp) => ({ ...pp, receivedBy: [...(pp.receivedBy ?? []), unit], custody: [...pp.custody, entry] }))
+              : x
+          ),
+        },
+        {
+          userId: user.id,
+          userName: user.name,
+          type: 'create',
+          text: `Acknowledged receipt of ${p.ref} for ${divById(unit)?.code ?? unit}`,
+          ref: p.ref,
+          docId: p.id,
+        }
+      )
+    );
+    const total = (p.recipientIds ?? []).length;
+    const done = (p.receivedBy ?? []).length + 1;
+    pushToast(
+      'ok',
+      done === total
+        ? `${p.ref} — all ${total} desks have acknowledged receipt`
+        : `Receipt recorded — ${done} of ${total} desks acknowledged`
+    );
   };
 
   const login = (username: string, password: string): string | null => {
@@ -353,7 +419,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const createPaper: StoreCtx['createPaper'] = (input) => {
     if (!user) return;
-    const div = divById(input.divisionId);
+    const recipients = input.recipientIds.length > 0 ? input.recipientIds : [];
+    const primary = recipients[0];
+    if (!primary) return;
+    const div = divById(primary);
+    const multi = recipients.length > 1;
     const ref = `CEO-2026-${String(db.seq).padStart(4, '0')}`;
     const nowTs = Date.now();
     const paper: Paper = {
@@ -363,8 +433,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       kind: input.kind,
       priority: input.priority,
       origin: input.origin.trim() || 'Walk-in / internal',
-      divisionId: input.divisionId,
-      intendedId: input.divisionId,
+      divisionId: primary,
+      intendedId: primary,
       stage: 'received',
       attachments: input.attachments,
       custody: [
@@ -373,8 +443,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           at: nowTs,
           byName: user.name,
           action: 'created',
-          text: `Logged into the system and transmitted to ${div?.name ?? input.divisionId}`,
-          toDivisionId: input.divisionId,
+          text: multi
+            ? `Logged into the system and circulated to ${recipients.length} desks (primary: ${div?.code ?? primary})`
+            : `Logged into the system and transmitted to ${div?.name ?? primary}`,
+          toDivisionId: primary,
         },
       ],
       createdAt: nowTs,
@@ -384,24 +456,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       dueAt: input.dueAt,
       remarks: input.remarks?.trim() || undefined,
       diverted: false,
+      recipientIds: recipients,
+      receivedBy: multi ? [] : undefined,
     };
     setDb((d) => {
       let next: DB = { ...d, papers: [paper, ...d.papers], seq: d.seq + 1 };
-      next = pushNotif(
-        next,
-        {
-          text: `New ${paper.kind === 'work-order' ? 'work order' : paper.kind} ${ref} — ${paper.title.slice(0, 60)}`,
-          kind: 'new',
-          docId: paper.id,
-          ref,
-          scope: { type: 'division', divisionId: input.divisionId },
-        },
-        user
-      );
+      for (const rid of recipients) {
+        next = pushNotif(
+          next,
+          {
+            text: multi
+              ? `Circular ${ref} addressed to your desk — ${paper.title.slice(0, 58)}`
+              : `New ${paper.kind === 'work-order' ? 'work order' : paper.kind} ${ref} — ${paper.title.slice(0, 60)}`,
+            kind: 'new',
+            docId: paper.id,
+            ref,
+            scope: { type: 'division', divisionId: rid },
+          },
+          user
+        );
+      }
       if (user.role === 'division') {
         next = pushNotif(
           next,
-          { text: `${ref} posted by ${user.name} for ${div?.code ?? ''}`, kind: 'new', docId: paper.id, ref, scope: { type: 'supervisors' } },
+          {
+            text: `${ref} posted by ${user.name} for ${multi ? `${recipients.length} desks` : div?.code ?? ''}`,
+            kind: 'new',
+            docId: paper.id,
+            ref,
+            scope: { type: 'supervisors' },
+          },
           user
         );
       }
@@ -409,15 +493,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         userId: user.id,
         userName: user.name,
         type: 'create',
-        text: `Logged ${ref} — ${paper.title.slice(0, 70)} → ${div?.code ?? ''}`,
+        text: multi
+          ? `Logged ${ref} — ${paper.title.slice(0, 62)} → circulated to ${recipients.length} desks`
+          : `Logged ${ref} — ${paper.title.slice(0, 70)} → ${div?.code ?? ''}`,
         ref,
         docId: paper.id,
       });
       return next;
     });
-    fireBrowser('CEO Flow — ' + ref, `New paperwork logged and transmitted to ${div?.code ?? 'division'}`);
-    pushToast('ok', `${ref} created and transmitted to ${div?.code ?? 'division'}`);
-    setUi((u) => ({ ...u, newOpen: false, page: 'board', divFilter: user.role === 'supervisor' ? input.divisionId : u.divFilter }));
+    fireBrowser(
+      'CEO Flow — ' + ref,
+      multi ? `Circular logged and addressed to ${recipients.length} desks` : `New paperwork logged and transmitted to ${div?.code ?? 'division'}`
+    );
+    pushToast('ok', multi ? `${ref} circulated to ${recipients.length} desks — each must acknowledge receipt` : `${ref} created and transmitted to ${div?.code ?? 'division'}`);
+    setUi((u) => ({ ...u, newOpen: false, page: 'board', divFilter: user.role === 'supervisor' ? primary : u.divFilter }));
     setUi((u) => ({ ...u, drawerId: paper.id }));
   };
 
@@ -693,6 +782,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     visibleNotifs,
     unread,
     canEdit,
+    userUnitId,
+    ackPaper,
     login,
     logout,
     resetDemo,

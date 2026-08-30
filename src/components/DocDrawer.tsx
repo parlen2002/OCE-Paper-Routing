@@ -68,7 +68,7 @@ function AttachControl({ paperId }: { paperId: string }) {
 
 export function DocDrawer() {
   const store = useStore();
-  const { db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer, deletePaper, updatePaper } = store;
+  const { db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer, deletePaper, updatePaper, ackPaper, userUnitId } = store;
   const paper = useMemo(() => db.papers.find((p) => p.id === ui.drawerId) ?? null, [db.papers, ui.drawerId]);
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
@@ -86,7 +86,8 @@ export function DocDrawer() {
 
   const path: string[] = [];
   for (const e of paper.custody) {
-    if (e.toDivisionId && path[path.length - 1] !== e.toDivisionId) path.push(e.toDivisionId);
+    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId && path[path.length - 1] !== e.toDivisionId)
+      path.push(e.toDivisionId);
   }
   if (path[path.length - 1] !== paper.divisionId) path.push(paper.divisionId);
 
@@ -197,6 +198,82 @@ export function DocDrawer() {
               )
             )}
           </Section>
+
+          {/* circulation receipts */}
+          {(paper.recipientIds?.length ?? 0) > 1 && (() => {
+            const recipients = paper.recipientIds!;
+            const receivedBy = paper.receivedBy ?? [];
+            const acks = paper.custody.filter((e) => e.action === 'received');
+            const canAck = !!userUnitId && recipients.includes(userUnitId) && !receivedBy.includes(userUnitId);
+            const allIn = receivedBy.length === recipients.length;
+            return (
+              <Section
+                title={`Circulation receipts · ${receivedBy.length} of ${recipients.length}`}
+                icon="users"
+                right={
+                  allIn ? (
+                    <span className="stamp text-[9.5px] text-greenx-500">Fully received</span>
+                  ) : canAck ? (
+                    <button
+                      onClick={() => ackPaper(paper.id)}
+                      className="btn btn-primary px-3 py-1.5 text-[11px]"
+                    >
+                      <I n="checkc" className="h-3.5 w-3.5" sw={2.2} />
+                      Confirm receipt — {divById(userUnitId!)?.code}
+                    </button>
+                  ) : undefined
+                }
+              >
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {recipients.map((rid) => {
+                    const d = divById(rid);
+                    const ack = acks.find((e) => e.toDivisionId === rid);
+                    const isPrimary = rid === paper.divisionId;
+                    if (!d) return null;
+                    return (
+                      <div
+                        key={rid}
+                        className={`relative rounded-md border px-2.5 py-2 transition ${
+                          ack
+                            ? 'border-greenx-500/45 bg-greenx-500/[0.07]'
+                            : 'border-dashed border-amberx-500/45 bg-amberx-500/[0.05]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
+                              ack ? 'border-greenx-500 bg-greenx-500/20 text-greenx-500' : 'border-amberx-500/70 text-amberx-500'
+                            }`}
+                          >
+                            {ack ? <I n="check" className="h-2.5 w-2.5" sw={3} /> : <I n="clock" className="h-2.5 w-2.5" sw={2.4} />}
+                          </span>
+                          <span className={`font-mono text-[10px] font-bold tracking-wider ${ack ? 'text-greenx-500' : 'text-amberx-400'}`}>
+                            {d.code}
+                          </span>
+                          {isPrimary && (
+                            <span className="ml-auto rounded-sm bg-flare-500/15 px-1 py-0.5 font-mono text-[7.5px] font-bold uppercase tracking-wider text-flare-400">
+                              primary
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 truncate text-[10.5px] leading-tight text-mist-300" title={d.name}>
+                          {d.name}
+                        </p>
+                        <p className={`mt-0.5 truncate font-mono text-[8.5px] uppercase tracking-wider ${ack ? 'text-mist-500' : 'text-amberx-500/80'}`}>
+                          {ack ? `${ack.byName} · ${timeAgo(ack.at)}` : 'awaiting receipt'}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-2.5 font-mono text-[9px] uppercase tracking-[0.16em] text-mist-600">
+                  {allIn
+                    ? 'Every addressed desk has acknowledged — safe to close when work is done.'
+                    : 'Each addressed desk confirms receipt from its own queue; progress is stamped into the custody trail.'}
+                </p>
+              </Section>
+            );
+          })()}
 
           {/* details */}
           <Section title="Particulars" icon="file">

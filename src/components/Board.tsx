@@ -7,11 +7,17 @@ import { DivChip, KindTag, PriorityTag } from './ui';
 import { timeAgo } from '../lib/util';
 
 function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; onOpen: () => void }) {
+  const { user } = useStore();
   const div = divById(paper.divisionId);
   const geo = paper.attachments.some((a) => a.geotagged);
   const imgs = paper.attachments.filter((a) => a.kind === 'image').slice(0, 3);
   const pdfs = paper.attachments.filter((a) => a.kind === 'pdf').length;
   const done = paper.stage === 'completed';
+  const recipients = paper.recipientIds ?? [paper.divisionId];
+  const multi = recipients.length > 1;
+  const myDesk = user?.role === 'division' ? user.divisionId : null;
+  const addressedToMe = !!myDesk && recipients.includes(myDesk);
+  const iAcknowledged = !!myDesk && (paper.receivedBy ?? []).includes(myDesk);
 
   return (
     <div
@@ -47,6 +53,28 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {div && <DivChip div={div} tone="paper" />}
         <KindTag kind={paper.kind} />
+        {multi && (
+          <span
+            className="inline-flex items-center gap-1 rounded-sm border border-cyanx-600/50 bg-cyanx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#0e7490]"
+            title={`Circulated to ${recipients.length} desks: ${recipients.map((r) => divById(r)?.code ?? r).join(', ')}`}
+          >
+            <I n="route" className="h-2.5 w-2.5" sw={2.4} />
+            ×{recipients.length} desks
+          </span>
+        )}
+        {multi && addressedToMe && !done && (
+          iAcknowledged ? (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-[#1f9d55]/50 bg-[#1f9d55]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#1f9d55]">
+              <I n="check" className="h-2.5 w-2.5" sw={2.6} />
+              Received
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-amberx-500/60 bg-amberx-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#a16207]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#d97706]" />
+              Receipt due
+            </span>
+          )
+        )}
         {paper.diverted && (
           <span className="inline-flex items-center gap-1 rounded-sm border border-amberx-500/60 bg-amberx-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-[#a16207]">
             <I n="alert" className="h-2.5 w-2.5" sw={2.4} />
@@ -110,7 +138,13 @@ export function Board() {
   const filtered = useMemo(() => {
     const q = ui.search.trim().toLowerCase();
     return visiblePapers.filter((p) => {
-      if (!isSup && scope === 'queue' && p.divisionId !== user?.divisionId) return false;
+      if (
+        !isSup &&
+        scope === 'queue' &&
+        p.divisionId !== user?.divisionId &&
+        !(p.recipientIds ?? []).includes(user?.divisionId ?? '')
+      )
+        return false;
       if (isSup && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
       if (!q) return true;
       const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase();

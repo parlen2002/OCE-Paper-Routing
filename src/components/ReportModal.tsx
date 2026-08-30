@@ -82,7 +82,8 @@ export function ReportModal() {
           if (codes[codes.length - 1] !== code) codes.push(code);
         }
       }
-      return codes.join(' → ');
+      const multi = (p.recipientIds?.length ?? 0) > 1;
+      return codes.join(' → ') + (multi ? ` · circulated ×${p.recipientIds!.length} (${(p.receivedBy ?? []).length} ack.)` : '');
     };
 
     const divSummary = ALL_UNITS.map((d) => {

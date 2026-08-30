@@ -82,6 +82,10 @@ export interface Paper {
   dueAt?: number;
   remarks?: string;
   diverted: boolean;
+  /** Every desk this paper was addressed to (length > 1 = circular). Falls back to [divisionId]. */
+  recipientIds?: string[];
+  /** Desk ids that acknowledged receipt of a circular. */
+  receivedBy?: string[];
 }
 
 export interface Notif {

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES } from '../lib/types';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES } from '../lib/types';
 import type { Attachment, Kind, Priority } from '../lib/types';
 import { I } from './icons';
 import { Modal } from './ui';
@@ -13,8 +13,14 @@ export function NewDocModal() {
   const [kind, setKind] = useState<Kind>('work-order');
   const [priority, setPriority] = useState<Priority>('routine');
   const [origin, setOrigin] = useState('');
-  const [divisionId, setDivisionId] = useState('admin');
+  const [recipients, setRecipients] = useState<string[]>(['admin']);
   const [due, setDue] = useState('');
+
+  const allIds = ALL_UNITS.map((d) => d.id);
+  const allSelected = recipients.length === allIds.length;
+  const toggle = (id: string) =>
+    setRecipients((r) => (r.includes(id) ? r.filter((x) => x !== id) : [...r, id]));
+  const primary = recipients[0] ? ALL_UNITS.find((d) => d.id === recipients[0]) : undefined;
   const [remarks, setRemarks] = useState('');
   const [pending, setPending] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -34,7 +40,7 @@ export function NewDocModal() {
     if (skipped.length > 0) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
   };
 
-  const valid = title.trim().length >= 6 && origin.trim().length > 1 && divisionId;
+  const valid = title.trim().length >= 6 && origin.trim().length > 1 && recipients.length > 0;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +51,7 @@ export function NewDocModal() {
       kind,
       priority,
       origin,
-      divisionId,
+      recipientIds: recipients,
       dueAt: due ? new Date(due + 'T17:00:00').getTime() : undefined,
       remarks: remarks || undefined,
       attachments: pending,
@@ -110,42 +116,108 @@ export function NewDocModal() {
             </label>
           </div>
 
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
-                Origin — requesting office / party *
+          <label className="block">
+            <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
+              Origin — requesting office / party *
+            </span>
+            <input
+              className={`field ${err(origin.trim().length <= 1)}`}
+              placeholder="e.g. City Administrator's Office"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+            />
+          </label>
+
+          {/* recipients — multi-select */}
+          <div>
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
+                Recipient division / office * <span className="text-mist-600">— tick every desk that must receive it</span>
               </span>
-              <input
-                className={`field ${err(origin.trim().length <= 1)}`}
-                placeholder="e.g. City Administrator's Office"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
-                Intended recipient *
+              <button
+                type="button"
+                onClick={() => setRecipients(allSelected ? [] : [...allIds])}
+                className={`inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[9.5px] font-bold uppercase tracking-wider transition ${
+                  allSelected
+                    ? 'border-flare-500/70 bg-flare-500/15 text-flare-400'
+                    : 'border-ink-600 bg-ink-800 text-mist-300 hover:border-flare-500/60 hover:text-flare-400'
+                }`}
+              >
+                <I n={allSelected ? 'checkc' : 'sitemap'} className="h-3 w-3" sw={2.4} />
+                All Divisions / Offices
+              </button>
+              <span
+                className={`ml-auto rounded-sm px-2 py-0.5 font-mono text-[10px] font-bold tabular ${
+                  recipients.length > 0 ? 'bg-cyanx-500/12 text-cyanx-400' : 'bg-redx-500/12 text-redx-400'
+                }`}
+              >
+                {recipients.length} of {allIds.length} selected
               </span>
-              <select className={`field ${err(!divisionId)}`} value={divisionId} onChange={(e) => setDivisionId(e.target.value)}>
-                <optgroup label="Executive desks">
-                  {DESKS.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.code} · {d.name} ({d.head})
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Divisions & teams">
-                  {[...DIVISIONS, ...CROSS_UNITS].map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.code} · {d.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-              <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
-                Route to an executive desk when the paper needs the City Engineer's or Assistant City Engineer's action
-              </span>
-            </label>
+            </div>
+
+            <div className={`rounded-lg border bg-ink-950/40 p-2.5 ${err(recipients.length === 0) ? 'border-redx-500/70' : 'border-ink-600'}`}>
+              <p className="mb-1.5 px-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.2em] text-amberx-400/90">
+                Executive desks
+              </p>
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {DESKS.map((d) => {
+                  const on = recipients.includes(d.id);
+                  return (
+                    <button
+                      type="button"
+                      key={d.id}
+                      onClick={() => toggle(d.id)}
+                      title={`${d.name} — ${d.head}`}
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] ${
+                        on
+                          ? 'border-amberx-500/70 bg-amberx-500/15 text-amberx-400'
+                          : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-amberx-500/40 hover:text-mist-200'
+                      }`}
+                    >
+                      {on && <I n="check" className="h-3 w-3" sw={2.6} />}
+                      {d.code}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mb-1.5 px-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.2em] text-cyanx-400/90">
+                Divisions & teams
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[...DIVISIONS, ...CROSS_UNITS].map((d) => {
+                  const on = recipients.includes(d.id);
+                  return (
+                    <button
+                      type="button"
+                      key={d.id}
+                      onClick={() => toggle(d.id)}
+                      title={d.name}
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] ${
+                        on
+                          ? 'border-cyanx-500/70 bg-cyanx-500/12 text-cyanx-400'
+                          : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-cyanx-500/40 hover:text-mist-200'
+                      }`}
+                    >
+                      {on && <I n="check" className="h-3 w-3" sw={2.6} />}
+                      {d.code}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+              {recipients.length > 1 ? (
+                <>
+                  Circulation paper — addressed to <b className="text-cyanx-400">{recipients.length} desks</b>; each desk acknowledges receipt.
+                  {primary ? ` Primary holder: ${primary.code}.` : ''}
+                </>
+              ) : primary ? (
+                <>Single recipient — paper is transmitted to {primary.name} ({primary.code}).</>
+              ) : (
+                <span className="text-redx-400">Select at least one recipient desk.</span>
+              )}
+            </span>
           </div>
 
           <label className="block">
@@ -224,14 +296,16 @@ export function NewDocModal() {
           {touched && !valid && (
             <p className="flex items-center gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
               <I n="alert" className="h-3.5 w-3.5" sw={2} />
-              Give the paper a proper subject (6+ characters) and an origin before transmitting.
+              Give the paper a proper subject (6+ characters), an origin, and at least one recipient desk before transmitting.
             </p>
           )}
         </div>
 
         <div className="flex items-center justify-between border-t border-ink-700 px-6 py-4">
           <p className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
-            Transmits to {DIVISIONS.find((d) => d.id === divisionId)?.code} · Received tray
+            {recipients.length > 1
+              ? `Circulates to ${recipients.length} desks · each desk's Received tray`
+              : `Transmits to ${primary?.code ?? '—'} · Received tray`}
           </p>
           <div className="flex gap-2">
             <button type="button" className="btn btn-ghost" onClick={close}>

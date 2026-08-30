@@ -42,7 +42,7 @@ export function KindTag({ kind }: { kind: Kind }) {
 }
 
 export function DivChip({ div, tone = 'dark' }: { div: Division; tone?: 'dark' | 'paper' }) {
-  const color = div.cluster === 'ops' ? '#ff8a4c' : '#56c8f0';
+  const color = div.id.startsWith('desk-') ? '#fbc94a' : div.cluster === 'ops' ? '#ff8a4c' : '#56c8f0';
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider ${

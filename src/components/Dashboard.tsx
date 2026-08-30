@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, STAGES, divById } from '../lib/types';
+import { DESKS, DIVISIONS, INSPECTORATE, divById } from '../lib/types';
 import type { Activity } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, StageChip } from './ui';
@@ -27,7 +27,7 @@ export function Dashboard() {
   const doneWeek = papers.filter((p) => p.stage === 'completed' && p.updatedAt >= week).length;
   const urgentOpen = open.filter((p) => p.priority === 'urgent');
 
-  const load = DIVISIONS.map((d) => ({ d, n: open.filter((p) => p.divisionId === d.id).length }));
+  const load = [...DIVISIONS, INSPECTORATE, ...DESKS].map((d) => ({ d, n: open.filter((p) => p.divisionId === d.id).length }));
   const maxLoad = Math.max(1, ...load.map((l) => l.n));
 
   const stats: { label: string; value: number; hint: string; color: string; icon: IconName }[] = [
@@ -112,7 +112,13 @@ export function Dashboard() {
                         className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
                         style={{
                           width: `${(n / maxLoad) * 100}%`,
-                          background: d.cluster === 'ops' ? 'linear-gradient(90deg,#c24a0c,#ff8a4c)' : 'linear-gradient(90deg,#2fa9d6,#6cd1f4)',
+                          background: d.id.startsWith('desk-')
+                            ? 'linear-gradient(90deg,#b98a12,#fbc94a)'
+                            : d.id === INSPECTORATE.id
+                              ? 'linear-gradient(90deg,#0f9d8a,#45e0cd)'
+                              : d.cluster === 'ops'
+                                ? 'linear-gradient(90deg,#c24a0c,#ff8a4c)'
+                                : 'linear-gradient(90deg,#2fa9d6,#6cd1f4)',
                         }}
                       />
                     </span>
@@ -121,9 +127,11 @@ export function Dashboard() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 flex items-center gap-4 font-mono text-[9px] uppercase tracking-[0.18em] text-mist-600">
+            <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[9px] uppercase tracking-[0.18em] text-mist-600">
               <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-flare-500" /> Field operations · {DIVISIONS.filter((x) => x.cluster === 'ops').length} divisions</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-cyanx-500" /> Technical services · {DIVISIONS.filter((x) => x.cluster === 'tech').length} divisions</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-tealx-500" /> Inspectorate team</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-amberx-400" /> Executive desks</span>
             </p>
           </section>
 

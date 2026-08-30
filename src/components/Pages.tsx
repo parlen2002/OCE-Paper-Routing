@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CLUSTERS, DIVISIONS, INSPECTORATE, KINDS, STAGES, divById } from '../lib/types';
+import { CLUSTERS, DESKS, DIVISIONS, INSPECTORATE, KINDS, STAGES, divById } from '../lib/types';
 import type { Kind, Role, Stage, User, UserStatus } from '../lib/types';
 import { I, type IconName } from './icons';
 import { Avatar, DivChip, EmptyState, KindTag, PageHead, PriorityTag, StageChip } from './ui';
@@ -57,10 +57,17 @@ export function DocumentsPage() {
         </select>
         {isSup && (
           <select className="field w-auto" value={divF} onChange={(e) => setDivF(e.target.value)}>
-            <option value="all">All divisions</option>
-            {DIVISIONS.map((d) => (
-              <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
-            ))}
+            <option value="all">All recipients</option>
+            <optgroup label="Executive desks">
+              {DESKS.map((d) => (
+                <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Divisions & teams">
+              {[...DIVISIONS, INSPECTORATE].map((d) => (
+                <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+              ))}
+            </optgroup>
           </select>
         )}
         <select className="field w-auto" value={kindF} onChange={(e) => setKindF(e.target.value as 'all' | Kind)}>
@@ -204,6 +211,50 @@ export function DivisionsPage() {
         </section>
       ))}
 
+      {/* Executive desks — the two department heads as recipients */}
+      <section className="anim-fade-up mb-7">
+        <div className="mb-3 flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-amberx-500" style={{ boxShadow: '0 0 10px #f5b92488' }} />
+          <h2 className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Executive desks</h2>
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-mist-500">paperwork can be addressed straight to either desk</span>
+          <span className="h-px flex-1 bg-ink-700" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {DESKS.map((d) => {
+            const open = db.papers.filter((p) => p.divisionId === d.id && p.stage !== 'completed').length;
+            const done = db.papers.filter((p) => p.divisionId === d.id && p.stage === 'completed').length;
+            return (
+              <button
+                key={d.id}
+                onClick={() => {
+                  setDivFilter(d.id);
+                  go('board');
+                }}
+                className="group flex w-full items-start gap-4 rounded-lg border border-amberx-500/30 bg-ink-900/80 p-4 text-left transition hover:-translate-y-0.5 hover:border-amberx-500/70 hover:bg-ink-800/70"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-amberx-500/50 bg-amberx-500/10 text-amberx-400">
+                  <I n="shield" className="h-5 w-5" sw={1.7} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-display text-[17px] font-bold uppercase tracking-wide text-mist-50">{d.name}</span>
+                    <span className="rounded-sm border border-amberx-500/50 bg-amberx-500/10 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-amberx-400">
+                      {d.code}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] font-semibold text-mist-200">{d.head}</span>
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-mist-400">{d.desc}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-display text-[24px] font-bold leading-none text-amberx-400 tabular">{open}</span>
+                  <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Inspectorate Team — cross-division inspection unit */}
       <section className="anim-fade-up">
         <div className="mb-3 flex items-center gap-3">
@@ -293,12 +344,21 @@ export function ActivityPage() {
       {isSup && (
         <div className="anim-fade-up mx-auto mb-5 max-w-3xl">
           <select className="field w-auto" value={divF} onChange={(e) => setDivF(e.target.value)}>
-            <option value="all">All divisions</option>
-            {DIVISIONS.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.code} · {d.name}
-              </option>
-            ))}
+            <option value="all">All recipients</option>
+            <optgroup label="Executive desks">
+              {DESKS.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} · {d.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Divisions & teams">
+              {[...DIVISIONS, INSPECTORATE].map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} · {d.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
       )}

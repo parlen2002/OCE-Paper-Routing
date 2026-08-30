@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, INSPECTORATE, PRIORITIES, STAGES, divById } from '../lib/types';
+import { DESKS, DIVISIONS, INSPECTORATE, PRIORITIES, STAGES, divById } from '../lib/types';
 import type { Paper, Stage } from '../lib/types';
 import { I } from './icons';
 import { DivChip, KindTag, PriorityTag } from './ui';
@@ -155,6 +155,20 @@ export function Board() {
                     : 'border-ink-600 bg-ink-850 text-mist-400 hover:text-mist-100'
                 }`}
                 title={d.name}
+              >
+                {d.code}
+              </button>
+            ))}
+            {DESKS.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setDivFilter(d.id === ui.divFilter ? 'all' : d.id)}
+                className={`rounded-md border px-2.5 py-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-wider transition ${
+                  ui.divFilter === d.id
+                    ? 'border-amberx-500 bg-amberx-500/12 text-amberx-400'
+                    : 'border-ink-600 bg-ink-850 text-mist-400 hover:text-mist-100'
+                }`}
+                title={`${d.name} — ${d.head}`}
               >
                 {d.code}
               </button>

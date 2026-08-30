@@ -447,9 +447,68 @@ export function freshSeed(): DB {
       byName: CAROL,
       diverted: false,
     },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0142',
+      title: 'Supplemental budget request — city road rehabilitation program',
+      kind: 'memo',
+      priority: 'urgent',
+      origin: 'Planning Design and Programming Division',
+      divisionId: 'desk-ce',
+      intendedId: 'desk-ce',
+      stage: 'verification',
+      attachments: [],
+      custody: [
+        c(now - 1.1 * D, CAROL, 'created', 'Budget memo logged at the intake desk', { toDivisionId: 'plan' }),
+        c(now - 1.05 * D, ACE, 'routed', 'For preparation of the program of works and cost estimates', { fromDivisionId: 'admin', toDivisionId: 'plan' }),
+        c(now - 0.8 * D, 'Engr. Grace Panganiban', 'stage', 'Program of works being consolidated', { stage: 'review' }),
+        c(now - 0.35 * D, 'Engr. Grace Panganiban', 'routed', 'POW complete; submitted for the City Engineer’s approval', { fromDivisionId: 'plan', toDivisionId: 'desk-ce' }),
+        c(now - 0.12 * D, CE, 'stage', 'Under final review before signing', { stage: 'verification' }),
+      ],
+      createdAt: now - 1.1 * D,
+      updatedAt: now - 0.12 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      dueAt: now + 2 * D,
+      diverted: false,
+    },
+    {
+      id: uid(),
+      ref: 'CEO-2026-0143',
+      title: 'Intersection improvement proposal — Rizal Ave. / Malvar St.',
+      kind: 'memo',
+      priority: 'routine',
+      origin: 'Brgy. Poblacion residents & traffic study',
+      divisionId: 'desk-ace',
+      intendedId: 'plan',
+      stage: 'review',
+      attachments: [],
+      custody: [
+        c(now - 2.4 * D, CAROL, 'created', 'Proposal logged from barangay endorsement', { toDivisionId: 'plan' }),
+        c(now - 2.3 * D, ACE, 'routed', 'For technical evaluation and concept design', { fromDivisionId: 'admin', toDivisionId: 'plan' }),
+        c(now - 1.2 * D, 'Engr. Grace Panganiban', 'stage', 'Concept costing in progress', { stage: 'review' }),
+        c(now - 0.5 * D, 'Engr. Grace Panganiban', 'routed', 'Endorsed to the Assistant City Engineer for programming concurrence', { fromDivisionId: 'plan', toDivisionId: 'desk-ace' }),
+        c(now - 0.2 * D, ACE, 'stage', 'Reviewing alongside the traffic office study', { stage: 'review' }),
+      ],
+      createdAt: now - 2.4 * D,
+      updatedAt: now - 0.2 * D,
+      byId: 'u-admindiv',
+      byName: CAROL,
+      diverted: true,
+    },
   ];
 
   const notifs: Notif[] = [
+    {
+      id: uid(),
+      at: now - 0.35 * D,
+      text: 'CEO-2026-0142 reached the City Engineer’s desk — supplemental budget awaiting approval',
+      kind: 'move',
+      docId: papers[14].id,
+      ref: 'CEO-2026-0142',
+      scope: { type: 'supervisors' },
+      readBy: [],
+    },
     {
       id: uid(),
       at: now - 0.4 * D,
@@ -521,7 +580,7 @@ export function freshSeed(): DB {
   ];
 
   const logs = deriveLogs(papers);
-  return { v: 2, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 142 };
+  return { v: 3, session: null, papers, notifs, logs, users: INITIAL_USERS.map((u) => ({ ...u })), seq: 144 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

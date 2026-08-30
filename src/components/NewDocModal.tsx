@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, INSPECTORATE, KINDS, PRIORITIES } from '../lib/types';
+import { DESKS, DIVISIONS, INSPECTORATE, KINDS, PRIORITIES } from '../lib/types';
 import type { Attachment, Kind, Priority } from '../lib/types';
 import { I } from './icons';
 import { Modal } from './ui';
@@ -124,15 +124,27 @@ export function NewDocModal() {
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">
-                Intended recipient division *
+                Intended recipient *
               </span>
               <select className={`field ${err(!divisionId)}`} value={divisionId} onChange={(e) => setDivisionId(e.target.value)}>
-                {[...DIVISIONS, INSPECTORATE].map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} · {d.name}
-                  </option>
-                ))}
+                <optgroup label="Executive desks">
+                  {DESKS.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} · {d.name} ({d.head})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Divisions & teams">
+                  {[...DIVISIONS, INSPECTORATE].map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} · {d.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
+              <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+                Route to an executive desk when the paper needs the City Engineer's or Assistant City Engineer's action
+              </span>
             </label>
           </div>
 

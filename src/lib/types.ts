@@ -259,8 +259,31 @@ export const INSPECTORATE: Division = {
   desc: 'Cross-division team that conducts structural, safety and occupancy inspections on behalf of the City Engineer. Inspection (INS) paperwork routes here.',
 };
 
-export const divById = (id: string): Division | undefined =>
-  DIVISIONS.find((d) => d.id === id) ?? (id === INSPECTORATE.id ? INSPECTORATE : undefined);
+/** Executive desks — the two department heads are first-class recipients of paperwork. */
+export const DESKS: Division[] = [
+  {
+    id: 'desk-ce',
+    code: 'CE-DESK',
+    name: 'Office of the City Engineer',
+    cluster: 'ops',
+    head: 'Engr. Aries S. Grande',
+    headUser: 'agrande',
+    desc: 'Final approval, signing and executive routing — Engr. Aries S. Grande, CGPP Department Head II (City Engineer).',
+  },
+  {
+    id: 'desk-ace',
+    code: 'ACE-DESK',
+    name: 'Office of the Assistant City Engineer',
+    cluster: 'tech',
+    head: 'Engr. Julio B. Sergio',
+    headUser: 'jsergio',
+    desc: 'Review, endorsement and concurrent supervision — Engr. Julio B. Sergio, Assistant CGPP Department Head II (Assistant City Engineer).',
+  },
+];
+
+export const ALL_UNITS = [...DIVISIONS, INSPECTORATE, ...DESKS];
+
+export const divById = (id: string): Division | undefined => ALL_UNITS.find((d) => d.id === id);
 
 export const CLUSTERS: Record<Cluster, { label: string; supervisor: string }> = {
   ops: { label: 'Field Operations Cluster', supervisor: 'Engr. Aries S. Grande — City Engineer' },

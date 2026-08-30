@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import { DIVISIONS, INSPECTORATE, STAGES, divById } from '../lib/types';
+import { DESKS, DIVISIONS, INSPECTORATE, STAGES, divById } from '../lib/types';
 import type { CustodyAction, Paper, Stage } from '../lib/types';
 import { I, type IconName } from './icons';
 import { DivChip, KindTag, PriorityTag, StageChip } from './ui';
@@ -339,15 +339,24 @@ export function DocDrawer() {
                 </label>
                 <label className="block">
                   <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
-                    {user.role === 'supervisor' ? 'Re-route to division' : 'Forward to division'}
+                    Forward / re-route — division, team or executive desk
                   </span>
                   <select className="field" value={forwardVal} disabled={!editable} onChange={(e) => doForward(e.target.value)}>
-                    <option value="">— choose division or team —</option>
-                    {[...DIVISIONS, INSPECTORATE].filter((d) => d.id !== paper.divisionId).map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.code} · {d.name}
-                      </option>
-                    ))}
+                    <option value="">— choose recipient —</option>
+                    <optgroup label="Executive desks">
+                      {DESKS.filter((d) => d.id !== paper.divisionId).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.code} · {d.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Divisions & teams">
+                      {[...DIVISIONS, INSPECTORATE].filter((d) => d.id !== paper.divisionId).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.code} · {d.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </label>
               </div>

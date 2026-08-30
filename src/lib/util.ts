@@ -76,9 +76,23 @@ export const dayLabel = (ts: number): string => {
 
 export const truncate = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
+/** Maps Unicode punctuation to ASCII so PDF string literals stay in the Latin1 range for btoa(). */
+const toLatin1 = (s: string): string =>
+  s
+    .replace(/[\u2014\u2013\u2212]/g, '-')
+    .replace(/\u2192/g, '->')
+    .replace(/\u00B0/g, ' deg')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u00B1/g, '+/-')
+    .replace(/\u00D7/g, 'x')
+    .replace(/[^\u0000-\u00FF]/g, '');
+
 /** Builds a tiny valid single-page PDF (data URL) — used for seeded paperwork attachments. */
 export function makeStubPdf(title: string, lines: string[]): string {
-  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const esc = (s: string) =>
+    toLatin1(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
   let stream = `BT /F1 15 Tf 56 758 Td (${esc(title)}) Tj ET\n`;
   stream += `BT /F2 9 Tf 56 742 Td (Republic of the Philippines - City of Puerto Princesa - Office of the City Engineer) Tj ET\n`;
   lines.forEach((l, i) => {
@@ -104,5 +118,17 @@ export function makeStubPdf(title: string, lines: string[]): string {
     pdf += off.toString().padStart(10, '0') + ' 00000 n \n';
   });
   pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`;
-  return 'data:application/pdf;base64,' + btoa(pdf);
+  try {
+    return 'data:application/pdf;base64,' + btoa(pdf);
+  } catch {
+    // Never let attachment generation take the app down at startup.
+    const bytes = new TextEncoder().encode(pdf);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    try {
+      return 'data:application/pdf;base64,' + btoa(bin);
+    } catch {
+      return 'data:text/plain;charset=utf-8,' + encodeURIComponent('[Attachment data unavailable]');
+    }
+  }
 }

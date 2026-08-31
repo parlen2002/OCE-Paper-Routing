@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
-import { deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
+import type { Activity, Attachment, DB, DivInfo, DivisionMeta, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
+import { ALL_UNITS, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v14';
+const LS_KEY = 'ppc-ceoflow-v15';
 
 function loadDb(): DB {
   try {
@@ -85,6 +85,15 @@ interface StoreCtx {
   deletePaper: (id: string) => void;
   updatePaper: (id: string, patch: Partial<Paper>) => void;
   ackPaper: (id: string) => void;
+  /** Division management — override-aware lookup + head/OIC assignment. */
+  divOf: (id: string) => DivInfo | undefined;
+  /** Effective identity: an OIC acts as the division head operationally. */
+  me: User | null;
+  myUnitId: string | null;
+  canManageDivision: (divId: string) => boolean;
+  updateDivision: (id: string, patch: { name?: string; desc?: string }) => void;
+  setDivisionHead: (id: string, userId: string, temporary: boolean, note?: string) => void;
+  removeDivisionOIC: (id: string) => void;
   markAllRead: () => void;
   markRead: (notifId: string) => void;
   pushToast: (kind: Toast['kind'], text: string) => void;
@@ -118,6 +127,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const user = db.users.find((x) => x.id === db.session) ?? null;
 
+  /* ---- division overrides & effective identity (OIC acts as division head) ---- */
+
+  const divMeta = (id: string): DivisionMeta => db.divisions?.[id] ?? {};
+
+  /** Override-aware lookup: merges saved title/description/head/OIC over the base org model. */
+  const divOf = (id: string): DivInfo | undefined => {
+    const base = ALL_UNITS.find((d) => d.id === id);
+    if (!base) return undefined;
+    const m = divMeta(id);
+    return {
+      ...base,
+      name: m.name ?? base.name,
+      desc: m.desc ?? base.desc,
+      head: m.headName ?? base.head,
+      headUser: m.headUserId ?? base.headUser,
+      oicId: m.oicId,
+      oicName: m.oicName,
+      oicSince: m.oicSince,
+      oicNote: m.oicNote,
+    };
+  };
+
+  /** Division the signed-in user is currently OIC of (if any). */
+  const oicOfDivId: string | null = useMemo(() => {
+    if (!user) return null;
+    for (const d of ALL_UNITS) {
+      if (db.divisions?.[d.id]?.oicId === user.id) return d.id;
+    }
+    return null;
+  }, [db.divisions, user]);
+
+  /** Effective identity — an OIC acts as the division head operationally. */
+  const me: User | null = useMemo(() => {
+    if (!user) return null;
+    if (oicOfDivId) return { ...user, role: 'division', divisionId: oicOfDivId, title: `${user.title} — OIC` };
+    return user;
+  }, [user, oicOfDivId]);
+
+  const myUnitId: string | null = !me
+    ? null
+    : me.role === 'division' ? me.divisionId ?? null
+      : me.role === 'supervisor' ? (me.title.includes('Assistant') ? 'desk-ace' : 'desk-ce')
+        : null;
+
   useEffect(() => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* quota */ }
   }, [db]);
@@ -137,17 +190,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const activities = useMemo(() => deriveActivities(db.papers), [db.papers]);
 
   const visiblePapers = useMemo(() => {
-    if (!user) return [];
-    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator')
+    if (!me) return [];
+    // An OIC sees the whole division board, not just their own assigned orders.
+    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator')
       return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
-    if (user.role === 'employee' || user.role === 'joborder')
-      return db.papers.filter((p) => (p.assignees ?? []).includes(user.id)).sort((a, b) => b.updatedAt - a.updatedAt);
+    if (me.role === 'employee' || me.role === 'joborder')
+      return db.papers.filter((p) => (p.assignees ?? []).includes(me.id)).sort((a, b) => b.updatedAt - a.updatedAt);
     const mine = (p: Paper) =>
-      p.divisionId === user.divisionId || p.intendedId === user.divisionId ||
-      (p.recipientIds ?? []).includes(user.divisionId ?? '') ||
-      p.custody.some((e) => e.toDivisionId === user.divisionId || e.fromDivisionId === user.divisionId);
+      p.divisionId === me.divisionId || p.intendedId === me.divisionId ||
+      (p.recipientIds ?? []).includes(me.divisionId ?? '') ||
+      p.custody.some((e) => e.toDivisionId === me.divisionId || e.fromDivisionId === me.divisionId);
     return db.papers.filter(mine).sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [db.papers, user]);
+  }, [db.papers, me]);
 
   const visibleNotifs = useMemo(() => {
     if (!user) return [];
@@ -182,22 +236,106 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };
 
+  // Operational rights follow the effective identity — an OIC edits like the division head.
   const canEdit = (p: Paper): boolean => {
-    if (!user) return false;
-    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return true;
-    if (user.role === 'employee' || user.role === 'joborder') return (p.assignees ?? []).includes(user.id);
-    if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(user.divisionId ?? '');
-    return user.divisionId === p.divisionId;
+    if (!me) return false;
+    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator') return true;
+    if (me.role === 'employee' || me.role === 'joborder') return (p.assignees ?? []).includes(me.id);
+    if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(me.divisionId ?? '');
+    return me.divisionId === p.divisionId;
   };
 
-  const userUnitId: string | null = !user
-    ? null
-    : user.role === 'division' ? user.divisionId ?? null
-      : user.role === 'supervisor' ? (user.title.includes('Assistant') ? 'desk-ace' : 'desk-ce')
-        : null;
+  // Kept for compatibility — mirrors the effective unit (OIC-aware).
+  const userUnitId: string | null = myUnitId;
 
   const employeesOf = (unitId: string | undefined): User[] =>
     db.users.filter((u) => (u.role === 'employee' || u.role === 'joborder') && u.divisionId === unitId && u.status === 'active');
+
+  /* ---------------- division management (permissions & actions) ---------------- */
+
+  /**
+   * Who may manage a division (edit title/description, assign/remove head & OIC)?
+   * - Program admin & executives (supervisors): every division.
+   * - Permanent division head: only their own division.
+   * - A temporary / OIC head: NO management rights (view only).
+   */
+  const canManageDivision = (divId: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'supervisor') return true;
+    // An OIC never gets management rights over the division they are acting for.
+    if (db.divisions?.[divId]?.oicId === user.id) return false;
+    if (user.role === 'division') {
+      const info = divOf(divId);
+      return info?.headUser === user.id;
+    }
+    return false;
+  };
+
+  const writeDivMeta = (id: string, patch: DivisionMeta, logText: string) => {
+    if (!user) return;
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          divisions: { ...(d.divisions ?? {}), [id]: { ...(d.divisions?.[id] ?? {}), ...patch } },
+        },
+        { userId: user.id, userName: user.name, type: 'edit', text: logText, ref: divById(id)?.code }
+      )
+    );
+  };
+
+  const updateDivision: StoreCtx['updateDivision'] = (id, patch) => {
+    if (!canManageDivision(id)) {
+      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can edit this division.');
+      return;
+    }
+    const info = divOf(id);
+    const clean: DivisionMeta = {};
+    if (patch.name !== undefined) clean.name = patch.name.trim() || undefined;
+    if (patch.desc !== undefined) clean.desc = patch.desc.trim() || undefined;
+    writeDivMeta(id, clean, `Edited ${info?.name ?? id} — updated ${[clean.name && 'title', clean.desc && 'description'].filter(Boolean).join(' & ') || 'details'}`);
+    pushToast('ok', `${info?.name ?? 'Division'} details updated`);
+  };
+
+  const setDivisionHead: StoreCtx['setDivisionHead'] = (id, userId, temporary, note) => {
+    if (!canManageDivision(id)) {
+      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can change the head of this division.');
+      return;
+    }
+    const target = db.users.find((u) => u.id === userId);
+    const info = divOf(id);
+    if (!target) return;
+    if (temporary) {
+      writeDivMeta(
+        id,
+        { oicId: target.id, oicName: target.name, oicSince: Date.now(), oicNote: note?.trim() || undefined },
+        `Designated ${target.name} as OIC (temporary head) of ${info?.name ?? id}${note ? ` — ${note.trim()}` : ''}`
+      );
+      pushToast('ok', `${target.name} is now OIC of ${info?.code ?? id} — the permanent head is retained for reinstatement`);
+    } else {
+      writeDivMeta(
+        id,
+        { headName: target.name, headUserId: target.id, oicId: undefined, oicName: undefined, oicSince: undefined, oicNote: undefined },
+        `Appointed ${target.name} as permanent head of ${info?.name ?? id} (replaces ${info?.head ?? 'the previous head'})`
+      );
+      pushToast('ok', `${target.name} is now the permanent head of ${info?.code ?? id}`);
+    }
+  };
+
+  const removeDivisionOIC: StoreCtx['removeDivisionOIC'] = (id) => {
+    if (!canManageDivision(id)) {
+      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can remove the OIC.');
+      return;
+    }
+    const info = divOf(id);
+    const oicName = info?.oicName ?? 'the OIC';
+    writeDivMeta(
+      id,
+      { oicId: undefined, oicName: undefined, oicSince: undefined, oicNote: undefined },
+      `Removed ${oicName} as OIC of ${info?.name ?? id} — ${info?.head ?? 'the permanent head'} resumes command`
+    );
+    pushToast('ok', `OIC removed — ${info?.head ?? 'the permanent head'} resumes command of ${info?.code ?? id}`);
+  };
 
   /* ---------------- auth ---------------- */
 
@@ -682,6 +820,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setViewer: (v) => setUi((u) => ({ ...u, viewer: v })),
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress,
     assignPaper, submitToHead, returnToEmployee, deletePaper, updatePaper, ackPaper,
+    divOf, me, myUnitId, canManageDivision, updateDivision, setDivisionHead, removeDivisionOIC,
     markAllRead, markRead, pushToast,
   };
 

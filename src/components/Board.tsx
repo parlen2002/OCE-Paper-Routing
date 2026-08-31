@@ -177,7 +177,7 @@ function AssignModal({ paperId, stage, onClose }: { paperId: string; stage: Stag
 }
 
 export function Board() {
-  const { db, user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
+  const { db, user, me, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
@@ -185,9 +185,9 @@ export function Board() {
   const [brgyF, setBrgyF] = useState('all');
   const [empF, setEmpF] = useState('all');
 
-  const isField = user?.role === 'employee' || user?.role === 'joborder';
-  const isWide = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
-  const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
+  const isField = me?.role === 'employee' || me?.role === 'joborder';
+  const isWide = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
+  const myDiv = me?.divisionId ? divById(me.divisionId) : undefined;
 
   /** Barangays mentioned across the visible paperwork (title, origin, remarks). */
   const barangays = useMemo(() => {
@@ -215,7 +215,7 @@ export function Board() {
     const [fy, fm] = monthF ? monthF.split('-').map(Number) : [0, 0];
     return visiblePapers.filter((p) => {
       if (!isField) {
-        if (!isWide && scope === 'queue' && p.divisionId !== user?.divisionId && !(p.recipientIds ?? []).includes(user?.divisionId ?? '')) return false;
+        if (!isWide && scope === 'queue' && p.divisionId !== me?.divisionId && !(p.recipientIds ?? []).includes(me?.divisionId ?? '')) return false;
         if (isWide && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
       }
       if (monthF) {

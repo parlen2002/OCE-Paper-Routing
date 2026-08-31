@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import type { Activity, Kind, Paper, Role, Stage, User, UserStatus } from '../lib/core';
+import type { Activity, DivInfo, Kind, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, timeAgo } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, type IconName } from './ui';
 
@@ -300,36 +300,178 @@ export function DocumentsPage() {
 const CU_ICON: Record<string, IconName> = { 'insp-team': 'shield', it: 'pulse', docmon: 'cam', subay: 'bell' };
 const CU_TINT: Record<string, string> = { 'insp-team': '#2dd4bf', it: '#6cd1f4', docmon: '#f5b924', subay: '#ff8a4c' };
 
+function DivisionManager({ divId, onClose }: { divId: string; onClose: () => void }) {
+  const { db, divOf, canManageDivision, updateDivision, setDivisionHead, removeDivisionOIC, me } = useStore();
+  const info = divOf(divId);
+  const [name, setName] = useState(info?.name ?? '');
+  const [desc, setDesc] = useState(info?.desc ?? '');
+  const [headSel, setHeadSel] = useState('');
+  const [mode, setMode] = useState<'temporary' | 'permanent'>('temporary');
+  const [note, setNote] = useState('');
+  if (!info) return null;
+  const allowed = canManageDivision(divId);
+  const activeUsers = db.users.filter((u) => u.status === 'active');
+
+  return (
+    <div className="anim-fade-up mb-6 rounded-lg border border-ink-600 bg-ink-900/90 p-5">
+      <div className="flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-md border border-flare-500/50 bg-flare-500/12 text-flare-400">
+          <I n="stamp" className="h-4 w-4" sw={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-[18px] font-bold uppercase tracking-wider text-mist-50">Manage · {info.name}</h3>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">{info.code} · {info.cluster === 'ops' ? 'Field operations' : 'Technical services'}</p>
+        </div>
+        <button onClick={onClose} className="rounded-md border border-ink-600 p-2 text-mist-400 transition hover:border-redx-500/60 hover:text-redx-400">
+          <I n="x" className="h-4 w-4" />
+        </button>
+      </div>
+
+      {!allowed ? (
+        <div className="mt-4 flex items-start gap-2.5 rounded-md border border-ink-600 bg-ink-850/70 px-3.5 py-3">
+          <I n="lock" className="mt-0.5 h-4 w-4 shrink-0 text-mist-500" sw={2} />
+          <p className="text-[12.5px] leading-relaxed text-mist-400">
+            {db.divisions?.[divId]?.oicId === me?.id
+              ? 'You are the acting (OIC) head of this division. Temporary heads can run the board but cannot change the division title, description, or head assignment.'
+              : 'Only the program admin, an executive, or the permanent division head can manage this division.'}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {/* Title & description */}
+          <div className="rounded-md border border-ink-700 bg-ink-850/60 p-4">
+            <p className="flex items-center gap-1.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-cyanx-400">
+              <I n="note" className="h-3.5 w-3.5" sw={2} /> Title & description
+            </p>
+            <label className="mt-3 block">
+              <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Division title</span>
+              <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="mt-2.5 block">
+              <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Description</span>
+              <textarea className="field" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
+            </label>
+            <button
+              className="btn btn-primary mt-3"
+              onClick={() => updateDivision(divId, { name, desc })}
+              disabled={name.trim() === (info.name ?? '') && desc.trim() === (info.desc ?? '')}
+            >
+              <I n="check" className="h-4 w-4" sw={2.2} /> Save details
+            </button>
+          </div>
+
+          {/* Head / OIC assignment */}
+          <div className="rounded-md border border-ink-700 bg-ink-850/60 p-4">
+            <p className="flex items-center gap-1.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-amberx-400">
+              <I n="user" className="h-3.5 w-3.5" sw={2} /> Head assignment
+            </p>
+
+            <div className="mt-3 space-y-1 text-[11.5px] text-mist-300">
+              <p>Permanent head: <b className="text-mist-100">{info.head}</b></p>
+              {info.oicId ? (
+                <p className="flex items-center gap-1.5 text-amberx-400">
+                  <I n="clock" className="h-3.5 w-3.5" sw={2} />
+                  OIC (acting): <b>{info.oicName}</b>
+                  {info.oicSince ? <span className="font-mono text-[9px] text-mist-500">since {timeAgo(info.oicSince)}</span> : null}
+                </p>
+              ) : (
+                <p className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-mist-500">No OIC — permanent head is in command</p>
+              )}
+              {info.oicNote ? <p className="text-[10.5px] italic text-mist-500">“{info.oicNote}”</p> : null}
+            </div>
+
+            <div className="mt-3 flex overflow-hidden rounded-md border border-ink-600">
+              {([['temporary', 'Temporary / OIC'], ['permanent', 'Permanent']] as const).map(([v, l]) => (
+                <button key={v} type="button" onClick={() => setMode(v)}
+                  className={`flex-1 px-2 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider transition ${mode === v ? (v === 'temporary' ? 'bg-amberx-500/15 text-amberx-400' : 'bg-cyanx-500/12 text-cyanx-400') : 'bg-ink-850 text-mist-500 hover:text-mist-200'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            <label className="mt-2.5 block">
+              <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">
+                {mode === 'temporary' ? 'Officer to act as OIC' : 'Officer to appoint as permanent head'}
+              </span>
+              <select className="field" value={headSel} onChange={(e) => setHeadSel(e.target.value)}>
+                <option value="">— select an officer —</option>
+                {activeUsers.map((u) => (<option key={u.id} value={u.id}>{u.name} · {u.title}</option>))}
+              </select>
+            </label>
+
+            {mode === 'temporary' && (
+              <label className="mt-2.5 block">
+                <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Reason (optional)</span>
+                <input className="field" placeholder="e.g. On official leave" value={note} onChange={(e) => setNote(e.target.value)} />
+              </label>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <button
+                className="btn btn-primary"
+                disabled={!headSel}
+                onClick={() => { setDivisionHead(divId, headSel, mode === 'temporary', note); setHeadSel(''); setNote(''); }}
+              >
+                <I n={mode === 'temporary' ? 'clock' : 'user'} className="h-4 w-4" sw={2} />
+                {mode === 'temporary' ? 'Assign as OIC' : 'Appoint permanent head'}
+              </button>
+              {info.oicId && (
+                <button className="btn btn-ghost" onClick={() => removeDivisionOIC(divId)}>
+                  <I n="refresh" className="h-4 w-4" sw={2} /> Remove OIC / reinstate head
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DivisionsPage() {
-  const { db, go, setDivFilter } = useStore();
+  const { db, go, setDivFilter, divOf } = useStore();
+  const [managing, setManaging] = useState<string | null>(null);
+
   const card = (d: (typeof DIVISIONS)[number]) => {
+    const info: DivInfo = divOf(d.id) ?? d;
     const open = db.papers.filter((p) => p.divisionId === d.id && p.stage !== 'completed').length;
     const done = db.papers.filter((p) => p.divisionId === d.id && p.stage === 'completed').length;
     return (
-      <button key={d.id} onClick={() => { setDivFilter(d.id); go('board'); }}
-        className="flex w-full items-center gap-4 rounded-lg border border-ink-700 bg-ink-900/80 p-4 text-left transition hover:border-cyanx-500/50 hover:bg-ink-800/70">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ink-600 bg-ink-850 text-cyanx-400">
-          <I n={d.cluster === 'ops' ? 'wrench' : 'file'} className="h-5 w-5" sw={1.8} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate font-display text-[16px] font-bold uppercase tracking-wide text-mist-50">{d.name}</span>
-            <DivChip div={d} />
+      <div key={d.id} className="flex w-full flex-col rounded-lg border border-ink-700 bg-ink-900/80 transition hover:border-cyanx-500/50 hover:bg-ink-800/70">
+        <button onClick={() => { setDivFilter(d.id); go('board'); }} className="flex w-full items-center gap-4 p-4 pb-2 text-left">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ink-600 bg-ink-850 text-cyanx-400">
+            <I n={d.cluster === 'ops' ? 'wrench' : 'file'} className="h-5 w-5" sw={1.8} />
           </span>
-          <span className="mt-0.5 block text-[12px] leading-relaxed text-mist-400">{d.desc}</span>
-          <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-mist-500">Head: {d.head}</span>
-        </span>
-        <span className="shrink-0 text-right">
-          <span className="block font-display text-[24px] font-bold leading-none text-cyanx-400 tabular">{open}</span>
-          <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
-        </span>
-      </button>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate font-display text-[16px] font-bold uppercase tracking-wide text-mist-50">{info.name}</span>
+              <DivChip div={d} />
+            </span>
+            <span className="mt-0.5 block text-[12px] leading-relaxed text-mist-400">{info.desc}</span>
+            <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-mist-500">Head: {info.head}</span>
+            {info.oicId && (
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-amberx-400">
+                <I n="clock" className="h-3 w-3" sw={2.2} /> OIC: {info.oicName}
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-right">
+            <span className="block font-display text-[24px] font-bold leading-none text-cyanx-400 tabular">{open}</span>
+            <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
+          </span>
+        </button>
+        <button onClick={() => setManaging(managing === d.id ? null : d.id)}
+          className="mx-4 mb-3 flex items-center justify-center gap-1.5 rounded-md border border-ink-600 px-2 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-mist-400 transition hover:border-flare-500/60 hover:text-flare-400">
+          <I n="stamp" className="h-3 w-3" sw={2.2} /> {managing === d.id ? 'Close manager' : 'Manage / assign OIC'}
+        </button>
+      </div>
     );
   };
 
   return (
     <div>
-      <PageHead kicker="Organization" title="Divisions & units" sub="Nine divisions, four cross-division units and the two executive desks — every one a routable recipient. Click any card to open its board." />
+      <PageHead kicker="Organization" title="Divisions & units" sub="Nine divisions, four cross-division units and the two executive desks — every one a routable recipient. Click any card to open its board; use Manage to edit details or assign an OIC." />
+      {managing && <DivisionManager divId={managing} onClose={() => setManaging(null)} />}
       {(['ops', 'tech'] as const).map((cl) => (
         <section key={cl} className="anim-fade-up mb-6">
           <div className="mb-3 flex items-center gap-3">

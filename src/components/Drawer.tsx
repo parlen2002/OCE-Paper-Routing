@@ -210,14 +210,27 @@ export function DocDrawer() {
   const pct = paper.stage === 'completed' ? 100 : paper.progress ?? 0;
   const shownPct = draftPct ?? pct;
 
+  const chrono = [...paper.custody].sort((a, b) => a.at - b.at);
   const path: { id: string; by?: string; at?: number }[] = [];
-  for (const e of paper.custody) {
+  for (const e of chrono) {
     if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId) {
-      const last = path[path.length - 1];
-      if (!last || last.id !== e.toDivisionId) path.push({ id: e.toDivisionId, by: e.byName, at: e.at });
+      // show the desk it came FROM, then the desk it landed on
+      if (e.fromDivisionId && e.fromDivisionId !== e.toDivisionId) {
+        const l = path[path.length - 1];
+        if (!l || l.id !== e.fromDivisionId) path.push({ id: e.fromDivisionId, by: e.byName, at: e.at });
+      }
+      const l2 = path[path.length - 1];
+      if (!l2 || l2.id !== e.toDivisionId) path.push({ id: e.toDivisionId, by: e.byName, at: e.at });
     }
   }
   if (!path.length || path[path.length - 1].id !== paper.divisionId) path.push({ id: paper.divisionId });
+
+  /** Receipt stamps — desks that pressed Receive, newest information first. */
+  const receipts = chrono.filter((e) => e.action === 'received' && e.toDivisionId);
+  const recipients = paper.recipientIds ?? [];
+  const myDesk = userUnitId;
+  const iCanReceive =
+    !!myDesk && recipients.includes(myDesk) && !(paper.receivedBy ?? []).includes(myDesk) && paper.stage !== 'completed';
 
   const trail = [...paper.custody].sort((a, b) => b.at - a.at);
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -300,6 +313,49 @@ export function DocDrawer() {
                 );
               })}
             </div>
+
+            {/* receipt stamps — updates the moment a desk presses Receive */}
+            {recipients.length > 0 && (
+              <div className="mt-3 rounded-lg border border-ink-700 bg-ink-950/40 p-3">
+                <p className="mb-2 font-mono text-[8.5px] font-bold uppercase tracking-[0.2em] text-mist-500">
+                  Receipt stamps {recipients.length > 1 ? `· ${(paper.receivedBy ?? []).length} of ${recipients.length} desks acknowledged` : ''}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {recipients.map((rid) => {
+                    const d = divById(rid);
+                    const ack = receipts.find((e) => e.toDivisionId === rid);
+                    if (ack) {
+                      return (
+                        <span key={rid} title={`${d?.name ?? rid} — received by ${ack.byName} · ${fmtDT(ack.at)}`}
+                          className="stamp cursor-help border-greenx-500/60 px-2 py-0.5 text-[9.5px] text-greenx-500">
+                          {d?.code ?? rid} · {ack.byName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]} · {timeAgo(ack.at)}
+                        </span>
+                      );
+                    }
+                    if (recipients.length > 1) {
+                      return (
+                        <span key={rid} className="rounded-sm border border-dashed border-amberx-500/50 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-amberx-400/80">
+                          {d?.code ?? rid} pending
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                  {iCanReceive && (
+                    <button onClick={() => ackPaper(paper.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]">
+                      <I n="checkc" className="h-3.5 w-3.5" sw={2.2} />
+                      Receive — stamp {divById(myDesk!)?.code}
+                    </button>
+                  )}
+                </div>
+                {receipts.length === 0 && !iCanReceive && recipients.length === 1 && (
+                  <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+                    Awaiting the first receipt stamp from {divById(recipients[0])?.code ?? recipients[0]}
+                  </p>
+                )}
+              </div>
+            )}
+
             {paper.diverted ? (
               <p className="mt-2.5 flex items-start gap-2 rounded-md border border-amberx-500/40 bg-amberx-500/[0.07] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amberx-400">
                 <I n="alert" className="mt-0.5 h-3 w-3 shrink-0" sw={2.2} />
@@ -369,11 +425,6 @@ export function DocDrawer() {
                 <div className="sm:col-span-2"><dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Remarks</dt><dd className="mt-0.5 leading-relaxed text-mist-200">{paper.remarks}</dd></div>
               )}
             </dl>
-            {(paper.recipientIds?.length ?? 0) > 1 && userUnitId && (paper.recipientIds ?? []).includes(userUnitId) && !(paper.receivedBy ?? []).includes(userUnitId) && paper.stage !== 'completed' && (
-              <button onClick={() => ackPaper(paper.id)} className="btn btn-primary mt-3 w-full justify-center">
-                <I n="checkc" className="h-4 w-4" sw={2} /> Confirm receipt — {divById(userUnitId)?.code}
-              </button>
-            )}
           </Section>
 
           {/* evidence */}

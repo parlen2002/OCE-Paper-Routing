@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v11';
+const LS_KEY = 'ppc-ceoflow-v12';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 11 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 12 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         return d as DB;
       }
@@ -344,6 +344,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       custody: [{
         id: uid(), at: nowTs, byName: user.name, action: 'created',
         text: `Logged into the system and transmitted to ${div?.name ?? primaryId}${recipients.length > 1 ? ` (circular to ${recipients.length} desks)` : ''}${pics.length ? ` · persons-in-charge: ${pics.map((p) => p.name).join(', ')}` : ''}`,
+        fromDivisionId: userUnitId ?? user.divisionId ?? undefined,
         toDivisionId: primaryId,
       }],
       createdAt: nowTs, updatedAt: nowTs, byId: user.id, byName: user.name,

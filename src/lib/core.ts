@@ -628,6 +628,13 @@ export function freshSeed(): DB {
     },
   ];
 
+  // Backfill the originating desk on the initial custody entry (logged from the Administrative front desk)
+  for (const p of papers) {
+    for (const e of p.custody) {
+      if (e.action === 'created' && !e.fromDivisionId) e.fromDivisionId = 'admin';
+    }
+  }
+
   const notifs: Notif[] = [
     {
       id: uid(), at: now - 0.35 * D,
@@ -651,7 +658,7 @@ export function freshSeed(): DB {
     },
   ];
 
-  return { v: 11, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
+  return { v: 12, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

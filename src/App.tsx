@@ -203,12 +203,18 @@ function PaperSheet({ paper, userName, userTitle, users }: { paper: Paper; userN
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
   const pics = (paper.assignees ?? []).map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
+  const chrono = [...paper.custody].sort((a, b) => a.at - b.at);
   const path: string[] = [];
-  for (const e of paper.custody) {
-    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId && path[path.length - 1] !== e.toDivisionId) path.push(e.toDivisionId);
+  for (const e of chrono) {
+    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId) {
+      if (e.fromDivisionId && e.fromDivisionId !== e.toDivisionId && path[path.length - 1] !== e.fromDivisionId) path.push(e.fromDivisionId);
+      if (path[path.length - 1] !== e.toDivisionId) path.push(e.toDivisionId);
+    }
   }
   if (path[path.length - 1] !== paper.divisionId) path.push(paper.divisionId);
-  const trail = [...paper.custody].sort((a, b) => a.at - b.at);
+  const receipts = chrono.filter((e) => e.action === 'received' && e.toDivisionId);
+  const pendingDesks = (paper.recipientIds ?? []).filter((rid) => !(paper.receivedBy ?? []).includes(rid));
+  const trail = chrono;
   const geo = paper.attachments.filter((a) => a.geotagged && a.lat != null && a.lng != null);
   const imgs = paper.attachments.filter((a) => a.kind === 'image');
   const pdfs = paper.attachments.filter((a) => a.kind === 'pdf');
@@ -271,6 +277,23 @@ function PaperSheet({ paper, userName, userTitle, users }: { paper: Paper; userN
           );
         })}
       </div>
+
+      {(receipts.length > 0 || pendingDesks.length > 0) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">Receipt stamps</span>
+          {receipts.map((r) => (
+            <span key={r.id} className="stamp border-[#1f9d55] px-2 py-0.5 text-[9.5px] text-[#1f9d55]">
+              {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · {r.byName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]} · {fmtDT(r.at)}
+            </span>
+          ))}
+          {pendingDesks.map((rid) => (
+            <span key={rid} className="rounded-sm border border-dashed border-[#b45309] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#b45309]">
+              {divById(rid)?.code ?? rid} pending
+            </span>
+          ))}
+        </div>
+      )}
+
       {paper.diverted && <p className="mt-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#b45309]">Paper was re-routed — now outside its originally intended desk.</p>}
 
       {(paper.recipientIds?.length ?? 0) > 1 && (

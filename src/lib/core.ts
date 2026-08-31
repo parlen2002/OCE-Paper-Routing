@@ -149,6 +149,7 @@ export interface DB {
   notifs: Notif[];
   logs: SysLog[];
   users: User[];
+  divisions?: Record<string, DivisionMeta>;
   seq: number;
 }
 
@@ -163,6 +164,25 @@ export interface Division {
   headUser: string;
   desc: string;
 }
+
+/** Per-division overrides managed from the Divisions tab (title, description, head, OIC). */
+export interface DivisionMeta {
+  name?: string;
+  desc?: string;
+  headName?: string;
+  headUserId?: string;
+  oicId?: string;
+  oicName?: string;
+  oicSince?: number;
+  oicNote?: string;
+}
+
+export type DivInfo = Division & {
+  oicId?: string;
+  oicName?: string;
+  oicSince?: number;
+  oicNote?: string;
+};
 
 export const DIVISIONS: Division[] = [
   { id: 'const', code: 'CONSTR', name: 'Construction Division', cluster: 'ops', head: 'Engr. Ramil Domingo', headUser: 'u-const', desc: 'Vertical and horizontal infrastructure projects — buildings, roads, bridges and concretation works from planning to turnover.' },
@@ -662,7 +682,31 @@ export function freshSeed(): DB {
     },
   ];
 
-  return { v: 14, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
+  // Maintenance Division is being run by an OIC while the permanent head is on leave.
+  const divisions: Record<string, DivisionMeta> = {
+    maint: {
+      oicId: 'u-daquino',
+      oicName: 'Mr. Dennis Aquino',
+      oicSince: now - 1.2 * D,
+      oicNote: 'Acting while Engr. Nardo Salvador is on official leave',
+    },
+  };
+
+  notifs.push(
+    {
+      id: uid(), at: now - 1.1 * D,
+      text: 'OIC designated — Mr. Dennis Aquino is acting head of MAINT while Engr. Salvador is on leave',
+      kind: 'account', scope: { type: 'supervisors' }, readBy: [],
+    },
+    {
+      id: uid(), at: now - 1.1 * D,
+      text: 'You are designated OIC of the Maintenance Division — the division board is now under your charge',
+      kind: 'account', docId: papers[1].id, ref: 'OCE-2026-0139',
+      scope: { type: 'division', divisionId: 'maint' }, targetUserId: 'u-daquino', readBy: [],
+    }
+  );
+
+  return { v: 15, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

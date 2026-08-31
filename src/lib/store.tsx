@@ -74,7 +74,7 @@ interface StoreCtx {
     dueAt?: number; remarks?: string; attachments: Attachment[]; assigneeIds?: string[];
   }) => void;
   moveStage: (id: string, stage: Stage, note?: string, employeeIds?: string[]) => void;
-  routePaper: (id: string, toDivisionId: string, note?: string) => void;
+  routePaperMulti: (id: string, deskIds: string[], note?: string) => void;
   addNote: (id: string, text: string) => void;
   addAttachments: (id: string, atts: Attachment[]) => void;
   removeAttachment: (docId: string, attId: string) => void;
@@ -439,37 +439,56 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       : `${p.ref} moved to ${meta.label}`);
   };
 
-  const routePaper: StoreCtx['routePaper'] = (id, toDivisionId, note) => {
+  const routePaperMulti: StoreCtx['routePaperMulti'] = (id: string, deskIds: string[], note?: string) => {
     if (!user) return;
     if (user.role === 'employee' || user.role === 'joborder') {
       pushToast('warn', 'Employees and job-order personnel submit to their division head — routing is done by the division head');
       return;
     }
     const p = db.papers.find((x) => x.id === id);
-    const to = divById(toDivisionId);
-    if (!p || !to || p.divisionId === toDivisionId) return;
+    if (!p) return;
+    const targets = [...new Set(deskIds)].filter((d) => !!divById(d) && d !== p.divisionId);
+    if (!targets.length) return;
     if (!canEdit(p)) { pushToast('warn', 'Only the holding division or a supervisor can forward this paper'); return; }
     const from = divById(p.divisionId);
+    const primaryId = targets[0];
+    const primary = divById(primaryId)!;
+    const codes = targets.map((t) => divById(t)!.code).join(' + ');
     const entry = {
       id: uid(), at: Date.now(), byName: user.name, action: 'routed' as const,
-      fromDivisionId: p.divisionId, toDivisionId,
-      text: note?.trim() ? `Forwarded to ${to.name} — ${note.trim()}` : `Forwarded to ${to.name}`,
+      fromDivisionId: p.divisionId, toDivisionId: primaryId,
+      text: note?.trim()
+        ? `Forwarded to ${codes}${targets.length > 1 ? ` (circulated to ${targets.length} desks)` : ''} — ${note.trim()}`
+        : `Forwarded to ${codes}${targets.length > 1 ? ` (circulated to ${targets.length} desks)` : ''}`,
     };
     setDb((d) => {
       let next: DB = {
         ...d,
         papers: d.papers.map((x) => x.id === id
-          ? touch(x, (pp) => ({ ...pp, divisionId: toDivisionId, stage: 'received', diverted: toDivisionId !== pp.intendedId, custody: [...pp.custody, entry] }))
+          ? touch(x, (pp) => ({
+              ...pp,
+              divisionId: primaryId,
+              stage: 'received' as Stage,
+              diverted: primaryId !== pp.intendedId,
+              recipientIds: targets,
+              receivedBy: [],
+              custody: [...pp.custody, entry],
+            }))
           : x),
       };
-      next = pushNotif(next, { text: `${p.ref} forwarded to your division by ${from?.code ?? ''} — ${p.title.slice(0, 56)}`, kind: 'route', docId: p.id, ref: p.ref, scope: { type: 'division', divisionId: toDivisionId } }, user);
-      if (user.role === 'division') {
-        next = pushNotif(next, { text: `${p.ref} re-routed ${from?.code} → ${to.code} by ${user.name}`, kind: 'route', docId: p.id, ref: p.ref, scope: { type: 'supervisors' } }, user);
+      for (const t of targets) {
+        next = pushNotif(next, {
+          text: `${p.ref} forwarded to your division by ${from?.code ?? ''}${targets.length > 1 ? ` — circulated to ${targets.length} desks` : ''} · ${p.title.slice(0, 50)}`,
+          kind: 'route', docId: p.id, ref: p.ref, scope: { type: 'division', divisionId: t },
+        }, user);
       }
-      next = withLog(next, { userId: user.id, userName: user.name, type: 'route', text: `Forwarded ${p.ref} from ${from?.code ?? '?'} to ${to.code}`, ref: p.ref, docId: p.id });
+      if (user.role === 'division') {
+        next = pushNotif(next, { text: `${p.ref} re-routed ${from?.code} → ${codes} by ${user.name}`, kind: 'route', docId: p.id, ref: p.ref, scope: { type: 'supervisors' } }, user);
+      }
+      next = withLog(next, { userId: user.id, userName: user.name, type: 'route', text: `Forwarded ${p.ref} from ${from?.code ?? '?'} to ${codes}`, ref: p.ref, docId: p.id });
       return next;
     });
-    pushToast('ok', `${p.ref} forwarded to ${to.code} — it now sits in their Received tray`);
+    pushToast('ok', `${p.ref} forwarded to ${codes} — now in their Received tray${targets.length > 1 ? 's' : ''}`);
   };
 
   const addNote = (id: string, text: string) => {
@@ -661,7 +680,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSearch: (s) => setUi((u) => ({ ...u, search: s })),
     setDivFilter: (s) => setUi((u) => ({ ...u, divFilter: s })),
     setViewer: (v) => setUi((u) => ({ ...u, viewer: v })),
-    createPaper, moveStage, routePaper, addNote, addAttachments, removeAttachment, setProgress,
+    createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress,
     assignPaper, submitToHead, returnToEmployee, deletePaper, updatePaper, ackPaper,
     markAllRead, markRead, pushToast,
   };

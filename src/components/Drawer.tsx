@@ -182,7 +182,7 @@ function EditDocModal({ paper, onClose }: { paper: Paper; onClose: () => void })
 export function DocDrawer() {
   const store = useStore();
   const {
-    db, user, ui, closeDrawer, moveStage, routePaper, addNote, canEdit, setViewer, deletePaper,
+    db, user, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, setViewer, deletePaper,
     ackPaper, userUnitId, assignPaper, submitToHead, returnToEmployee, employeesOf, removeAttachment,
     setReportOpen, setProgress,
   } = store;
@@ -190,14 +190,15 @@ export function DocDrawer() {
   const paper = useMemo(() => db.papers.find((p) => p.id === ui.drawerId) ?? null, [db.papers, ui.drawerId]);
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
-  const [forwardVal, setForwardVal] = useState('');
+  const [routeSel, setRouteSel] = useState<string[]>([]);
+  const [routeConfirm, setRouteConfirm] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<Attachment | null>(null);
   const [draftPct, setDraftPct] = useState<number | null>(null);
 
   useEffect(() => {
-    setRemark(''); setNote(''); setForwardVal(''); setEditOpen(false); setDelOpen(false); setConfirmRemove(null); setDraftPct(null);
+    setRemark(''); setNote(''); setRouteSel([]); setRouteConfirm(false); setEditOpen(false); setDelOpen(false); setConfirmRemove(null); setDraftPct(null);
   }, [ui.drawerId]);
 
   if (!paper || !user) return null;
@@ -239,7 +240,12 @@ export function DocDrawer() {
   const lastGeotag = confirmRemove != null && confirmRemove.geotagged && paper.attachments.filter((a) => a.geotagged).length === 1;
 
   const doMove = (s: Stage) => { moveStage(paper.id, s, remark || undefined); setRemark(''); };
-  const doForward = (toId: string) => { if (!toId) return; routePaper(paper.id, toId, remark || undefined); setRemark(''); setForwardVal(''); };
+  const toggleRoute = (id: string) => setRouteSel((r) => (r.includes(id) ? r.filter((x) => x !== id) : [...r, id]));
+  const confirmRoute = () => {
+    if (!routeSel.length) return;
+    routePaperMulti(paper.id, routeSel, remark || undefined);
+    setRemark(''); setRouteSel([]); setRouteConfirm(false);
+  };
   const addRemark = () => { if (!note.trim()) return; addNote(paper.id, note); setNote(''); };
   const togglePic = (id: string) => {
     const cur = paper.assignees ?? [];
@@ -566,22 +572,85 @@ export function DocDrawer() {
                     ))}
                   </select>
                 </label>
-                <label className="block">
-                  <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">Forward / re-route — division, team or executive desk</span>
-                  <select className="field" value={forwardVal} disabled={!editable || isField} onChange={(e) => doForward(e.target.value)}>
-                    <option value="">{isField ? '— routing is done by your division head —' : '— choose recipient —'}</option>
+                <div className="sm:col-span-2">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">
+                      Forward / re-route — tick every desk that should receive it
+                    </span>
                     {!isField && (
-                      <>
-                        <optgroup label="Executive desks">
-                          {DESKS.filter((d) => d.id !== paper.divisionId).map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
-                        </optgroup>
-                        <optgroup label="Divisions & teams">
-                          {[...DIVISIONS, ...CROSS_UNITS].filter((d) => d.id !== paper.divisionId).map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
-                        </optgroup>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const others = [...DESKS, ...DIVISIONS, ...CROSS_UNITS].filter((d) => d.id !== paper.divisionId).map((d) => d.id);
+                          setRouteSel((r) => (r.length === others.length ? [] : others));
+                        }}
+                        className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider transition ${
+                          routeSel.length > 0
+                            ? 'border-flare-500/60 bg-flare-500/12 text-flare-400'
+                            : 'border-ink-600 bg-ink-800 text-mist-400 hover:border-flare-500/50 hover:text-flare-400'
+                        }`}
+                      >
+                        <I n="sitemap" className="h-2.5 w-2.5" sw={2.4} /> All desks
+                      </button>
                     )}
-                  </select>
-                </label>
+                    <span className={`ml-auto rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold tabular ${routeSel.length ? 'bg-cyanx-500/12 text-cyanx-400' : 'bg-ink-800 text-mist-600'}`}>
+                      {routeSel.length} selected
+                    </span>
+                  </div>
+
+                  {isField ? (
+                    <p className="rounded-md border border-dashed border-ink-600 px-3 py-2.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-mist-600">
+                      — routing is done by your division head —
+                    </p>
+                  ) : (
+                    <>
+                      <div className={`rounded-lg border bg-ink-950/40 p-2.5 ${routeConfirm ? 'border-cyanx-500/60' : 'border-ink-600'}`}>
+                        <p className="mb-1.5 px-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.2em] text-amberx-400/90">Executive desks</p>
+                        <div className="mb-2.5 flex flex-wrap gap-1.5">
+                          {DESKS.filter((d) => d.id !== paper.divisionId).map((d) => {
+                            const on = routeSel.includes(d.id);
+                            return (
+                              <button key={d.id} type="button" disabled={!editable} onClick={() => toggleRoute(d.id)} title={`${d.name} — ${d.head}`}
+                                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${
+                                  on ? 'border-amberx-500/70 bg-amberx-500/15 text-amberx-400' : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-amberx-500/40 hover:text-mist-200'
+                                }`}>
+                                {on && <I n="check" className="h-3 w-3" sw={2.6} />} {d.code}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mb-1.5 px-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.2em] text-cyanx-400/90">Divisions & teams</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[...DIVISIONS, ...CROSS_UNITS].filter((d) => d.id !== paper.divisionId).map((d) => {
+                            const on = routeSel.includes(d.id);
+                            return (
+                              <button key={d.id} type="button" disabled={!editable} onClick={() => toggleRoute(d.id)} title={d.name}
+                                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${
+                                  on ? 'border-cyanx-500/70 bg-cyanx-500/12 text-cyanx-400' : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-cyanx-500/40 hover:text-mist-200'
+                                }`}>
+                                {on && <I n="check" className="h-3 w-3" sw={2.6} />} {d.code}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 flex items-center justify-between gap-3">
+                        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-mist-600">
+                          {routeSel.length > 1
+                            ? `Circulates to ${routeSel.length} desks · first pick holds the paper`
+                            : routeSel.length === 1
+                              ? 'Single forward · the desk takes over the paper'
+                              : 'Pick one or more desks, then transmit'}
+                        </p>
+                        <button className="btn btn-primary shrink-0" disabled={!routeSel.length || !editable} onClick={() => setRouteConfirm(true)}>
+                          <I n="send" className="h-4 w-4" sw={2} />
+                          Transmit to {routeSel.length || '—'} desk{routeSel.length === 1 ? '' : 's'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </Section>
@@ -627,6 +696,46 @@ export function DocDrawer() {
             }
             onClose={() => setDelOpen(false)}
             onConfirm={() => deletePaper(paper.id)}
+          />
+        )}
+        {routeConfirm && routeSel.length > 0 && (
+          <ConfirmDialog
+            kicker="Confirm transmission"
+            title={`Re-route this paper${routeSel.length > 1 ? ` to ${routeSel.length} desks` : ''}?`}
+            icon={<I n="send" className="h-5 w-5" sw={1.8} />}
+            confirmLabel={`Transmit to ${routeSel.length} desk${routeSel.length === 1 ? '' : 's'}`}
+            onConfirm={confirmRoute}
+            onClose={() => setRouteConfirm(false)}
+            body={
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-ink-600 bg-ink-850 p-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-800 px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-mist-300">
+                    {div?.code ?? paper.divisionId}
+                  </span>
+                  <I n="arr" className="h-3.5 w-3.5 shrink-0 text-flare-400" sw={2.4} />
+                  <span className="flex flex-wrap gap-1.5">
+                    {routeSel.map((rid) => {
+                      const d = divById(rid);
+                      const isDesk = rid.startsWith('desk-');
+                      return (
+                        <span key={rid}
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider ${
+                            isDesk ? 'border-amberx-500/70 bg-amberx-500/15 text-amberx-400' : 'border-cyanx-500/70 bg-cyanx-500/12 text-cyanx-400'
+                          }`}>
+                          <I n="check" className="h-3 w-3" sw={2.6} /> {d?.code ?? rid}
+                        </span>
+                      );
+                    })}
+                  </span>
+                </div>
+                <p className="text-[12.5px] leading-relaxed text-mist-400">
+                  {routeSel.length > 1
+                    ? `The paper will circulate to ${routeSel.length} desks. ${divById(routeSel[0])?.code} becomes the primary holder and the rest acknowledge receipt.`
+                    : `${divById(routeSel[0])?.name} takes over the paper and it lands in their Received tray.`}
+                  {remark.trim() ? ' Your remark is stamped into the chain of custody.' : ''}
+                </p>
+              </div>
+            }
           />
         )}
         {confirmRemove && (

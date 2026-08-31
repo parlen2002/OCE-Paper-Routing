@@ -429,10 +429,10 @@ export function freshSeed(): DB {
   const CE = 'Engr. Aries S. Grande';
   const ACE = 'Engr. Julio B. Sergio';
   const IMG = {
-    road: 'images/road-crew.jpg',
-    flood: 'images/flooded-street.jpg',
-    bldg: 'images/building-inspection.jpg',
-    wall: 'images/seawall-damage.jpg',
+    road: 'https://image.qwenlm.ai/generated-images/1770e5be-42c1-4185-ad24-492be4412c96/_result.png',
+    flood: 'https://image.qwenlm.ai/generated-images/6f241a44-0a13-477b-b108-f74421995e75/_result.png',
+    bldg: 'https://image.qwenlm.ai/generated-images/cd6c5509-4db7-44b6-8107-937dc582cfc4/_result.png',
+    wall: 'https://image.qwenlm.ai/generated-images/bba0a52c-43c5-48b3-8596-5154a95fb448/_result.png',
   };
   const pdfBudget = makeStubPdf('Supplemental Budget Request — H2 2026', [
     'Document ref: CEO-2026-0142',

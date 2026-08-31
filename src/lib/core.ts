@@ -1,4 +1,4 @@
-/* ============ CEO Flow — core types, org model, utils, seed ============ */
+/* ============ OCE Flow — core types, org model, utils, seed ============ */
 
 export type Role = 'admin' | 'supervisor' | 'moderator' | 'division' | 'employee' | 'joborder';
 export type UserStatus = 'active' | 'pending' | 'disabled';
@@ -185,7 +185,7 @@ export const INSPECTORATE: Division = {
 export const IT_DIVISION: Division = {
   id: 'it', code: 'IT', name: 'I.T. Section', cluster: 'tech',
   head: 'Alphard S. Grande', headUser: 'u-admin',
-  desc: 'Information technology services — maintains CEO Flow, user accounts, office network and connectivity, digital records and data backups for the whole office.',
+  desc: 'Information technology services — maintains OCE Flow, user accounts, office network and connectivity, digital records and data backups for the whole office.',
 };
 
 export const DOCMON_TEAM: Division = {
@@ -439,7 +439,7 @@ export function freshSeed(): DB {
     wall: 'https://image.qwenlm.ai/generated-images/bba0a52c-43c5-48b3-8596-5154a95fb448/_result.png',
   };
   const pdfBudget = makeStubPdf('Supplemental Budget Request — H2 2026', [
-    'Document ref: CEO-2026-0142',
+    'Document ref: OCE-2026-0142',
     'Origin: Office of the City Administrator',
     'Requested by: City Budget Office',
     'Amount: PHP 4,850,000.00 for priority infrastructure repairs',
@@ -449,7 +449,7 @@ export function freshSeed(): DB {
     'Prepared by: Administrative Division, Records Section',
   ]);
   const pdfSurvey = makeStubPdf('Survey Request — Lot Verification, Brgy. San Pedro', [
-    'Document ref: CEO-2026-0136',
+    'Document ref: OCE-2026-0136',
     'Origin: City Planning and Development Office',
     'Requested by: CPDO — Ms. F. Ramirez',
     'Scope: verification survey of Lot 12, Cad-204, Brgy. San Pedro',
@@ -461,7 +461,7 @@ export function freshSeed(): DB {
 
   const papers: Paper[] = [
     {
-      id: uid(), ref: 'CEO-2026-0141', title: 'Road widening — Brgy. San Manuel Phase 2', kind: 'work-order',
+      id: uid(), ref: 'OCE-2026-0141', title: 'Road widening — Brgy. San Manuel Phase 2', kind: 'work-order',
       priority: 'priority', origin: "City Administrator's Office", divisionId: 'const', intendedId: 'const', stage: 'progress',
       attachments: [
         att('road-crew-site.jpg', 'image', IMG.road, now - 2.1 * D, 'Engr. Paolo Manalo', { lat: 9.7389, lng: 118.7371 }, '412 KB'),
@@ -477,7 +477,7 @@ export function freshSeed(): DB {
       dueAt: now + 5 * D, diverted: false, assignees: ['u-pmanalo'], progress: 45,
     },
     {
-      id: uid(), ref: 'CEO-2026-0139', title: 'Declogging of main drainage — Rizal Ave. cor. Malvar St.', kind: 'work-order',
+      id: uid(), ref: 'OCE-2026-0139', title: 'Declogging of main drainage — Rizal Ave. cor. Malvar St.', kind: 'work-order',
       priority: 'urgent', origin: 'CDRRMO flood complaint #C-2214', divisionId: 'maint', intendedId: 'maint', stage: 'progress',
       attachments: [
         att('flooded-intersection.jpg', 'image', IMG.flood, now - 1 * D, 'Mr. Dennis Aquino', { lat: 9.7412, lng: 118.7358 }, '388 KB'),
@@ -492,7 +492,7 @@ export function freshSeed(): DB {
       remarks: 'Resident reports knee-deep water at the intersection after 30-min rain.', progress: 60,
     },
     {
-      id: uid(), ref: 'CEO-2026-0136', title: 'Lot verification survey — Brgy. San Pedro (drainage easement)', kind: 'inspection',
+      id: uid(), ref: 'OCE-2026-0136', title: 'Lot verification survey — Brgy. San Pedro (drainage easement)', kind: 'inspection',
       priority: 'routine', origin: 'City Planning & Development Office', divisionId: 'survey', intendedId: 'survey', stage: 'verification',
       attachments: [
         att('survey-request-0136.pdf', 'pdf', pdfSurvey, now - 2.6 * D, 'Ms. Carol Estrella', undefined, '88 KB'),
@@ -508,7 +508,7 @@ export function freshSeed(): DB {
       dueAt: now + 6 * D, diverted: false, assignees: ['u-kvillanueva'], pendingHeadReview: true, progress: 85,
     },
     {
-      id: uid(), ref: 'CEO-2026-0134', title: 'Seawall damage assessment — Brgy. Mandaragat shoreline', kind: 'inspection',
+      id: uid(), ref: 'OCE-2026-0134', title: 'Seawall damage assessment — Brgy. Mandaragat shoreline', kind: 'inspection',
       priority: 'urgent', origin: 'CDRRMO coastal watch', divisionId: 'plan', intendedId: 'plan', stage: 'review',
       attachments: [
         att('seawall-erosion.jpg', 'image', IMG.wall, now - 2.4 * D, 'Engr. Grace Panganiban', { lat: 9.7355, lng: 118.7422 }, '402 KB'),
@@ -522,7 +522,7 @@ export function freshSeed(): DB {
       remarks: 'CDRRMO flag: erosion undermining promenade footing near marker B-17.', progress: 30,
     },
     {
-      id: uid(), ref: 'CEO-2026-0137', title: 'Street light restoration — National Highway, Brgy. Sta. Monica', kind: 'work-order',
+      id: uid(), ref: 'OCE-2026-0137', title: 'Street light restoration — National Highway, Brgy. Sta. Monica', kind: 'work-order',
       priority: 'routine', origin: 'Barangay Sta. Monica (resident petition)', divisionId: 'elec', intendedId: 'elec', stage: 'progress',
       attachments: [],
       custody: [
@@ -535,7 +535,7 @@ export function freshSeed(): DB {
       diverted: false, assignees: ['u-jreyes'], progress: 20,
     },
     {
-      id: uid(), ref: 'CEO-2026-0130', title: 'Building permit structural review — 3-storey commercial, Rizal Ave.', kind: 'permit',
+      id: uid(), ref: 'OCE-2026-0130', title: 'Building permit structural review — 3-storey commercial, Rizal Ave.', kind: 'permit',
       priority: 'priority', origin: 'Building Official (applicant: Lim Hardware)', divisionId: 'insp-team', intendedId: 'insp-team', stage: 'verification',
       attachments: [
         att('facade-check.jpg', 'image', IMG.bldg, now - 4 * D, 'Inspectorate Team', { lat: 9.7435, lng: 118.7349 }, '375 KB'),
@@ -548,7 +548,7 @@ export function freshSeed(): DB {
       createdAt: now - 5 * D, updatedAt: now - 1 * D, byId: 'u-admindiv', byName: CAROL, diverted: false, progress: 90,
     },
     {
-      id: uid(), ref: 'CEO-2026-0128', title: 'Sidewalk clearing & repair — Public Market frontage', kind: 'work-order',
+      id: uid(), ref: 'OCE-2026-0128', title: 'Sidewalk clearing & repair — Public Market frontage', kind: 'work-order',
       priority: 'routine', origin: 'Walk-in / internal', divisionId: 'psd', intendedId: 'psd', stage: 'progress',
       attachments: [],
       custody: [
@@ -562,7 +562,7 @@ export function freshSeed(): DB {
       diverted: true, assignees: ['u-rito'], progress: 35,
     },
     {
-      id: uid(), ref: 'CEO-2026-0142', title: 'Supplemental budget request — H2 2026 infrastructure repairs', kind: 'memo',
+      id: uid(), ref: 'OCE-2026-0142', title: 'Supplemental budget request — H2 2026 infrastructure repairs', kind: 'memo',
       priority: 'urgent', origin: 'City Budget Office', divisionId: 'desk-ce', intendedId: 'desk-ce', stage: 'verification',
       attachments: [att('budget-request-h2.pdf', 'pdf', pdfBudget, now - 1.3 * D, 'Ms. Carol Estrella', undefined, '110 KB')],
       custody: [
@@ -573,7 +573,7 @@ export function freshSeed(): DB {
       diverted: false, dueAt: now + 1 * D,
     },
     {
-      id: uid(), ref: 'CEO-2026-0144', title: 'Scheduled maintenance — CEO Flow server & office network backup', kind: 'memo',
+      id: uid(), ref: 'OCE-2026-0144', title: 'Scheduled maintenance — OCE Flow server & office network backup', kind: 'memo',
       priority: 'routine', origin: 'I.T. Section (systems maintenance program)', divisionId: 'it', intendedId: 'it', stage: 'progress',
       attachments: [],
       custody: [
@@ -584,7 +584,7 @@ export function freshSeed(): DB {
       createdAt: now - 1.6 * D, updatedAt: now - 0.6 * D, byId: 'u-admindiv', byName: CAROL, diverted: false, progress: 55,
     },
     {
-      id: uid(), ref: 'CEO-2026-0146', title: 'Photo & drone documentation — Q3 road concreting projects', kind: 'memo',
+      id: uid(), ref: 'OCE-2026-0146', title: 'Photo & drone documentation — Q3 road concreting projects', kind: 'memo',
       priority: 'routine', origin: 'Documentation and Monitoring Team program', divisionId: 'docmon', intendedId: 'docmon', stage: 'progress',
       attachments: [],
       custody: [
@@ -594,7 +594,7 @@ export function freshSeed(): DB {
       createdAt: now - 2.4 * D, updatedAt: now - 0.8 * D, byId: 'u-admindiv', byName: CAROL, diverted: false, progress: 70,
     },
     {
-      id: uid(), ref: 'CEO-2026-0147', title: 'Subaybayan citizen report — pothole cluster along Rizal Avenue near the public market', kind: 'complaint',
+      id: uid(), ref: 'OCE-2026-0147', title: 'Subaybayan citizen report — pothole cluster along Rizal Avenue near the public market', kind: 'complaint',
       priority: 'priority', origin: 'Subaybayan hotline — caller: resident, Brgy. Liwanag', divisionId: 'subay', intendedId: 'subay', stage: 'review',
       attachments: [],
       custody: [
@@ -604,7 +604,7 @@ export function freshSeed(): DB {
       createdAt: now - 0.5 * D, updatedAt: now - 0.3 * D, byId: 'u-admindiv', byName: CAROL, diverted: false, progress: 15,
     },
     {
-      id: uid(), ref: 'CEO-2026-0145', title: 'Memorandum Circular 2026-04 — year-end physical inventory of property & equipment', kind: 'memo',
+      id: uid(), ref: 'OCE-2026-0145', title: 'Memorandum Circular 2026-04 — year-end physical inventory of property & equipment', kind: 'memo',
       priority: 'priority', origin: 'Office of the City Engineer — Memorandum Circular', divisionId: 'desk-ce', intendedId: 'desk-ce', stage: 'progress',
       attachments: [],
       custody: [
@@ -620,7 +620,7 @@ export function freshSeed(): DB {
       recipientIds: ALL_UNITS.map((u) => u.id), receivedBy: ['admin', 'const', 'maint', 'psd', 'motorpool'],
     },
     {
-      id: uid(), ref: 'CEO-2026-0125', title: 'Materials test results — concreting batch, Brgy. San Manuel', kind: 'inspection',
+      id: uid(), ref: 'OCE-2026-0125', title: 'Materials test results — concreting batch, Brgy. San Manuel', kind: 'inspection',
       priority: 'routine', origin: 'Construction Division (batch request)', divisionId: 'mtqc', intendedId: 'mtqc', stage: 'completed',
       attachments: [],
       custody: [
@@ -642,13 +642,13 @@ export function freshSeed(): DB {
   const notifs: Notif[] = [
     {
       id: uid(), at: now - 0.35 * D,
-      text: 'Circulated memo CEO-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
-      kind: 'new', docId: papers[11].id, ref: 'CEO-2026-0145', scope: { type: 'division', divisionId: 'survey' }, readBy: [],
+      text: 'Circulated memo OCE-2026-0145 is awaiting your desk’s receipt — 5 of 15 desks acknowledged',
+      kind: 'new', docId: papers[11].id, ref: 'OCE-2026-0145', scope: { type: 'division', divisionId: 'survey' }, readBy: [],
     },
     {
       id: uid(), at: now - 0.3 * D,
-      text: 'CEO-2026-0144 assigned to your division — CEO Flow server maintenance window',
-      kind: 'new', docId: papers[8].id, ref: 'CEO-2026-0144', scope: { type: 'division', divisionId: 'it' }, readBy: [],
+      text: 'OCE-2026-0144 assigned to your division — OCE Flow server maintenance window',
+      kind: 'new', docId: papers[8].id, ref: 'OCE-2026-0144', scope: { type: 'division', divisionId: 'it' }, readBy: [],
     },
     {
       id: uid(), at: now - 0.4 * D,
@@ -657,12 +657,12 @@ export function freshSeed(): DB {
     },
     {
       id: uid(), at: now - 0.9 * D,
-      text: 'CEO-2026-0142 reached the City Engineer’s desk — supplemental budget awaiting approval',
-      kind: 'move', docId: papers[7].id, ref: 'CEO-2026-0142', scope: { type: 'supervisors' }, readBy: [],
+      text: 'OCE-2026-0142 reached the City Engineer’s desk — supplemental budget awaiting approval',
+      kind: 'move', docId: papers[7].id, ref: 'OCE-2026-0142', scope: { type: 'supervisors' }, readBy: [],
     },
   ];
 
-  return { v: 13, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
+  return { v: 14, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {
@@ -686,7 +686,7 @@ export function deriveLogs(papers: Paper[]): SysLog[] {
   }
   for (const [userId, at] of firstSeen) {
     const u = INITIAL_USERS.find((x) => x.id === userId);
-    logs.push({ id: uid(), at: at - 22 * 60 * 1000, userId, userName: u?.name ?? 'Officer', type: 'login', text: 'Signed in to CEO Flow (session start)' });
+    logs.push({ id: uid(), at: at - 22 * 60 * 1000, userId, userName: u?.name ?? 'Officer', type: 'login', text: 'Signed in to OCE Flow (session start)' });
   }
   const extra: [string, number][] = [
     ['u-admin', now - 4.4 * D], ['u-sup1', now - 3.4 * D], ['u-sup2', now - 3.3 * D],
@@ -694,7 +694,7 @@ export function deriveLogs(papers: Paper[]): SysLog[] {
   for (const [userId, at] of extra) {
     const u = INITIAL_USERS.find((x) => x.id === userId);
     if (!u) continue;
-    logs.push({ id: uid(), at, userId, userName: u.name, type: 'login', text: 'Signed in to CEO Flow (session start)' });
+    logs.push({ id: uid(), at, userId, userName: u.name, type: 'login', text: 'Signed in to OCE Flow (session start)' });
   }
   return logs.sort((a, b) => b.at - a.at);
 }

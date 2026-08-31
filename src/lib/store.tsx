@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v13';
+const LS_KEY = 'ppc-ceoflow-v14';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 13 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 14 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         return d as DB;
       }
@@ -178,7 +178,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : currentUser.role === 'supervisor'
           ? n.scope.type === 'supervisors'
           : n.targetUserId === currentUser.id || (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId);
-    if (targetsMe) fireBrowser('CEO Flow — ' + (n.ref ?? 'Update'), n.text);
+    if (targetsMe) fireBrowser('OCE Flow — ' + (n.ref ?? 'Update'), n.text);
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };
 
@@ -207,7 +207,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (u.password !== password) return 'Access denied — incorrect password for this account.';
     if (u.status === 'pending') return 'Account is pending administrator verification. Sign-in is disabled until your request is approved.';
     if (u.status === 'disabled') return 'This account has been disabled by the administrator.';
-    setDb((d) => withLog({ ...d, session: u.id }, { userId: u.id, userName: u.name, type: 'login', text: 'Signed in to CEO Flow — session start' }));
+    setDb((d) => withLog({ ...d, session: u.id }, { userId: u.id, userName: u.name, type: 'login', text: 'Signed in to OCE Flow — session start' }));
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
     } catch { /* ignore */ }
@@ -240,7 +240,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       next = pushNotif(next, { text: `Account request — ${nu.name} (${div?.name ?? 'division'}) is awaiting administrator verification`, kind: 'account', scope: { type: 'supervisors' } }, nu);
       return next;
     });
-    fireBrowser('CEO Flow — account request', `${nu.name} requested access (${div?.code ?? ''}) — pending verification`);
+    fireBrowser('OCE Flow — account request', `${nu.name} requested access (${div?.code ?? ''}) — pending verification`);
     return null;
   };
 
@@ -339,7 +339,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const recipients = input.recipientIds.length ? input.recipientIds : [input.recipientIds[0]];
     const primaryId = recipients[0];
     const div = divById(primaryId);
-    const ref = `CEO-2026-${String(db.seq).padStart(4, '0')}`;
+    const ref = `OCE-2026-${String(db.seq).padStart(4, '0')}`;
     const nowTs = Date.now();
     const pics = db.users.filter((u) => (input.assigneeIds ?? []).includes(u.id));
     const paper: Paper = {
@@ -377,7 +377,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       next = withLog(next, { userId: user.id, userName: user.name, type: 'create', text: `Logged ${ref} — ${paper.title.slice(0, 70)} → ${div?.code ?? ''}`, ref, docId: paper.id });
       return next;
     });
-    fireBrowser('CEO Flow — ' + ref, `New paperwork logged and transmitted to ${div?.code ?? 'division'}`);
+    fireBrowser('OCE Flow — ' + ref, `New paperwork logged and transmitted to ${div?.code ?? 'division'}`);
     pushToast('ok', `${ref} created and transmitted to ${div?.code ?? 'division'}${recipients.length > 1 ? ` (+${recipients.length - 1} more desks)` : ''}`);
     setUi((u) => ({ ...u, newOpen: false, page: 'board', drawerId: paper.id }));
   };

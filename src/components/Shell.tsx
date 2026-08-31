@@ -110,8 +110,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.title = unread > 0
-      ? `(${unread}) CEO Flow — City Engineering, Puerto Princesa`
-      : 'CEO Flow — City Engineering, Puerto Princesa';
+      ? `(${unread}) OCE Flow — Office of the City Engineer, Puerto Princesa`
+      : 'OCE Flow — Office of the City Engineer, Puerto Princesa';
   }, [unread]);
   useEffect(() => { prevUnread.current = unread; }, [unread]);
 
@@ -125,8 +125,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2.5 border-b border-ink-700/70 px-4 py-4">
           <Seal className="h-9 w-9" />
           <div>
-            <p className="font-display text-[15px] font-bold uppercase leading-tight tracking-wider text-mist-50">CEO <span className="text-flare-500">Flow</span></p>
-            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">City Engineering · PPC</p>
+            <p className="font-display text-[15px] font-bold uppercase leading-tight tracking-wider text-mist-50">OCE <span className="text-flare-500">Flow</span></p>
+            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Office of the City Engineer · PPC</p>
           </div>
         </div>
 
@@ -181,7 +181,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0">
             <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-mist-600">Office of the City Engineer / {ui.page}</p>
             <h2 className="truncate font-display text-[19px] font-bold uppercase leading-none tracking-wider text-mist-50">
-              {NAV.find((n) => n.page === ui.page)?.label ?? 'CEO Flow'}
+              {NAV.find((n) => n.page === ui.page)?.label ?? 'OCE Flow'}
             </h2>
           </div>
 

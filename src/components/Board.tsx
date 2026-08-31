@@ -177,26 +177,61 @@ function AssignModal({ paperId, stage, onClose }: { paperId: string; stage: Stag
 }
 
 export function Board() {
-  const { user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
+  const { db, user, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
+  const [monthF, setMonthF] = useState('');
+  const [brgyF, setBrgyF] = useState('all');
+  const [empF, setEmpF] = useState('all');
 
   const isField = user?.role === 'employee' || user?.role === 'joborder';
   const isWide = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
   const myDiv = user?.divisionId ? divById(user.divisionId) : undefined;
 
+  /** Barangays mentioned across the visible paperwork (title, origin, remarks). */
+  const barangays = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of visiblePapers) {
+      const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`;
+      for (const m of hay.matchAll(/(?:Brgy\.?|Barangay)\s+([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+)?)/g)) {
+        const name = m[1].replace(/\s+(Phase|Ext|cor|near|along|frontage|shoreline|road|street)\b.*$/i, '').trim();
+        if (name.length > 2) set.add(name);
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [visiblePapers]);
+
+  /** Employees & job-order personnel on record, for the personnel filter. */
+  const empRoster = useMemo(
+    () => db.users.filter((u) => (u.role === 'employee' || u.role === 'joborder') && u.status === 'active').sort((a, b) => a.name.localeCompare(b.name)),
+    [db.users]
+  );
+
+  const hasExtraFilters = monthF !== '' || brgyF !== 'all' || empF !== 'all';
+
   const filtered = useMemo(() => {
     const q = ui.search.trim().toLowerCase();
+    const [fy, fm] = monthF ? monthF.split('-').map(Number) : [0, 0];
     return visiblePapers.filter((p) => {
-      if (isField) return !q || `${p.ref} ${p.title} ${p.origin}`.toLowerCase().includes(q);
-      if (!isWide && scope === 'queue' && p.divisionId !== user?.divisionId && !(p.recipientIds ?? []).includes(user?.divisionId ?? '')) return false;
-      if (isWide && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
+      if (!isField) {
+        if (!isWide && scope === 'queue' && p.divisionId !== user?.divisionId && !(p.recipientIds ?? []).includes(user?.divisionId ?? '')) return false;
+        if (isWide && ui.divFilter !== 'all' && p.divisionId !== ui.divFilter) return false;
+      }
+      if (monthF) {
+        const d = new Date(p.createdAt);
+        if (d.getFullYear() !== fy || d.getMonth() !== fm - 1) return false;
+      }
+      if (brgyF !== 'all') {
+        const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`.toLowerCase();
+        if (!hay.includes(`brgy. ${brgyF.toLowerCase()}`) && !hay.includes(`brgy ${brgyF.toLowerCase()}`) && !hay.includes(`barangay ${brgyF.toLowerCase()}`)) return false;
+      }
+      if (empF !== 'all' && !(p.assignees ?? []).includes(empF)) return false;
       if (!q) return true;
       const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [visiblePapers, ui.search, ui.divFilter, isWide, isField, scope, user]);
+  }, [visiblePapers, ui.search, ui.divFilter, isWide, isField, scope, user, monthF, brgyF, empF]);
 
   const byStage = (s: Stage) => filtered.filter((p) => p.stage === s);
 
@@ -266,6 +301,39 @@ export function Board() {
             <I n="plus" className="h-4 w-4" sw={2.2} /> Log paperwork
           </button>
         )}
+      </div>
+
+      {/* extra filters: month / barangay / employee */}
+      <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-ink-700/70 bg-ink-900/55 px-3 py-2.5" style={{ animationDelay: '80ms' }}>
+        <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-mist-500">
+          <I n="search" className="h-3 w-3" sw={2.2} /> Filter board
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Month</span>
+          <input type="month" className="field w-auto py-1 font-mono text-[10.5px]" value={monthF} onChange={(e) => setMonthF(e.target.value)} />
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Barangay</span>
+          <select className="field w-auto py-1 font-mono text-[10.5px]" value={brgyF} onChange={(e) => setBrgyF(e.target.value)}>
+            <option value="all">All barangays</option>
+            {barangays.map((b) => (<option key={b} value={b}>Brgy. {b}</option>))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Employee</span>
+          <select className="field w-auto py-1 font-mono text-[10.5px]" value={empF} onChange={(e) => setEmpF(e.target.value)}>
+            <option value="all">All personnel</option>
+            {empRoster.map((e) => (<option key={e.id} value={e.id}>{e.name} · {divById(e.divisionId ?? '')?.code ?? ''}</option>))}
+          </select>
+        </label>
+        {hasExtraFilters && (
+          <button className="btn btn-ghost py-1 text-[11px]" onClick={() => { setMonthF(''); setBrgyF('all'); setEmpF('all'); }}>
+            <I n="x" className="h-3 w-3" sw={2.4} /> Clear
+          </button>
+        )}
+        <span className="ml-auto font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-500 tabular">
+          {filtered.length} paper{filtered.length === 1 ? '' : 's'} in view
+        </span>
       </div>
 
       <div className="scroll-slim -mx-1 overflow-x-auto px-1 pb-4">

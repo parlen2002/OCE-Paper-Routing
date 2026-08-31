@@ -404,18 +404,34 @@ export function DivisionsPage() {
 export function ActivityPage() {
   const { activities, openDrawer, user, db } = useStore();
   const [divF, setDivF] = useState<'all' | string>('all');
+  const [monthF, setMonthF] = useState('');
+  const [printOpen, setPrintOpen] = useState(false);
   const isSup = user?.role === 'admin' || user?.role === 'supervisor';
 
   const filtered = useMemo(() => {
-    if (divF === 'all') return activities;
-    const touched = new Set<string>();
-    for (const p of db.papers) {
-      const hit = p.divisionId === divF || p.intendedId === divF || (p.recipientIds ?? []).includes(divF) ||
-        p.custody.some((e) => e.toDivisionId === divF || e.fromDivisionId === divF);
-      if (hit) touched.add(p.id);
+    let list = activities;
+    if (divF !== 'all') {
+      const touched = new Set<string>();
+      for (const p of db.papers) {
+        const hit = p.divisionId === divF || p.intendedId === divF || (p.recipientIds ?? []).includes(divF) ||
+          p.custody.some((e) => e.toDivisionId === divF || e.fromDivisionId === divF);
+        if (hit) touched.add(p.id);
+      }
+      list = list.filter((a) => touched.has(a.docId));
     }
-    return activities.filter((a) => touched.has(a.docId));
-  }, [activities, db.papers, divF]);
+    if (monthF) {
+      const [y, m] = monthF.split('-').map(Number);
+      list = list.filter((a) => {
+        const d = new Date(a.at);
+        return d.getFullYear() === y && d.getMonth() === m - 1;
+      });
+    }
+    return list;
+  }, [activities, db.papers, divF, monthF]);
+
+  const monthLabel = monthF
+    ? new Date(Number(monthF.split('-')[0]), Number(monthF.split('-')[1]) - 1, 1).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
+    : 'All time';
 
   const groups = useMemo(() => {
     const m = new Map<string, Activity[]>();
@@ -437,16 +453,35 @@ export function ActivityPage() {
 
   return (
     <div>
-      <PageHead kicker="Audit" title="Activity log" sub="Every movement of every paper across the office floor, newest first." />
-      {isSup && (
-        <div className="anim-fade-up mb-4">
+      <PageHead
+        kicker="Audit"
+        title="Activity log"
+        sub="Every movement of every paper across the office floor, newest first."
+        right={
+          <button className="btn btn-primary" onClick={() => setPrintOpen(true)} disabled={filtered.length === 0}>
+            <I n="printer" className="h-4 w-4" sw={2.2} /> Print activity log
+          </button>
+        }
+      />
+      <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
+        {isSup && (
           <select className="field w-auto" value={divF} onChange={(e) => setDivF(e.target.value)}>
             <option value="all">All desks</option>
             {ALL_UNITS.map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
           </select>
-        </div>
-      )}
-      {groups.length === 0 && <EmptyState icon="pulse" title="No activity in scope" />}
+        )}
+        <label className="flex items-center gap-2">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mist-500">Month</span>
+          <input type="month" className="field w-auto py-1.5 font-mono text-[11.5px]" value={monthF} onChange={(e) => setMonthF(e.target.value)} />
+        </label>
+        {(monthF || divF !== 'all') && (
+          <button className="btn btn-ghost py-1.5" onClick={() => { setMonthF(''); setDivF('all'); }}>Clear filters</button>
+        )}
+        <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-mist-500">
+          {filtered.length} entr{filtered.length === 1 ? 'y' : 'ies'} · {monthLabel}
+        </span>
+      </div>
+      {groups.length === 0 && <EmptyState icon="pulse" title="No activity in scope" sub="Loosen the month or desk filter — or log some paperwork." />}
       <div className="space-y-6">
         {groups.map(([day, list]) => (
           <section key={day} className="anim-fade-up">
@@ -474,6 +509,95 @@ export function ActivityPage() {
             </ol>
           </section>
         ))}
+      </div>
+
+      {printOpen && (
+        <PrintActivityModal
+          rows={filtered}
+          monthLabel={monthLabel}
+          deskLabel={divF === 'all' ? 'All desks' : (divById(divF)?.name ?? divF)}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------ print: activity log sheet */
+const ACT_PRINT: Record<Activity['type'], { label: string; color: string }> = {
+  create: { label: 'Logged', color: '#0e7490' },
+  move: { label: 'Moved', color: '#b45309' },
+  route: { label: 'Routed', color: '#c24a0c' },
+  note: { label: 'Remark', color: '#5b7089' },
+  attach: { label: 'Attached', color: '#0d9488' },
+  complete: { label: 'Completed', color: '#1f9d55' },
+};
+
+function PrintActivityModal({
+  rows, monthLabel, deskLabel, onClose,
+}: {
+  rows: Activity[]; monthLabel: string; deskLabel: string; onClose: () => void;
+}) {
+  return (
+    <div className="print-reset fixed inset-0 z-[68] overflow-y-auto">
+      <div className="no-print fixed inset-0 bg-ink-950/85 backdrop-blur-sm" onClick={onClose} />
+      <div className="print-reset relative mx-auto my-6 w-[min(860px,94vw)]">
+        <div className="no-print anim-fade-up mb-3 flex items-center gap-2 rounded-lg border border-ink-600 bg-ink-900/95 px-3 py-2.5 shadow-xl">
+          <I n="pulse" className="h-4 w-4 text-flare-400" sw={2} />
+          <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">
+            Activity log · {rows.length} entries · {monthLabel}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button className="btn btn-ghost py-1.5" onClick={onClose}>Close</button>
+            <button className="btn btn-primary py-1.5" onClick={() => window.print()}>
+              <I n="printer" className="h-4 w-4" sw={2.2} /> Print / Save PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="print-sheet anim-pop print-scroll scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
+          <div className="px-9 py-8">
+            <div className="border-b-[3px] border-[#182a3e] pb-3 text-center">
+              <p className="font-display text-[22px] font-bold uppercase tracking-wide">City of Puerto Princesa — Office of the City Engineer</p>
+              <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#5b7089]">
+                OCE Flow · Paperwork activity log · Coverage: {monthLabel} · Scope: {deskLabel} · Generated {new Date().toLocaleString('en-PH')}
+              </p>
+            </div>
+
+            <table className="mt-4 w-full border-collapse text-[10.5px] leading-snug">
+              <thead>
+                <tr className="border-y-2 border-[#182a3e] text-left font-mono text-[8.5px] uppercase tracking-[0.14em] text-[#5b7089]">
+                  <th className="py-1.5 pr-2">When</th>
+                  <th className="py-1.5 pr-2">Ref</th>
+                  <th className="py-1.5 pr-2">Officer</th>
+                  <th className="py-1.5 pr-2">Event</th>
+                  <th className="py-1.5">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((a) => {
+                  const m = ACT_PRINT[a.type];
+                  return (
+                    <tr key={a.id} className="border-b border-[#dde5ee] align-top">
+                      <td className="py-1.5 pr-2 font-mono text-[9px] whitespace-nowrap">
+                        {new Date(a.at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}{' '}
+                        {new Date(a.at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      </td>
+                      <td className="py-1.5 pr-2 font-mono text-[9px] font-bold">{a.ref}</td>
+                      <td className="py-1.5 pr-2 font-semibold whitespace-nowrap">{a.byName}</td>
+                      <td className="py-1.5 pr-2 font-mono text-[9px] font-bold uppercase" style={{ color: m.color }}>{m.label}</td>
+                      <td className="py-1.5">{a.text}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <p className="mt-6 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+              Generated by OCE Flow · {rows.length} recorded movements · official paperwork activity record
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -982,7 +1106,7 @@ function PrintLogsModal({ rows, onClose }: { rows: { at: number; userName: strin
           <div className="px-9 py-8">
             <div className="border-b-[3px] border-[#182a3e] pb-3 text-center">
               <p className="font-display text-[22px] font-bold uppercase tracking-wide">City of Puerto Princesa — Office of the City Engineer</p>
-              <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#5b7089]">CEO Flow · System activity & user history log · {new Date().toLocaleString('en-PH')}</p>
+              <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#5b7089]">OCE Flow · System activity & user history log · {new Date().toLocaleString('en-PH')}</p>
             </div>
             <table className="mt-4 w-full border-collapse text-[10.5px] leading-snug">
               <thead>
@@ -1009,7 +1133,7 @@ function PrintLogsModal({ rows, onClose }: { rows: { at: number; userName: strin
                 })}
               </tbody>
             </table>
-            <p className="mt-6 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">Generated by CEO Flow · confidential system record</p>
+            <p className="mt-6 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">Generated by OCE Flow · confidential system record</p>
           </div>
         </div>
       </div>

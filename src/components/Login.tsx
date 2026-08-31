@@ -63,7 +63,7 @@ export function Login() {
               <Seal className="h-14 w-14" />
               <div>
                 <p className="font-display text-[26px] font-bold uppercase leading-none tracking-wider text-mist-50">
-                  CEO <span className="text-flare-500">Flow</span>
+                  OCE <span className="text-flare-500">Flow</span>
                 </p>
                 <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.24em] text-mist-500">Paperwork flow command</p>
               </div>
@@ -96,8 +96,8 @@ export function Login() {
           <div className="mb-6 flex items-center gap-3 lg:hidden">
             <Seal className="h-10 w-10" />
             <div>
-              <p className="font-display text-xl font-bold uppercase tracking-wider text-mist-50">CEO <span className="text-flare-500">Flow</span></p>
-              <p className="font-mono text-[8.5px] uppercase tracking-[0.22em] text-mist-500">City Engineering · Puerto Princesa</p>
+              <p className="font-display text-xl font-bold uppercase tracking-wider text-mist-50">OCE <span className="text-flare-500">Flow</span></p>
+              <p className="font-mono text-[8.5px] uppercase tracking-[0.22em] text-mist-500">Office of the City Engineer · Puerto Princesa</p>
             </div>
           </div>
 

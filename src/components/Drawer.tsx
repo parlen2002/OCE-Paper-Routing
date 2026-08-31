@@ -210,11 +210,14 @@ export function DocDrawer() {
   const pct = paper.stage === 'completed' ? 100 : paper.progress ?? 0;
   const shownPct = draftPct ?? pct;
 
-  const path: string[] = [];
+  const path: { id: string; by?: string; at?: number }[] = [];
   for (const e of paper.custody) {
-    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId && path[path.length - 1] !== e.toDivisionId) path.push(e.toDivisionId);
+    if ((e.action === 'created' || e.action === 'routed') && e.toDivisionId) {
+      const last = path[path.length - 1];
+      if (!last || last.id !== e.toDivisionId) path.push({ id: e.toDivisionId, by: e.byName, at: e.at });
+    }
   }
-  if (path[path.length - 1] !== paper.divisionId) path.push(paper.divisionId);
+  if (!path.length || path[path.length - 1].id !== paper.divisionId) path.push({ id: paper.divisionId });
 
   const trail = [...paper.custody].sort((a, b) => b.at - a.at);
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -277,14 +280,20 @@ export function DocDrawer() {
           {/* route sheet */}
           <Section title="Route sheet — where it has gone" icon="route">
             <div className="flex flex-wrap items-center gap-1.5">
-              {path.map((id, i) => {
-                const d = divById(id);
+              {path.map((hop, i) => {
+                const d = divById(hop.id);
                 const here = i === path.length - 1;
+                const tip = here
+                  ? `${d?.name ?? hop.id} — current holder${hop.by ? ` · received via ${hop.by}${hop.at ? ' · ' + fmtDT(hop.at) : ''}` : ''}`
+                  : `${d?.name ?? hop.id}${hop.by ? ` — transmitted by ${hop.by}${hop.at ? ' · ' + fmtDT(hop.at) : ''}` : ''}`;
                 return (
-                  <React.Fragment key={id}>
+                  <React.Fragment key={`${hop.id}-${i}`}>
                     {i > 0 && <I n="arr" className="h-3 w-3 text-mist-600" sw={2.2} />}
-                    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10.5px] font-bold uppercase tracking-wider transition ${here ? 'border-flare-500/70 bg-flare-500/12 text-flare-400' : 'border-ink-600 bg-ink-850 text-mist-300'}`}>
-                      {d?.code ?? id}
+                    <span
+                      title={tip}
+                      className={`inline-flex cursor-help items-center gap-1.5 rounded-md border px-2 py-1.5 font-mono text-[10.5px] font-bold uppercase tracking-wider transition ${here ? 'border-flare-500/70 bg-flare-500/12 text-flare-400' : 'border-ink-600 bg-ink-850 text-mist-300'}`}
+                    >
+                      {d?.code ?? hop.id}
                       {here && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-flare-500" />}
                     </span>
                   </React.Fragment>

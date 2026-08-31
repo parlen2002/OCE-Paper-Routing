@@ -502,14 +502,19 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
   const [divisionId, setDivisionId] = useState(target.divisionId ?? '');
   const [status, setStatus] = useState<UserStatus>(target.status);
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState(target.phone ?? '');
+  const [address, setAddress] = useState(target.address ?? '');
+  const [email, setEmail] = useState(target.email ?? '');
   const [err, setErr] = useState('');
 
   const needsDivision = role === 'division' || role === 'employee' || role === 'joborder';
+  const divEditable = needsDivision || role === 'moderator';
 
   const save = () => {
     if (name.trim().length < 3) return setErr('Full name is required (min. 3 characters).');
     if (needsDivision && !divisionId) return setErr('A division / team assignment is required for this role.');
     if (password && password.length < 6) return setErr('New password must be at least 6 characters — or leave blank to keep the current one.');
+    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('That email address does not look valid.');
     const divPatch = needsDivision ? divisionId : divisionId === '' ? (target.divisionId ? '' : undefined) : divisionId;
     updateUser(target.id, {
       name: name.trim(),
@@ -518,6 +523,9 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
       ...(divPatch === undefined ? {} : { divisionId: divPatch }),
       status,
       password: password || undefined,
+      phone: phone.trim() || undefined,
+      address: address.trim() || undefined,
+      email: email.trim() || undefined,
     });
     onClose();
   };
@@ -561,10 +569,15 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team</span>
-              <select className="field" value={divisionId} disabled={!needsDivision} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
+              <select className="field" value={divisionId} disabled={!divEditable} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
                 <option value="">— none —</option>
                 {[...DIVISIONS, ...CROSS_UNITS].map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
               </select>
+              {!needsDivision && role === 'moderator' && (
+                <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+                  Optional — anchors the moderator to a home desk for board filters
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Status</span>
@@ -579,6 +592,23 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Reset password (optional)</span>
             <input className="field font-mono" type="text" placeholder="Leave blank to keep current password" value={password} onChange={(e) => { setPassword(e.target.value); setErr(''); }} />
           </label>
+          <div>
+            <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Contact details — captured at account request</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Phone number</span>
+                <input className="field font-mono" value={phone} onChange={(e) => { setPhone(e.target.value); setErr(''); }} placeholder="e.g. 0917 000 0000" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Email address</span>
+                <input className="field font-mono" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErr(''); }} placeholder="e.g. name@ppc.gov.ph" />
+              </label>
+            </div>
+            <label className="mt-3 block">
+              <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Home address</span>
+              <input className="field" value={address} onChange={(e) => { setAddress(e.target.value); setErr(''); }} placeholder="e.g. Purok 3, Brgy. San Pedro, Puerto Princesa City" />
+            </label>
+          </div>
           {err && (
             <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
               <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} /> {err}
@@ -636,6 +666,13 @@ export function UsersPage() {
                       {div && <DivChip div={div} />}
                       <span className="font-mono text-[9px] uppercase tracking-wider text-mist-600">{u.requestedAt ? timeAgo(u.requestedAt) : ''}</span>
                     </div>
+                    {(u.phone || u.email || u.address) && (
+                      <p className="mt-1.5 space-y-0.5 border-t border-ink-700/60 pt-1.5 text-[10.5px] leading-snug text-mist-400">
+                        {u.phone && <span className="block font-mono">{u.phone}</span>}
+                        {u.email && <span className="block truncate font-mono text-cyanx-400/90">{u.email}</span>}
+                        {u.address && <span className="block truncate text-mist-500">{u.address}</span>}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1.5">
                     <button onClick={() => approveUser(u.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]"><I n="check" className="h-3.5 w-3.5" sw={2.4} /> Approve</button>

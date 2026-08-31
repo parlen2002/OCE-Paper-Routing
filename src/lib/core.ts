@@ -17,6 +17,10 @@ export interface User {
   requestedTitle?: string;
   requestedAt?: number;
   passwordResetAt?: number;
+  /** Contact details captured at account request. */
+  phone?: string;
+  address?: string;
+  email?: string;
 }
 
 export type Stage = 'received' | 'review' | 'progress' | 'verification' | 'completed';
@@ -421,7 +425,7 @@ export const INITIAL_USERS: User[] = [
   { id: 'u-kvillanueva', name: 'Engr. Kara Villanueva', username: 'kvillanueva', password: 'cityeng2026', role: 'employee', title: 'Survey Technician III', divisionId: 'survey', status: 'active' },
   { id: 'u-rito', name: 'Mr. Ramon Ito', username: 'rito', password: 'cityeng2026', role: 'employee', title: 'Sanitation Inspector', divisionId: 'psd', status: 'active' },
   { id: 'u-lmarquez', name: 'Ms. Lani Marquez', username: 'lmarquez', password: 'cityeng2026', role: 'joborder', title: 'Records Clerk (Job Order)', divisionId: 'admin', status: 'active' },
-  { id: 'u-milagan', name: 'Mr. Marcus Ilagan', username: 'milagan', password: 'cityeng2026', role: 'employee', title: 'Materials Technician', divisionId: 'mtqc', status: 'pending', requestedDivisionId: 'mtqc', requestedTitle: 'Materials Technician', requestedAt: now - 0.4 * D },
+  { id: 'u-milagan', name: 'Mr. Marcus Ilagan', username: 'milagan', password: 'cityeng2026', role: 'employee', title: 'Materials Technician', divisionId: 'mtqc', status: 'pending', requestedDivisionId: 'mtqc', requestedTitle: 'Materials Technician', requestedAt: now - 0.4 * D, phone: '0917 442 8810', address: 'Purok 3, Brgy. San Pedro, Puerto Princesa City', email: 'm.ilagan@ppc.gov.ph' },
 ];
 
 export function freshSeed(): DB {
@@ -658,7 +662,7 @@ export function freshSeed(): DB {
     },
   ];
 
-  return { v: 12, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
+  return { v: 13, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

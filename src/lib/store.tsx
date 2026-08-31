@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Activity, Attachment, DB, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v12';
+const LS_KEY = 'ppc-ceoflow-v13';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 12 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 13 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         return d as DB;
       }
@@ -51,7 +51,7 @@ interface StoreCtx {
   userUnitId: string | null;
   employeesOf: (unitId: string | undefined) => User[];
   login: (username: string, password: string) => string | null;
-  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string; role?: Role }) => string | null;
+  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string; phone?: string; address?: string; email?: string }) => string | null;
   approveUser: (id: string) => void;
   denyUser: (id: string) => void;
   updateUser: (id: string, patch: Partial<User>) => void;
@@ -221,17 +221,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!/^[a-z0-9._-]{3,20}$/.test(username)) return 'Username must be 3-20 characters — letters, numbers, dots or dashes.';
     if (db.users.some((x) => x.username.toLowerCase() === username)) return 'That username is already taken — choose another.';
     if (input.password.length < 6) return 'Password must be at least 6 characters long.';
+    const email = input.email?.trim() || undefined;
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) return 'That email address does not look valid — check it and try again.';
     const div = divById(input.divisionId);
-    const role: Role = input.role === 'employee' ? 'employee' : input.role === 'joborder' ? 'joborder' : 'division';
+    // Access level is decided by the program admin — every request starts as division staff.
     const nu: User = {
-      id: uid(), name, username, password: input.password, role,
-      title: input.title.trim() || (role === 'division' ? 'Division Staff' : 'Division Employee'),
+      id: uid(), name, username, password: input.password, role: 'division',
+      title: input.title.trim() || 'Division Staff',
       divisionId: input.divisionId, status: 'pending',
       requestedDivisionId: input.divisionId, requestedTitle: input.title.trim(), requestedAt: Date.now(),
+      phone: input.phone?.trim() || undefined,
+      address: input.address?.trim() || undefined,
+      email,
     };
     setDb((d) => {
       let next: DB = { ...d, users: [...d.users, nu] };
-      next = withLog(next, { userId: nu.id, userName: nu.name, type: 'signup', text: `Submitted an account request (${role} · ${div?.code ?? input.divisionId}) — pending administrator verification` });
+      next = withLog(next, { userId: nu.id, userName: nu.name, type: 'signup', text: `Submitted an account request (${div?.code ?? input.divisionId})${email ? ` · ${email}` : ''} — pending administrator verification` });
       next = pushNotif(next, { text: `Account request — ${nu.name} (${div?.name ?? 'division'}) is awaiting administrator verification`, kind: 'account', scope: { type: 'supervisors' } }, nu);
       return next;
     });

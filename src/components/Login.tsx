@@ -26,7 +26,9 @@ export function Login() {
   const [suPass2, setSuPass2] = useState('');
   const [suDiv, setSuDiv] = useState('const');
   const [suTitle, setSuTitle] = useState('');
-  const [suRole, setSuRole] = useState<'division' | 'employee' | 'joborder'>('division');
+  const [suPhone, setSuPhone] = useState('');
+  const [suAddress, setSuAddress] = useState('');
+  const [suEmail, setSuEmail] = useState('');
   const [suErr, setSuErr] = useState('');
   const [suDone, setSuDone] = useState(false);
 
@@ -42,7 +44,7 @@ export function Login() {
   const submitSignup = (e: React.FormEvent) => {
     e.preventDefault();
     if (suPass !== suPass2) return setSuErr('Passwords do not match.');
-    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, role: suRole });
+    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, phone: suPhone, address: suAddress, email: suEmail });
     if (reason) return setSuErr(reason);
     setSuDone(true);
   };
@@ -185,23 +187,27 @@ export function Login() {
                 </label>
                 <label className="block">
                   <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Designation</span>
-                  <input className="field" value={suTitle} onChange={(e) => { setSuTitle(e.target.value); setSuErr(''); }} placeholder={suRole === 'employee' ? 'e.g. Lineman II' : suRole === 'joborder' ? 'e.g. Skilled Worker I' : 'e.g. Division OIC'} />
+                  <input className="field" value={suTitle} onChange={(e) => { setSuTitle(e.target.value); setSuErr(''); }} placeholder="e.g. Project Engineer I" />
                 </label>
               </div>
-              <div>
-                <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Access level</span>
-                <div className="flex overflow-hidden rounded-md border border-ink-600">
-                  {([['division', 'Division staff'], ['employee', 'Employee'], ['joborder', 'Job-Order']] as const).map(([v, l]) => (
-                    <button key={v} type="button" onClick={() => { setSuRole(v); setSuErr(''); }}
-                      className={`flex-1 px-2 py-2 font-mono text-[9.5px] font-bold uppercase tracking-wider transition ${suRole === v ? (v === 'division' ? 'bg-cyanx-500/12 text-cyanx-400' : v === 'employee' ? 'bg-tealx-500/15 text-tealx-400' : 'bg-amberx-500/15 text-amberx-400') : 'bg-ink-850 text-mist-500 hover:text-mist-200'}`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
-                  {suRole === 'division' ? 'Runs the division queue; can receive and route paperwork' : 'Gets a personal work board for assigned work orders only'}
-                </span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Phone number</span>
+                  <input className="field font-mono" value={suPhone} onChange={(e) => { setSuPhone(e.target.value); setSuErr(''); }} placeholder="e.g. 0917 000 0000" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Email address</span>
+                  <input className="field font-mono" type="email" value={suEmail} onChange={(e) => { setSuEmail(e.target.value); setSuErr(''); }} placeholder="e.g. name@ppc.gov.ph" />
+                </label>
               </div>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Home address</span>
+                <input className="field" value={suAddress} onChange={(e) => { setSuAddress(e.target.value); setSuErr(''); }} placeholder="e.g. Purok 3, Brgy. San Pedro, Puerto Princesa City" />
+              </label>
+              <p className="flex items-start gap-2 rounded-md border border-ink-700 bg-ink-850/70 px-3 py-2.5 font-mono text-[8.5px] uppercase tracking-[0.14em] leading-relaxed text-mist-500">
+                <I n="shield" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyanx-400" sw={2} />
+                Access level and role are assigned by the program admin during verification — every request starts as division staff.
+              </p>
               {suErr && (
                 <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
                   <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />{suErr}

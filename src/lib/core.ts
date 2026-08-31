@@ -210,13 +210,13 @@ export const IT_DIVISION: Division = {
 
 export const DOCMON_TEAM: Division = {
   id: 'docmon', code: 'DOC-MON', name: 'Documentation and Monitoring Team', cluster: 'tech',
-  head: 'Ms. Rica Domingo', headUser: '',
+  head: 'Ms. Rica Domingo', headUser: 'u-ricadomingo',
   desc: 'Documents and monitors ongoing works — progress photography, drone coverage, accomplishment reports and as-built records for every project of the office.',
 };
 
 export const SUBAYBAYAN_TEAM: Division = {
   id: 'subay', code: 'SUBAY', name: 'Subaybayan Team', cluster: 'ops',
-  head: 'Mr. Aldrin Fajardo', headUser: '',
+  head: 'Mr. Aldrin Fajardo', headUser: 'u-afajardo',
   desc: 'Runs the Subaybayan citizen-feedback channel — logs public reports and complaints, validates them on site and tracks the engineering response until closed.',
 };
 
@@ -446,6 +446,10 @@ export const INITIAL_USERS: User[] = [
   { id: 'u-rito', name: 'Mr. Ramon Ito', username: 'rito', password: 'cityeng2026', role: 'employee', title: 'Sanitation Inspector', divisionId: 'psd', status: 'active' },
   { id: 'u-lmarquez', name: 'Ms. Lani Marquez', username: 'lmarquez', password: 'cityeng2026', role: 'joborder', title: 'Records Clerk (Job Order)', divisionId: 'admin', status: 'active' },
   { id: 'u-milagan', name: 'Mr. Marcus Ilagan', username: 'milagan', password: 'cityeng2026', role: 'employee', title: 'Materials Technician', divisionId: 'mtqc', status: 'pending', requestedDivisionId: 'mtqc', requestedTitle: 'Materials Technician', requestedAt: now - 0.4 * D, phone: '0917 442 8810', address: 'Purok 3, Brgy. San Pedro, Puerto Princesa City', email: 'm.ilagan@ppc.gov.ph' },
+  { id: 'u-ricadomingo', name: 'Ms. Rica Domingo', username: 'ricadomingo', password: 'cityeng2026', role: 'division', title: 'Team Head — Documentation and Monitoring', divisionId: 'docmon', status: 'active' },
+  { id: 'u-rbautista', name: 'Ms. Rhea Bautista', username: 'rbautista', password: 'cityeng2026', role: 'employee', title: 'Documentation Technician', divisionId: 'docmon', status: 'active' },
+  { id: 'u-afajardo', name: 'Mr. Aldrin Fajardo', username: 'afajardo', password: 'cityeng2026', role: 'division', title: 'Team Head — Subaybayan', divisionId: 'subay', status: 'active' },
+  { id: 'u-jacosta', name: 'Mr. Joseph Acosta', username: 'jacosta', password: 'cityeng2026', role: 'joborder', title: 'Feedback Officer (Job Order)', divisionId: 'subay', status: 'active' },
 ];
 
 export function freshSeed(): DB {
@@ -706,7 +710,7 @@ export function freshSeed(): DB {
     }
   );
 
-  return { v: 15, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, seq: 148 };
+  return { v: 16, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

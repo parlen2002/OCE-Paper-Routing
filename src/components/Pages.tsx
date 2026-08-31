@@ -432,15 +432,16 @@ export function DivisionsPage() {
   const { db, go, setDivFilter, divOf } = useStore();
   const [managing, setManaging] = useState<string | null>(null);
 
-  const card = (d: (typeof DIVISIONS)[number]) => {
+  const card = (d: (typeof DIVISIONS)[number], tint?: string) => {
     const info: DivInfo = divOf(d.id) ?? d;
     const open = db.papers.filter((p) => p.divisionId === d.id && p.stage !== 'completed').length;
     const done = db.papers.filter((p) => p.divisionId === d.id && p.stage === 'completed').length;
+    const accent = tint ?? '#56c8f0';
     return (
-      <div key={d.id} className="flex w-full flex-col rounded-lg border border-ink-700 bg-ink-900/80 transition hover:border-cyanx-500/50 hover:bg-ink-800/70">
+      <div key={d.id} className="flex w-full flex-col rounded-lg bg-ink-900/80 transition hover:bg-ink-800/70" style={{ border: `1px solid ${accent}40` }}>
         <button onClick={() => { setDivFilter(d.id); go('board'); }} className="flex w-full items-center gap-4 p-4 pb-2 text-left">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ink-600 bg-ink-850 text-cyanx-400">
-            <I n={d.cluster === 'ops' ? 'wrench' : 'file'} className="h-5 w-5" sw={1.8} />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${accent}80`, background: `${accent}1a`, color: accent }}>
+            <I n={CU_ICON[d.id] ?? (d.cluster === 'ops' ? 'wrench' : 'file')} className="h-5 w-5" sw={1.8} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2">
@@ -484,7 +485,7 @@ export function DivisionsPage() {
             </span>
             <span className="h-px flex-1 bg-ink-700" />
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">{DIVISIONS.filter((d) => d.cluster === cl).map(card)}</div>
+          <div className="grid gap-3 lg:grid-cols-2">{DIVISIONS.filter((d) => d.cluster === cl).map((d) => card(d))}</div>
         </section>
       ))}
 
@@ -496,37 +497,7 @@ export function DivisionsPage() {
           <span className="h-px flex-1 bg-ink-700" />
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
-          {CROSS_UNITS.map((cu) => {
-            const tint = CU_TINT[cu.id] ?? '#2dd4bf';
-            const open = db.papers.filter((p) => p.divisionId === cu.id && p.stage !== 'completed').length;
-            const done = db.papers.filter((p) => p.divisionId === cu.id && p.stage === 'completed').length;
-            return (
-              <button key={cu.id} onClick={() => { setDivFilter(cu.id); go('board'); }}
-                className="flex w-full items-center gap-4 rounded-lg bg-ink-900/80 p-4 text-left transition hover:bg-ink-800/70"
-                style={{ border: `1px solid ${tint}59` }}>
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}80`, background: `${tint}1a`, color: tint }}>
-                  <I n={CU_ICON[cu.id] ?? 'shield'} className="h-5 w-5" sw={1.8} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate font-display text-[16px] font-bold uppercase tracking-wide text-mist-50">{cu.name}</span>
-                    <span className="rounded-sm px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider" style={{ border: `1px solid ${tint}80`, background: `${tint}1a`, color: tint }}>{cu.code}</span>
-                  </span>
-                  <span className="mt-0.5 block text-[12px] leading-relaxed text-mist-400">{cu.desc}</span>
-                  <span className="mt-1 inline-flex items-center gap-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-mist-500">
-                    <I n="users" className="h-3 w-3" sw={2} /> Headed by {cu.head || 'the Office of the City Engineer'}
-                    {cu.headUser === 'u-sup2' && (
-                      <span className="rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1 py-px font-mono text-[7.5px] font-bold uppercase tracking-wider text-amberx-400">Asst. City Engineer</span>
-                    )}
-                  </span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-display text-[24px] font-bold leading-none tabular" style={{ color: tint }}>{open}</span>
-                  <span className="block font-mono text-[8.5px] uppercase tracking-wider text-mist-500">open · {done} closed</span>
-                </span>
-              </button>
-            );
-          })}
+          {CROSS_UNITS.map((cu) => card(cu, CU_TINT[cu.id] ?? '#2dd4bf'))}
         </div>
       </section>
 
@@ -536,7 +507,7 @@ export function DivisionsPage() {
           <h2 className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Executive desks</h2>
           <span className="h-px flex-1 bg-ink-700" />
         </div>
-        <div className="grid gap-3 lg:grid-cols-2">{DESKS.map(card)}</div>
+        <div className="grid gap-3 lg:grid-cols-2">{DESKS.map((d) => card(d))}</div>
       </section>
     </div>
   );

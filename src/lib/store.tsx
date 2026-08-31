@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Activity, Attachment, DB, DivInfo, DivisionMeta, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { ALL_UNITS, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v15';
+const LS_KEY = 'ppc-ceoflow-v16';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 14 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 16 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         return d as DB;
       }
@@ -152,6 +152,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** Division the signed-in user is currently OIC of (if any). */
   const oicOfDivId: string | null = useMemo(() => {
     if (!user) return null;
+    // Elevated roles never act down as a division OIC.
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return null;
     for (const d of ALL_UNITS) {
       if (db.divisions?.[d.id]?.oicId === user.id) return d.id;
     }

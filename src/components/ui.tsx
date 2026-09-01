@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Division, Kind, Priority, Stage } from '../lib/core';
 import { KINDS, PRIORITIES, stageMeta } from '../lib/core';
 import { useStore } from '../lib/store';
@@ -231,6 +232,8 @@ export function SearchSelect({
   disabled = false,
   width = 'w-60',
   emptyLabel = 'No matches',
+  /** Below this many options, fall back to a plain native <select>. */
+  searchableThreshold = 10,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -239,12 +242,14 @@ export function SearchSelect({
   disabled?: boolean;
   width?: string;
   emptyLabel?: string;
+  searchableThreshold?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState<{ top: number; left: number; w: number; up: boolean } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 

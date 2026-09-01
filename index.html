@@ -16,11 +16,50 @@
     <noscript>
       <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet" />
     </noscript>
+    <style>
+      /* Instant, dependency-free boot screen — replaced the moment React mounts. */
+      html, body { margin: 0; background: #071120; }
+      #boot-sentinel {
+        position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 18px; background:
+          radial-gradient(900px 600px at 85% -10%, rgba(86,200,240,.09), transparent 60%),
+          radial-gradient(800px 560px at -10% 110%, rgba(255,107,28,.08), transparent 55%),
+          #071120;
+        font-family: 'Public Sans', 'Segoe UI', sans-serif; color: #e4edf6;
+      }
+      #boot-sentinel .seal { animation: bootPulse 1.6s ease-in-out infinite; }
+      #boot-sentinel h1 {
+        margin: 0; font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+        font-size: 34px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800;
+      }
+      #boot-sentinel h1 em { font-style: normal; color: #ff6b1c; }
+      #boot-sentinel p { margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: #6684a3; }
+      #boot-sentinel .bars { display: flex; flex-direction: column; gap: 7px; width: 220px; margin-top: 6px; }
+      #boot-sentinel .bars i { display: block; height: 6px; border-radius: 99px; background: linear-gradient(90deg, #122540, #2fa9d6, #122540); background-size: 200% 100%; animation: bootSlide 1.3s linear infinite; }
+      #boot-sentinel .bars i:nth-child(2) { width: 78%; animation-delay: .15s; }
+      #boot-sentinel .bars i:nth-child(3) { width: 52%; animation-delay: .3s; }
+      @keyframes bootPulse { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.08); opacity: 1; } }
+      @keyframes bootSlide { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot-sentinel">
+        <svg class="seal" width="64" height="64" viewBox="0 0 48 48" aria-hidden>
+          <circle cx="24" cy="24" r="21" fill="none" stroke="#ff6b1c" stroke-width="2.2" />
+          <circle cx="24" cy="24" r="16.5" fill="none" stroke="#56c8f0" stroke-width="1.1" opacity=".8" />
+          <path d="M14 30.5 24 13l10 17.5" fill="none" stroke="#ff6b1c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17.5 30.5h13" stroke="#56c8f0" stroke-width="2" stroke-linecap="round" />
+          <circle cx="24" cy="34.5" r="1.6" fill="#fbc94a" />
+        </svg>
+        <h1>OCE <em>Flow</em></h1>
+        <p>Office of the City Engineer · starting</p>
+        <div class="bars"><i></i><i></i><i></i></div>
+      </div>
+    </div>
     <script>
-      // Fail-safe: surface any startup/runtime error instead of a blank screen.
+      // Fail-safe: surface any startup/runtime error instead of a blank screen,
+      // and a watchdog in case the app never mounts at all.
       (function () {
         function showFault(title, msg, where) {
           if (document.getElementById('boot-fault')) return;
@@ -37,6 +76,8 @@
             '<button onclick="try{Object.keys(localStorage).forEach(function(k){if(k.indexOf(\'ceoflow\')===0)localStorage.removeItem(k)})}catch(e){};location.reload()" ' +
             'style="margin-top:14px;padding:8px 14px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit">Clear data &amp; reseed</button>' +
             '</div>';
+          var s = document.getElementById('boot-sentinel');
+          if (s) s.remove();
           document.body.appendChild(el);
         }
         window.addEventListener('error', function (e) {
@@ -45,6 +86,12 @@
         window.addEventListener('unhandledrejection', function (e) {
           showFault('async fault', e.reason && e.reason.message ? e.reason.message : String(e.reason), '');
         });
+        // If React has not mounted within 8 seconds, say so explicitly.
+        setTimeout(function () {
+          if (!window.__OCE_BOOTED__) {
+            showFault('boot timeout', 'The interface did not finish loading within 8 seconds. This is usually a stale cached bundle — use the button below, or a hard refresh (Ctrl + Shift + R).', '');
+          }
+        }, 8000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

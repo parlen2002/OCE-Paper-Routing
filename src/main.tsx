@@ -3,4 +3,21 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+declare global {
+  interface Window {
+    __OCE_BOOTED__?: boolean;
+  }
+}
+
+try {
+  ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+  window.__OCE_BOOTED__ = true;
+} catch (e) {
+  // The inline fail-safe in index.html listens for errors; rethrow so it fires.
+  window.dispatchEvent(
+    new ErrorEvent("error", {
+      message: e instanceof Error ? e.message : String(e),
+      error: e instanceof Error ? e : undefined,
+    })
+  );
+}

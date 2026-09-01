@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+/* pdf.js is loaded on demand and runs on the main thread through its built-in
+ * "fake worker" path — no worker-file URL import (which breaks under some
+ * preview hosts/bundlers). See initPdf(). */
 import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';
@@ -236,6 +235,28 @@ function PrintBar({ v }: { v: number }) {
  * Renders every page of a PDF attachment to print-ready images (pdf.js),
  * so the whole document — not just the first page — is included in the printout.
  */
+
+type PdfJs = typeof import('pdfjs-dist');
+let pdfReady: Promise<PdfJs> | null = null;
+
+/**
+ * Loads pdf.js on demand and runs it on the main thread via the "fake worker"
+ * path (globalThis.pdfjsWorker) — avoids importing the worker file as a URL,
+ * which not all bundlers/preview hosts support.
+ */
+function initPdf(): Promise<PdfJs> {
+  pdfReady ??= (async () => {
+    const [pdfjs, workerMod] = await Promise.all([
+      import('pdfjs-dist'),
+      // @ts-ignore worker bundle ships without type declarations
+      import('pdfjs-dist/build/pdf.worker.mjs') as Promise<Record<string, unknown>>,
+    ]);
+    (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = workerMod;
+    return pdfjs;
+  })();
+  return pdfReady;
+}
+
 function PdfAnnexPages({ src, label }: { src: string; label: string }) {
   const [pages, setPages] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -249,10 +270,12 @@ function PdfAnnexPages({ src, label }: { src: string; label: string }) {
     setFailed(false);
     (async () => {
       try {
+        const pdfjs = await initPdf();
+        if (cancelled) return;
         const normalized = /^(data:|blob:|https?:)/.test(src) ? src : `data:${src}`;
         const buf = await (await fetch(normalized)).arrayBuffer();
         if (cancelled) return;
-        const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
         const n = doc.numPages;
         setTotal(n);
         const cap = Math.min(n, 50);

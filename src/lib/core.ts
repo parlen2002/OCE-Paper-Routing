@@ -167,6 +167,27 @@ export interface Message {
   system?: boolean;
 }
 
+export interface Customization {
+  orgName?: string;
+  tagline?: string;
+  description?: string;
+  /** Primary accent (drives buttons, active states, route arrows). */
+  accent?: string;
+  /** Secondary accent (chips, links, board glow). */
+  accent2?: string;
+  /** Overall page mood. */
+  bgTone?: 'blueprint' | 'midnight' | 'slate';
+  /** Logo mark used across the app. */
+  logoKind?: 'seal' | 'gear' | 'bridge' | 'custom';
+  logoUrl?: string;
+  /** Photo shown on the sign-in gate. */
+  loginImage?: string;
+  /** Extra barangay names merged into the board filter. */
+  barangays?: string[];
+}
+
+export const DEFAULT_CUSTOM: Customization = {};
+
 export interface DB {
   v: number;
   session: string | null;
@@ -179,6 +200,7 @@ export interface DB {
   messages: Message[];
   /** Per-user per-channel last-read timestamps, keyed `${userId}|${channelId}`. */
   reads: Record<string, number>;
+  custom?: Customization;
   seq: number;
 }
 

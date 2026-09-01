@@ -405,6 +405,7 @@ function DivisionManager({ divId, onClose }: { divId: string; onClose: () => voi
               <SearchSelect
                 value={headSel}
                 onChange={setHeadSel}
+                allowClear
                 options={activeUsers.map((u) => ({
                   value: u.id,
                   label: u.name,
@@ -1620,6 +1621,7 @@ export function MessagesPage() {
                           group: p.stage === 'completed' ? 'Completed' : 'Open',
                         }))}
                         width="w-80"
+                        allowClear
                         placeholder="Attach a paper (optional) — type ref or title…"
                       />
                       {docSel && (
@@ -1648,5 +1650,264 @@ export function MessagesPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------ customize (admin) */
+const ACCENTS = ['#ff6b1c', '#56c8f0', '#2dd4bf', '#f5b924', '#45d483', '#f4645c', '#a78bfa'];
+const ACCENTS2 = ['#56c8f0', '#ff6b1c', '#45e0cd', '#fbc94a', '#8adcf8', '#f8837c', '#6cd1f4'];
+
+function readFileAsUrl(f: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = () => rej(new Error('read'));
+    r.readAsDataURL(f);
+  });
+}
+
+export function CustomizePage() {
+  const { user, custom, updateCustom, pushToast } = useStore();
+  const [newBrgy, setNewBrgy] = useState('');
+  const logoRef = useRef<HTMLInputElement>(null);
+  const imgRef = useRef<HTMLInputElement>(null);
+  if (user?.role !== 'admin') return null;
+
+  const brgyList = custom.barangays ?? [];
+
+  const addBrgy = () => {
+    const v = newBrgy.trim();
+    if (!v) return;
+    if (brgyList.some((b) => b.toLowerCase() === v.toLowerCase())) {
+      pushToast('warn', 'That barangay is already on the list.');
+      return;
+    }
+    updateCustom({ barangays: [...brgyList, v] });
+    setNewBrgy('');
+  };
+
+  const pickImage = async (f: File | undefined, key: 'logoUrl' | 'loginImage', max = 2 * 1024 * 1024) => {
+    if (!f) return;
+    if (f.size > max) {
+      pushToast('warn', 'Image is too large — keep it under 2 MB.');
+      return;
+    }
+    const url = await readFileAsUrl(f);
+    updateCustom({ [key]: url } as never);
+  };
+
+  return (
+    <div>
+      <PageHead
+        kicker="Program administrator"
+        title="Customize the program"
+        sub="Rebrand the identity, pick a logo, restyle the theme, and manage the barangay list used by the board filter. Changes apply live across the whole program."
+      />
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {/* identity */}
+        <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-5">
+          <h3 className="mb-4 flex items-center gap-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">
+            <I n="stamp" className="h-4 w-4 text-flare-400" sw={2} /> Identity & branding
+          </h3>
+          <div className="space-y-3.5">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Organization name</span>
+              <input className="field" placeholder="Office of the City Engineer" value={custom.orgName ?? ''} onChange={(e) => updateCustom({ orgName: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Tagline</span>
+              <input className="field" placeholder="Paperwork Flow Command" value={custom.tagline ?? ''} onChange={(e) => updateCustom({ tagline: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Description / welcome text</span>
+              <textarea className="field" rows={3} placeholder="Describe the office or the program…" value={custom.description ?? ''} onChange={(e) => updateCustom({ description: e.target.value })} />
+            </label>
+
+            <div>
+              <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Company logo</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {([
+                  { k: 'seal', label: 'Seal' },
+                  { k: 'gear', label: 'Gear' },
+                  { k: 'bridge', label: 'Bridge' },
+                ] as const).map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => updateCustom({ logoKind: o.k, logoUrl: undefined })}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 transition ${
+                      (custom.logoKind ?? 'seal') === o.k
+                        ? 'border-flare-500/70 bg-flare-500/12 text-flare-400'
+                        : 'border-ink-600 bg-ink-850 text-mist-400 hover:border-ink-500 hover:text-mist-200'
+                    }`}
+                  >
+                    <SealMini kind={o.k} />
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider">{o.label}</span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => logoRef.current?.click()}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-2 transition ${
+                    custom.logoKind === 'custom' && custom.logoUrl
+                      ? 'border-flare-500/70 bg-flare-500/12 text-flare-400'
+                      : 'border-ink-600 bg-ink-850 text-mist-400 hover:border-ink-500 hover:text-mist-200'
+                  }`}
+                >
+                  {custom.logoKind === 'custom' && custom.logoUrl ? (
+                    <img src={custom.logoUrl} alt="logo" className="h-6 w-6 rounded-full object-cover" />
+                  ) : (
+                    <I n="cam" className="h-4 w-4" sw={2} />
+                  )}
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider">Upload</span>
+                </button>
+                <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void pickImage(e.target.files?.[0], 'logoUrl', 1024 * 1024); updateCustom({ logoKind: 'custom' }); e.target.value = ''; }} />
+              </div>
+            </div>
+
+            <div>
+              <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Sign-in page photo</span>
+              <div className="flex items-center gap-3">
+                {custom.loginImage ? (
+                  <img src={custom.loginImage} alt="login" className="h-16 w-24 rounded-md border border-ink-600 object-cover" />
+                ) : (
+                  <div className="flex h-16 w-24 items-center justify-center rounded-md border border-dashed border-ink-600 text-mist-600">
+                    <I n="cam" className="h-5 w-5" sw={1.6} />
+                  </div>
+                )}
+                <button className="btn btn-ghost px-3 py-1.5 text-[11.5px]" onClick={() => imgRef.current?.click()}>
+                  <I n="cam" className="h-3.5 w-3.5" sw={2} /> Choose photo
+                </button>
+                {custom.loginImage && (
+                  <button className="btn btn-ghost px-3 py-1.5 text-[11.5px] hover:border-redx-500/60 hover:text-redx-400" onClick={() => updateCustom({ loginImage: undefined })}>
+                    <I n="x" className="h-3.5 w-3.5" sw={2.2} /> Remove
+                  </button>
+                )}
+                <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void pickImage(e.target.files?.[0], 'loginImage'); e.target.value = ''; }} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="space-y-4">
+          {/* theme */}
+          <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-5" style={{ animationDelay: '80ms' }}>
+            <h3 className="mb-4 flex items-center gap-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">
+              <I n="pulse" className="h-4 w-4 text-cyanx-400" sw={2} /> Theme & colors
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Primary accent</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {ACCENTS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => updateCustom({ accent: c })}
+                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${custom.accent === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ background: c }}
+                      title={c}
+                    />
+                  ))}
+                  <label className="flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-850 px-2 py-1.5">
+                    <input type="color" value={custom.accent ?? '#ff6b1c'} onChange={(e) => updateCustom({ accent: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
+                    <span className="font-mono text-[9px] uppercase tracking-wider text-mist-400">Custom</span>
+                  </label>
+                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => updateCustom({ accent: undefined })}>Reset</button>
+                </div>
+              </div>
+              <div>
+                <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Secondary accent</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {ACCENTS2.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => updateCustom({ accent2: c })}
+                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${custom.accent2 === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ background: c }}
+                      title={c}
+                    />
+                  ))}
+                  <label className="flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-850 px-2 py-1.5">
+                    <input type="color" value={custom.accent2 ?? '#56c8f0'} onChange={(e) => updateCustom({ accent2: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
+                    <span className="font-mono text-[9px] uppercase tracking-wider text-mist-400">Custom</span>
+                  </label>
+                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => updateCustom({ accent2: undefined })}>Reset</button>
+                </div>
+              </div>
+              <div>
+                <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Background mood</span>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { k: 'blueprint', label: 'Blueprint', c1: '#0a1728', c2: '#122540' },
+                    { k: 'midnight', label: 'Midnight', c1: '#0b0b16', c2: '#161628' },
+                    { k: 'slate', label: 'Slate', c1: '#131920', c2: '#1f2933' },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.k}
+                      onClick={() => updateCustom({ bgTone: t.k })}
+                      className={`flex items-center gap-2.5 rounded-md border px-3 py-2 transition ${
+                        (custom.bgTone ?? 'blueprint') === t.k
+                          ? 'border-cyanx-500/70 bg-cyanx-500/12'
+                          : 'border-ink-600 bg-ink-850 hover:border-ink-500'
+                      }`}
+                    >
+                      <span className="h-7 w-10 rounded" style={{ background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` }} />
+                      <span className={`font-mono text-[10px] font-bold uppercase tracking-wider ${(custom.bgTone ?? 'blueprint') === t.k ? 'text-cyanx-400' : 'text-mist-400'}`}>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* barangays */}
+          <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-5" style={{ animationDelay: '160ms' }}>
+            <h3 className="mb-4 flex items-center gap-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">
+              <I n="pin" className="h-4 w-4 text-tealx-400" sw={2} /> Barangay list (board filter)
+            </h3>
+            <div className="mb-3 flex gap-2">
+              <input
+                className="field"
+                placeholder="e.g. Brgy. San Jose"
+                value={newBrgy}
+                onChange={(e) => setNewBrgy(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addBrgy()}
+              />
+              <button className="btn btn-primary shrink-0 px-4" onClick={addBrgy}>
+                <I n="plus" className="h-4 w-4" sw={2.2} /> Add
+              </button>
+            </div>
+            {brgyList.length === 0 ? (
+              <p className="py-3 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
+                No custom barangays — the board derives them from paper details.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {brgyList.map((b) => (
+                  <span key={b} className="inline-flex items-center gap-1.5 rounded-md border border-tealx-500/40 bg-tealx-500/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-tealx-400">
+                    {b}
+                    <button onClick={() => updateCustom({ barangays: brgyList.filter((x) => x !== b) })} className="text-tealx-400/70 transition hover:text-redx-400" title="Remove">
+                      <I n="x" className="h-2.5 w-2.5" sw={2.6} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SealMini({ kind }: { kind: 'seal' | 'gear' | 'bridge' }) {
+  const ring = 'var(--color-flare-500)';
+  const inner = 'var(--color-cyanx-500)';
+  return (
+    <svg viewBox="0 0 48 48" className="h-6 w-6" aria-hidden>
+      <circle cx="24" cy="24" r="21" fill="none" stroke={ring} strokeWidth="3" />
+      {kind === 'seal' && <path d="M14 30.5 24 13l10 17.5" fill="none" stroke={ring} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />}
+      {kind === 'gear' && <circle cx="24" cy="24" r="8" fill="none" stroke={inner} strokeWidth="3.4" />}
+      {kind === 'bridge' && <path d="M12 31c3.5-9 20.5-9 24 0" fill="none" stroke={ring} strokeWidth="3.4" strokeLinecap="round" />}
+    </svg>
   );
 }

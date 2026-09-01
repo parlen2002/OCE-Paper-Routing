@@ -177,7 +177,7 @@ function AssignModal({ paperId, stage, onClose }: { paperId: string; stage: Stag
 }
 
 export function Board() {
-  const { db, user, me, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen } = useStore();
+  const { db, user, me, ui, visiblePapers, setDivFilter, openDrawer, moveStage, canEdit, setNewOpen, employeesOf, setReportOpen, custom } = useStore();
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
@@ -199,8 +199,10 @@ export function Board() {
         if (name.length > 2) set.add(name);
       }
     }
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [visiblePapers]);
+    // Merge in the administrator's custom barangay list.
+    for (const b of custom.barangays ?? []) set.add(b.replace(/^Brgy\.?\s+/i, '').trim());
+    return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [visiblePapers, custom.barangays]);
 
   /** Employees & job-order personnel on record, for the personnel filter. */
   const empRoster = useMemo(

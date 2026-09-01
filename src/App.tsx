@@ -7,7 +7,7 @@ import { Shell } from './components/Shell';
 import { Board } from './components/Board';
 import { DocDrawer } from './components/Drawer';
 import { NewDocModal } from './components/NewDoc';
-import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage } from './components/Pages';
+import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage, CustomizePage } from './components/Pages';
 import { I, Seal, Toasts, SearchSelect, type SearchOption } from './components/ui';
 
 /* ---------------- startup fault + error boundary ---------------- */
@@ -687,6 +687,7 @@ function AppInner() {
         {page === 'userlogs' && user.role === 'admin' && <LogsPage />}
         {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && <PersonnelPage />}
         {page === 'messages' && <MessagesPage />}
+        {page === 'customize' && user.role === 'admin' && <CustomizePage />}
       </Shell>
       <DocDrawer />
       <NewDocModal />

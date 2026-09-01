@@ -60,13 +60,53 @@ export function I({ n, className = 'w-4 h-4', sw = 1.8 }: { n: IconName; classNa
 }
 
 export function Seal({ className = 'w-10 h-10' }: { className?: string }) {
+  const { custom } = useStore();
+  const kind = custom.logoKind ?? 'seal';
+  if (kind === 'custom' && custom.logoUrl) {
+    return <img src={custom.logoUrl} alt="Logo" className={`${className} rounded-full object-cover`} />;
+  }
+  const ring = 'var(--color-flare-500)';
+  const inner = 'var(--color-cyanx-500)';
+  const dot = 'var(--color-amberx-400)';
   return (
     <svg viewBox="0 0 48 48" className={className} aria-hidden>
-      <circle cx="24" cy="24" r="21" fill="none" stroke="#ff6b1c" strokeWidth="2.2" />
-      <circle cx="24" cy="24" r="16.5" fill="none" stroke="#56c8f0" strokeWidth="1.1" opacity="0.8" />
-      <path d="M14 30.5 24 13l10 17.5" fill="none" stroke="#ff6b1c" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M17.5 30.5h13" stroke="#56c8f0" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="24" cy="34.5" r="1.6" fill="#fbc94a" />
+      <circle cx="24" cy="24" r="21" fill="none" stroke={ring} strokeWidth="2.2" />
+      <circle cx="24" cy="24" r="16.5" fill="none" stroke={inner} strokeWidth="1.1" opacity="0.8" />
+      {kind === 'seal' && (
+        <>
+          <path d="M14 30.5 24 13l10 17.5" fill="none" stroke={ring} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M17.5 30.5h13" stroke={inner} strokeWidth="2" strokeLinecap="round" />
+        </>
+      )}
+      {kind === 'gear' && (
+        <>
+          <circle cx="24" cy="24" r="7" fill="none" stroke={ring} strokeWidth="2.4" />
+          <circle cx="24" cy="24" r="2.4" fill={inner} />
+          {Array.from({ length: 8 }).map((_, i) => {
+            const a = (i * Math.PI) / 4;
+            return (
+              <line
+                key={i}
+                x1={24 + Math.cos(a) * 8.5}
+                y1={24 + Math.sin(a) * 8.5}
+                x2={24 + Math.cos(a) * 12.5}
+                y2={24 + Math.sin(a) * 12.5}
+                stroke={ring}
+                strokeWidth="2.4"
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </>
+      )}
+      {kind === 'bridge' && (
+        <>
+          <path d="M12 31c3.5-9 20.5-9 24 0" fill="none" stroke={ring} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M12 31h24" stroke={inner} strokeWidth="2" strokeLinecap="round" />
+          <path d="M16 31v-4.2M21 31v-6.2M24 31v-6.8M27 31v-6.2M32 31v-4.2" stroke={inner} strokeWidth="1.6" strokeLinecap="round" />
+        </>
+      )}
+      <circle cx="24" cy="34.5" r="1.6" fill={dot} />
     </svg>
   );
 }
@@ -234,6 +274,8 @@ export function SearchSelect({
   emptyLabel = 'No matches',
   /** Below this many options, fall back to a plain native <select>. */
   searchableThreshold = 10,
+  /** Show an ✕ on the trigger to clear the current selection. */
+  allowClear = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -243,6 +285,7 @@ export function SearchSelect({
   width?: string;
   emptyLabel?: string;
   searchableThreshold?: number;
+  allowClear?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -279,7 +322,10 @@ export function SearchSelect({
       if (!r) return;
       const panelH = 300;
       const up = r.bottom + panelH + 16 > window.innerHeight && r.top > panelH;
-      setPos({ top: up ? r.top - 8 : r.bottom + 8, left: r.left, w: Math.max(r.width, 280), up });
+      // Widen for long labels but never beyond the viewport, and never past the right edge.
+      const w = Math.min(Math.max(r.width, 340), Math.min(480, window.innerWidth - 24));
+      const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+      setPos({ top: up ? r.top - 8 : r.bottom + 8, left, w, up });
     };
     measure();
     window.addEventListener('resize', measure);
@@ -398,6 +444,21 @@ export function SearchSelect({
         </span>
         {selected && selected.sub && (
           <span className="hidden shrink-0 font-mono text-[9px] uppercase tracking-wider text-mist-500 sm:inline">{selected.sub}</span>
+        )}
+        {allowClear && selected && !disabled && (
+          <span
+            role="button"
+            tabIndex={0}
+            title="Clear selection"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange('');
+            }}
+            className="shrink-0 rounded p-0.5 text-mist-500 transition hover:bg-redx-500/15 hover:text-redx-400"
+          >
+            <I n="x" className="h-3 w-3" sw={2.6} />
+          </span>
         )}
         <I
           n="chevR"

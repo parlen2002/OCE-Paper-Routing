@@ -12,8 +12,25 @@ const QUICK = [
   { u: 'kvillanueva', label: 'Employee' },
 ];
 
+/** Split a heading into display lines, roughly balanced. */
+function wrapHeading(s: string): string[] {
+  const words = s.split(/\s+/);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > 14 && cur) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = (cur + ' ' + w).trim();
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 export function Login() {
-  const { login, signup, requestForgotPassword } = useStore();
+  const { login, signup, requestForgotPassword, custom } = useStore();
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [u, setU] = useState('');
   const [p, setP] = useState('');
@@ -77,16 +94,25 @@ export function Login() {
                 <p className="font-display text-[26px] font-bold uppercase leading-none tracking-wider text-mist-50">
                   OCE <span className="text-flare-500">Flow</span>
                 </p>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.24em] text-mist-500">Paperwork flow command</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.24em] text-mist-500">{custom.tagline || 'Paperwork flow command'}</p>
               </div>
             </div>
-            <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.24em] text-flare-400">City Government of Puerto Princesa</p>
+            {custom.loginImage && (
+              <img
+                src={custom.loginImage}
+                alt="Office"
+                className="mt-7 h-40 w-full rounded-xl border border-ink-700 object-cover shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]"
+              />
+            )}
+            <p className="mt-7 font-mono text-[10px] uppercase tracking-[0.24em] text-flare-400">City Government of Puerto Princesa</p>
             <h1 className="mt-2 font-display text-[44px] font-bold uppercase leading-[0.98] tracking-wide text-mist-50">
-              Office of the<br />City Engineer
+              {wrapHeading(custom.orgName || 'Office of the City Engineer').map((line, i) => (
+                <span key={i}>{i > 0 && <br />}{line}</span>
+              ))}
             </h1>
             <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-mist-400">
-              Every paper is tracked desk to desk — nine divisions, the Inspectorate Team, I.T. Section,
-              Documentation & Monitoring, Subaybayan and the two executive desks, on one custody trail.
+              {custom.description ||
+                'Every paper is tracked desk to desk — nine divisions, the Inspectorate Team, I.T. Section, Documentation & Monitoring, Subaybayan and the two executive desks, on one custody trail.'}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2">

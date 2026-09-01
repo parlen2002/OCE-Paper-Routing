@@ -1,15 +1,34 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Activity, Attachment, Channel, DB, DivInfo, DivisionMeta, Kind, Message, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
-import { ALL_UNITS, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
+import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
+import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v17';
+const LS_KEY = 'ppc-ceoflow-v18';
+
+/** Lightens (amt>0) or darkens (amt<0) a hex color toward white/black. */
+function shade(hex: string, amt: number): string {
+  const m = hex.replace('#', '');
+  const full = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return hex;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const t = amt > 0 ? 255 : 0;
+  const p = Math.abs(amt);
+  const mix = (c: number) => Math.round(c + (t - c) * p);
+  return `#${[mix(r), mix(g), mix(b)].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+const TONES: Record<NonNullable<Customization['bgTone']>, string[]> = {
+  blueprint: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'],
+  midnight: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'],
+  slate: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'],
+};
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 17 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 18 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         if (!Array.isArray(d.channels)) d.channels = [];
         if (!Array.isArray(d.messages)) d.messages = [];
@@ -23,7 +42,7 @@ function loadDb(): DB {
 
 export type Page =
   | 'dashboard' | 'board' | 'myboard' | 'personnel' | 'documents' | 'divisions'
-  | 'activity' | 'users' | 'userlogs' | 'messages';
+  | 'activity' | 'users' | 'userlogs' | 'messages' | 'customize';
 
 export interface ReportPreset { presetDiv?: string; paperId?: string; }
 
@@ -99,6 +118,9 @@ interface StoreCtx {
   updateDivision: (id: string, patch: { name?: string; desc?: string }) => void;
   setDivisionHead: (id: string, userId: string, temporary: boolean, note?: string) => void;
   removeDivisionOIC: (id: string) => void;
+  /** Program customization (admin-only). */
+  custom: Customization;
+  updateCustom: (patch: Partial<Customization>) => void;
   /** Live messaging. */
   visibleChannels: Channel[];
   messagesOf: (chId: string) => Message[];
@@ -197,7 +219,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (e.key === LS_KEY && e.newValue) {
         try {
           const d = JSON.parse(e.newValue);
-          if (d && d.v === 17) setDb(d as DB);
+          if (d && d.v === 18) setDb(d as DB);
         } catch { /* ignore */ }
       }
     };
@@ -365,6 +387,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       `Removed ${oicName} as OIC of ${info?.name ?? id} — ${info?.head ?? 'the permanent head'} resumes command`
     );
     pushToast('ok', `OIC removed — ${info?.head ?? 'the permanent head'} resumes command of ${info?.code ?? id}`);
+  };
+
+  /* ---------------- customization / theming ---------------- */
+
+  const custom: Customization = useMemo(() => ({ ...DEFAULT_CUSTOM, ...(db.custom ?? {}) }), [db.custom]);
+
+  // Apply theme tokens to the document root so every component re-skins live.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (custom.accent) {
+      root.style.setProperty('--color-flare-300', shade(custom.accent, 0.35));
+      root.style.setProperty('--color-flare-400', shade(custom.accent, 0.18));
+      root.style.setProperty('--color-flare-500', custom.accent);
+      root.style.setProperty('--color-flare-600', shade(custom.accent, -0.12));
+      root.style.setProperty('--color-flare-700', shade(custom.accent, -0.22));
+    } else {
+      ['--color-flare-300', '--color-flare-400', '--color-flare-500', '--color-flare-600', '--color-flare-700'].forEach((k) => root.style.removeProperty(k));
+    }
+    if (custom.accent2) {
+      root.style.setProperty('--color-cyanx-300', shade(custom.accent2, 0.3));
+      root.style.setProperty('--color-cyanx-400', shade(custom.accent2, 0.15));
+      root.style.setProperty('--color-cyanx-500', custom.accent2);
+      root.style.setProperty('--color-cyanx-600', shade(custom.accent2, -0.18));
+    } else {
+      ['--color-cyanx-300', '--color-cyanx-400', '--color-cyanx-500', '--color-cyanx-600'].forEach((k) => root.style.removeProperty(k));
+    }
+    const tone = TONES[custom.bgTone ?? 'blueprint'];
+    ['--color-ink-950', '--color-ink-900', '--color-ink-850', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500'].forEach((k, i) =>
+      root.style.setProperty(k, tone[i])
+    );
+  }, [custom]);
+
+  const updateCustom: StoreCtx['updateCustom'] = (patch) => {
+    if (!user || user.role !== 'admin') {
+      pushToast('warn', 'Only the program admin can change the program’s look and settings.');
+      return;
+    }
+    setDb((d) =>
+      withLog(
+        { ...d, custom: { ...(d.custom ?? {}), ...patch } },
+        { userId: user.id, userName: user.name, type: 'edit', text: `Updated program customization (${Object.keys(patch).join(', ')})` }
+      )
+    );
+    pushToast('ok', 'Customization saved — applied across the program.');
   };
 
   /* ---------------- live messaging ---------------- */
@@ -977,6 +1043,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress,
     assignPaper, submitToHead, returnToEmployee, deletePaper, updatePaper, ackPaper,
     divOf, me, myUnitId, canManageDivision, updateDivision, setDivisionHead, removeDivisionOIC,
+    custom, updateCustom,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     markAllRead, markRead, pushToast,
   };

@@ -15,6 +15,7 @@ const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin', 'moderator'] },
   { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['admin'] },
   { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin'] },
+  { page: 'customize', label: 'Customize', icon: 'wrench', roles: ['admin'] },
 ];
 
 const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
@@ -105,7 +106,7 @@ function ProfileModal() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal, custom } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -127,7 +128,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Seal className="h-9 w-9" />
           <div>
             <p className="font-display text-[15px] font-bold uppercase leading-tight tracking-wider text-mist-50">OCE <span className="text-flare-500">Flow</span></p>
-            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">Office of the City Engineer · PPC</p>
+            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">{custom.orgName || 'Office of the City Engineer · PPC'}</p>
           </div>
         </div>
 

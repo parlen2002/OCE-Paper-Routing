@@ -1791,14 +1791,14 @@ function readFileAsUrl(f: File): Promise<string> {
 }
 
 export function CustomizePage() {
-  const { user, db, custom, updateCustom, pushToast } = useStore();
+  const { user, db, custom, updateCustom, pushToast, geotagBrgys } = useStore();
   const [newBrgy, setNewBrgy] = useState('');
   const logoRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   if (user?.role !== 'admin') return null;
 
   const brgyList = custom.barangays ?? [];
-  /** Barangays the board already detects from the demo / live paperwork. */
+  /** Barangays detected from paperwork text (title / origin / remarks). */
   const derivedBrgys = useMemo(() => extractBarangays(db.papers), [db.papers]);
 
   const addBrgy = () => {
@@ -2010,6 +2010,28 @@ export function CustomizePage() {
                       <I n="pin" className="h-2.5 w-2.5 text-mist-500" sw={2.2} />
                       {b}
                       <span className="rounded-sm bg-ink-700 px-1 py-px text-[7.5px] font-bold text-mist-500">auto</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* from photo geotags */}
+            <div className="mb-4">
+              <span className="mb-1.5 block font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mist-600">
+                From photo geotags · {geotagBrgys.length}
+              </span>
+              {geotagBrgys.length === 0 ? (
+                <p className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+                  Attach a geotagged photo — its barangay is resolved via OpenStreetMap automatically.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {geotagBrgys.map((b) => (
+                    <span key={b} className="inline-flex items-center gap-1.5 rounded-md border border-amberx-500/35 bg-amberx-500/[0.07] px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-amberx-400">
+                      <I n="pin" className="h-2.5 w-2.5" sw={2.2} />
+                      {b}
+                      <span className="rounded-sm bg-amberx-500/15 px-1 py-px text-[7.5px] font-bold">GPS</span>
                     </span>
                   ))}
                 </div>

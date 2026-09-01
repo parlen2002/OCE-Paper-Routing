@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Attachment, Kind, Paper, Priority, Stage } from '../lib/core';
-import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, mapsLink, osmEmbed, timeAgo, fmtDT } from '../lib/core';
+import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, geobrgyKey, mapsLink, osmEmbed, timeAgo, fmtDT } from '../lib/core';
 import { I, DivChip, KindTag, PriorityTag, StageChip, Section, ProgressBar, SearchSelect } from './ui';
 
 function ConfirmDialog({
@@ -474,7 +474,13 @@ export function DocDrawer() {
                         <a href={mapsLink(a.lat, a.lng)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-sm bg-tealx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-tealx-400 transition hover:bg-tealx-500/25" title={`Geotagged at ${fmtCoord(a.lat, a.lng)}`}>
                           <I n="pin" className="h-2.5 w-2.5" sw={2.4} /> {fmtCoord(a.lat, a.lng)}
                         </a>
-                      ) : (
+                      ) : null}
+                      {a.geotagged && a.lat != null && a.lng != null && db.geobrgy?.[geobrgyKey(a.lat, a.lng)] && (
+                        <span className="inline-flex items-center gap-1 rounded-sm border border-amberx-500/40 bg-amberx-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-amberx-400" title="Barangay resolved from the photo's GPS coordinates">
+                          <I n="sitemap" className="h-2.5 w-2.5" sw={2.2} /> {db.geobrgy[geobrgyKey(a.lat, a.lng)]}
+                        </span>
+                      )}
+                      {!(a.geotagged && a.lat != null && a.lng != null) && (
                         <span className="inline-flex items-center gap-1 rounded-sm bg-ink-700/80 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mist-500">
                           <I n="pin" className="h-2.5 w-2.5" sw={2.4} /> No geotag
                         </span>

@@ -203,6 +203,8 @@ export interface DB {
   /** Per-user per-channel last-read timestamps, keyed `${userId}|${channelId}`. */
   reads: Record<string, number>;
   custom?: Customization;
+  /** Reverse-geocoded barangay names for photo geotags, keyed by `${lat},${lng}` (3 dp). */
+  geobrgy?: Record<string, string>;
   seq: number;
 }
 
@@ -460,18 +462,71 @@ export async function buildAttachments(
   return { atts, skipped };
 }
 
-/** Extracts the distinct barangay names mentioned across paperwork (title, origin, remarks). */
-export function extractBarangays(papers: Paper[]): string[] {
+const BRGY_KEYWORD = /(?:Brgy\.?|Barangay)\s+([A-Za-z][A-Za-z.'\-]*(?:\s+[A-Za-z][A-Za-z.'\-]*)?)/gi;
+const BRGY_NOISE = /\s+(Phase|Ext|cor|near|along|frontage|shoreline|road|street|avenue|highway|access|intersection|city)\b.*$/i;
+
+/** Clean a captured keyword phrase into a bare barangay name. */
+function cleanBrgy(raw: string): string | null {
+  const name = raw.replace(BRGY_NOISE, '').replace(/[.,;:]+$/, '').trim();
+  return name.length > 2 ? name : null;
+}
+
+/** Keyword mentions of barangays inside one text field (never crosses field boundaries). */
+function keywordMentions(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(BRGY_KEYWORD)) {
+    const n = cleanBrgy(m[1]);
+    if (n) out.push(n);
+  }
+  return out;
+}
+
+/** Stable cache key for a geotag coordinate pair. */
+export const geobrgyKey = (lat: number, lng: number) => `${lat.toFixed(3)},${lng.toFixed(3)}`;
+
+/** Every barangay associated with a paper: keyword mentions plus resolved photo geotags. */
+export function paperBarangays(p: Paper, geobrgy: Record<string, string> = {}): string[] {
+  const set = new Set<string>();
+  for (const f of [p.title, p.origin, p.remarks ?? '']) {
+    for (const n of keywordMentions(f)) set.add(n);
+  }
+  for (const a of p.attachments) {
+    if (a.geotagged && a.lat != null && a.lng != null) {
+      const g = geobrgy[geobrgyKey(a.lat, a.lng)];
+      if (g) set.add(g);
+    }
+  }
+  return [...set];
+}
+
+/**
+ * Distinct barangay names across the paperwork:
+ *  1. keyword mentions ("Brgy. X" / "Barangay X") — checked per field, so a capture
+ *     can never bleed from the title into the origin;
+ *  2. resolved geotags from attached photos;
+ *  3. whole-word mentions of names already on the known list (custom + geotags).
+ */
+export function extractBarangays(papers: Paper[], known: string[] = [], geobrgy: Record<string, string> = {}): string[] {
   const set = new Set<string>();
   for (const p of papers) {
-    const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`;
-    for (const m of hay.matchAll(/(?:Brgy\.?|Barangay)\s+([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+)?)/g)) {
-      const name = m[1].replace(/\s+(Phase|Ext|cor|near|along|frontage|shoreline|road|street)\b.*$/i, '').trim();
-      if (name.length > 2) set.add(name);
+    for (const n of paperBarangays(p, geobrgy)) set.add(n);
+  }
+  for (const k of known) {
+    if (k.trim().length < 3) continue;
+    const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    for (const p of papers) {
+      if (re.test(`${p.title} ${p.origin} ${p.remarks ?? ''}`)) {
+        set.add(k);
+        break;
+      }
     }
   }
   return [...set].sort((a, b) => a.localeCompare(b));
 }
+
+/** OpenStreetMap Nominatim reverse-geocoder URL for a coordinate pair. */
+export const nominatimReverseUrl = (lat: number, lng: number) =>
+  `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${lat.toFixed(6)}&lon=${lng.toFixed(6)}`;
 
 /* ---------------- seed ---------------- */
 

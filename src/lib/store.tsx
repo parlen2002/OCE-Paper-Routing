@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
-import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
+import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, geobrgyKey, nominatimReverseUrl, stageMeta, uid, INITIAL_USERS } from './core';
 
 const LS_KEY = 'ppc-ceoflow-v18';
 
@@ -121,6 +121,8 @@ interface StoreCtx {
   /** Program customization (admin-only). */
   custom: Customization;
   updateCustom: (patch: Partial<Customization>) => void;
+  /** Barangay names resolved from photo geotags (OSM reverse geocoding). */
+  geotagBrgys: string[];
   /** Live messaging. */
   visibleChannels: Channel[];
   messagesOf: (chId: string) => Message[];
@@ -418,6 +420,67 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       root.style.setProperty(k, tone[i])
     );
   }, [custom]);
+
+  /**
+   * Resolve photo geotags into barangay names via the free OpenStreetMap
+   * Nominatim reverse-geocoder. Results are cached in the DB so each
+   * coordinate pair is looked up at most once; requests are throttled to
+   * respect the public API, and failures are silent (offline-safe).
+   */
+  useEffect(() => {
+    const cache = db.geobrgy ?? {};
+    const queue: { key: string; lat: number; lng: number }[] = [];
+    const seen = new Set<string>();
+    for (const p of db.papers) {
+      for (const a of p.attachments) {
+        if (!a.geotagged || a.lat == null || a.lng == null) continue;
+        const key = geobrgyKey(a.lat, a.lng);
+        if (cache[key] || seen.has(key)) continue;
+        seen.add(key);
+        queue.push({ key, lat: a.lat, lng: a.lng });
+        if (queue.length >= 6) break;
+      }
+      if (queue.length >= 6) break;
+    }
+    if (queue.length === 0) return;
+    if (typeof fetch === 'undefined' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < queue.length; i++) {
+        if (cancelled) return;
+        const { key, lat, lng } = queue[i];
+        try {
+          const ctrl = new AbortController();
+          const t = window.setTimeout(() => ctrl.abort(), 8000);
+          const res = await fetch(nominatimReverseUrl(lat, lng), { signal: ctrl.signal });
+          window.clearTimeout(t);
+          if (res.ok) {
+            const j = await res.json();
+            const addr = j?.address ?? {};
+            const name: string | undefined = addr.neighbourhood || addr.suburb || addr.village || addr.city_district;
+            if (name && !/puerto princesa/i.test(name)) {
+              setDb((d) => ({ ...d, geobrgy: { ...(d.geobrgy ?? {}), [key]: name } }));
+            }
+          }
+        } catch {
+          /* offline / blocked / rate-limited — leave unresolved */
+        }
+        // Throttle to ~1 request per second (Nominatim usage policy).
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db.papers, db.geobrgy]);
+
+  /** Distinct barangay names resolved from photo geotags. */
+  const geotagBrgys = useMemo(() => {
+    const set = new Set(Object.values(db.geobrgy ?? {}));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [db.geobrgy]);
 
   const updateCustom: StoreCtx['updateCustom'] = (patch) => {
     if (!user || user.role !== 'admin') {
@@ -1047,7 +1110,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress,
     assignPaper, submitToHead, returnToEmployee, deletePaper, updatePaper, ackPaper,
     divOf, me, myUnitId, canManageDivision, updateDivision, setDivisionHead, removeDivisionOIC,
-    custom, updateCustom,
+    custom, updateCustom, geotagBrgys,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     markAllRead, markRead, pushToast,
   };

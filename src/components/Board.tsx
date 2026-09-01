@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById, extractBarangays } from '../lib/core';
+import { CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById, extractBarangays, paperBarangays } from '../lib/core';
 import type { Paper, Stage } from '../lib/core';
 import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect } from './ui';
 import { timeAgo } from '../lib/core';
@@ -190,12 +190,14 @@ export function Board() {
   const isWide = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
   const myDiv = me?.divisionId ? divById(me.divisionId) : undefined;
 
-  /** Barangays mentioned across the visible paperwork, plus the administrator's custom list. */
-  const barangays = useMemo(() => {
-    const set = new Set(extractBarangays(visiblePapers));
-    for (const b of custom.barangays ?? []) set.add(b.replace(/^Brgy\.?\s+/i, '').trim());
-    return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
-  }, [visiblePapers, custom.barangays]);
+  /**
+   * Barangays across the visible paperwork: keyword mentions, photo-geotag
+   * lookups, plus the administrator's custom list (kept even if unused).
+   */
+  const barangays = useMemo(
+    () => extractBarangays(visiblePapers, custom.barangays ?? [], db.geobrgy ?? {}),
+    [visiblePapers, custom.barangays, db.geobrgy]
+  );
 
   /** Employees & job-order personnel on record, for the personnel filter. */
   const empRoster = useMemo(
@@ -218,8 +220,8 @@ export function Board() {
         if (d.getFullYear() !== fy || d.getMonth() !== fm - 1) return false;
       }
       if (brgyF !== 'all') {
-        const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`.toLowerCase();
-        if (!hay.includes(`brgy. ${brgyF.toLowerCase()}`) && !hay.includes(`brgy ${brgyF.toLowerCase()}`) && !hay.includes(`barangay ${brgyF.toLowerCase()}`)) return false;
+        const names = paperBarangays(p, db.geobrgy ?? {});
+        if (!names.some((n) => n.toLowerCase() === brgyF.toLowerCase())) return false;
       }
       if (empF !== 'all' && !(p.assignees ?? []).includes(empF)) return false;
       if (!ql) return true;

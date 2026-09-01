@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
-import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, mapsLink, osmEmbed } from './lib/core';
+import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';
@@ -228,7 +228,7 @@ function PrintBar({ v }: { v: number }) {
   );
 }
 
-function PaperSheet({ paper, userName, userTitle, users }: { paper: Paper; userName: string; userTitle: string; users: User[] }) {
+function PaperSheet({ paper, userName, userTitle, users, geobrgy = {} }: { paper: Paper; userName: string; userTitle: string; users: User[]; geobrgy?: Record<string, string> }) {
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
   const pics = (paper.assignees ?? []).map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -381,16 +381,28 @@ function PaperSheet({ paper, userName, userTitle, users }: { paper: Paper; userN
             <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#5b7089]">Site map · {fmtCoord(geo[0].lat!, geo[0].lng!)}</p>
           </div>
           <div>
-            <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">Geotagged coordinates</p>
+            <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">Geotagged coordinates · site via OpenStreetMap</p>
             <table className="mt-2 w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="border-b border-[#c8d3e0] text-left font-mono text-[7.5px] uppercase tracking-[0.14em] text-[#8a9ab0]">
+                  <th className="py-1 pr-2">Photo</th>
+                  <th className="py-1 pr-2">Coordinates</th>
+                  <th className="py-1 pr-2">Site barangay</th>
+                  <th className="py-1 text-right">Link</th>
+                </tr>
+              </thead>
               <tbody>
-                {geo.map((g) => (
-                  <tr key={g.id} className="border-b border-[#dde5ee]">
-                    <td className="py-1.5 pr-2 font-semibold">{g.name}</td>
-                    <td className="py-1.5 pr-2 font-mono text-[9px]">{fmtCoord(g.lat!, g.lng!)}</td>
-                    <td className="py-1.5 text-right"><a className="font-mono text-[9px] font-bold text-[#0e7490]" href={mapsLink(g.lat!, g.lng!)}>Maps ↗</a></td>
-                  </tr>
-                ))}
+                {geo.map((g) => {
+                  const site = geobrgy[geobrgyKey(g.lat!, g.lng!)];
+                  return (
+                    <tr key={g.id} className="border-b border-[#dde5ee]">
+                      <td className="py-1.5 pr-2 font-semibold">{g.name}</td>
+                      <td className="py-1.5 pr-2 font-mono text-[9px]">{fmtCoord(g.lat!, g.lng!)}</td>
+                      <td className="py-1.5 pr-2 font-mono text-[9px] font-bold text-[#b45309]">{site ?? '—'}</td>
+                      <td className="py-1.5 text-right"><a className="font-mono text-[9px] font-bold text-[#0e7490]" href={mapsLink(g.lat!, g.lng!)}>Maps ↗</a></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -576,7 +588,7 @@ export function ReportModal() {
 
         <div className="print-sheet anim-pop print-scroll scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
           {mode === 'paper' && paper ? (
-            <PaperSheet paper={paper} userName={user.name} userTitle={user.title} users={db.users} />
+            <PaperSheet paper={paper} userName={user.name} userTitle={user.title} users={db.users} geobrgy={db.geobrgy} />
           ) : (
             <div className="px-9 py-8">
               <Letterhead form="OCE-RPT-01" />

@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';
@@ -228,6 +232,101 @@ function PrintBar({ v }: { v: number }) {
   );
 }
 
+/**
+ * Renders every page of a PDF attachment to print-ready images (pdf.js),
+ * so the whole document — not just the first page — is included in the printout.
+ */
+function PdfAnnexPages({ src, label }: { src: string; label: string }) {
+  const [pages, setPages] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
+  const [done, setDone] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPages([]);
+    setDone(0);
+    setFailed(false);
+    (async () => {
+      try {
+        const normalized = /^(data:|blob:|https?:)/.test(src) ? src : `data:${src}`;
+        const buf = await (await fetch(normalized)).arrayBuffer();
+        if (cancelled) return;
+        const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        const n = doc.numPages;
+        setTotal(n);
+        const cap = Math.min(n, 50);
+        const out: string[] = [];
+        for (let i = 1; i <= cap; i++) {
+          if (cancelled) return;
+          const page = await doc.getPage(i);
+          const base = page.getViewport({ scale: 1 });
+          const vp = page.getViewport({ scale: 1100 / base.width });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(vp.width);
+          canvas.height = Math.floor(vp.height);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('canvas unavailable');
+          await page.render({ canvas, canvasContext: ctx, viewport: vp } as never).promise;
+          out.push(canvas.toDataURL('image/jpeg', 0.92));
+          setDone(i);
+        }
+        if (!cancelled) setPages(out);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return (
+    <div>
+      <div className="no-print mt-1.5 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+        {failed ? (
+          'Could not render pages — print this PDF from its preview window instead'
+        ) : pages.length > 0 ? (
+          <span className="text-[#1f9d55]">{pages.length} page{pages.length === 1 ? '' : 's'} embedded for print</span>
+        ) : (
+          <>
+            Rendering {total || '…'} page{total === 1 ? '' : 's'} for print
+            <span className="inline-block h-[7px] w-28 overflow-hidden rounded-full bg-[#dde5ee]">
+              <span className="block h-full w-1/3 rounded-full bg-[#0e7490]" style={{ animation: 'printSlide 1.1s linear infinite' }} />
+            </span>
+            {total > 0 && <span className="tabular">{done}/{total}</span>}
+          </>
+        )}
+      </div>
+      <div className="print-only">
+        {pages.map((p, i) => (
+          <img
+            key={i}
+            src={p}
+            alt={`${label} — page ${i + 1}`}
+            className="break-inside-avoid"
+            style={{
+              width: '100%',
+              display: 'block',
+              marginTop: i === 0 ? 10 : 0,
+              border: '1px solid #dde5ee',
+              pageBreakAfter: i < pages.length - 1 ? 'always' : 'auto',
+            }}
+          />
+        ))}
+        {total > 50 && (
+          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8a9ab0]">First 50 of {total} pages included</p>
+        )}
+        {failed && (
+          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#b45309]">
+            Pages could not be rendered — open the PDF from the on-screen preview to print it.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PaperSheet({ paper, userName, userTitle, users, geobrgy = {} }: { paper: Paper; userName: string; userTitle: string; users: User[]; geobrgy?: Record<string, string> }) {
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
@@ -425,14 +524,20 @@ function PaperSheet({ paper, userName, userTitle, users, geobrgy = {} }: { paper
       {pdfs.length > 0 && (
         <>
           <h2 className="mt-7 border-b-2 border-[#182a3e] pb-1 font-display text-[15px] font-bold uppercase tracking-[0.14em]">4 · Supporting documents</h2>
-          {pdfs.map((a, i) => (
-            <div key={a.id} className="mt-3 break-inside-avoid">
-              <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">
-                Annex {String.fromCharCode(65 + i)} — {a.name} · attached by {a.by} · {fmtDT(a.at)}
-              </p>
-              <iframe title={a.name} src={a.url} className="mt-1.5 h-[540px] w-full border border-[#c8d3e0]" />
-            </div>
-          ))}
+          {pdfs.map((a, i) => {
+            const annexLabel = `Annex ${String.fromCharCode(65 + i)}`;
+            return (
+              <div key={a.id} className="mt-3 break-inside-avoid">
+                <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">
+                  {annexLabel} — {a.name} · attached by {a.by} · {fmtDT(a.at)} · full pages print below the preview
+                </p>
+                <div className="no-print">
+                  <iframe title={a.name} src={a.url} className="mt-1.5 h-[420px] w-full border border-[#c8d3e0]" />
+                </div>
+                <PdfAnnexPages src={a.url} label={annexLabel} />
+              </div>
+            );
+          })}
         </>
       )}
 

@@ -137,6 +137,17 @@ select.field {
 
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* Print-only content (hidden on screen, materialized on paper). */
+.print-only { display: none !important; }
+@media print {
+  .print-only { display: block !important; }
+}
+
+@keyframes printSlide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
 input[type='range'].range-teal { accent-color: #2dd4bf; height: 6px; cursor: pointer; }
 
 /* ---------------- print ---------------- */

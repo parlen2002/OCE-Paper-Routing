@@ -35,7 +35,7 @@ export const STAGES: { id: Stage; label: string; hint: string; color: string }[]
   { id: 'completed', label: 'Completed', hint: 'Closed & filed', color: '#45d483' },
 ];
 
-export const stageMeta = (s: Stage) => STAGES.find((x) => x.id === s)!;
+export const stageMeta = (s: Stage) => STAGES.find((x) => x.id === s) ?? STAGES[0];
 
 export const PRIORITIES: Record<Priority, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: '#f4645c' },

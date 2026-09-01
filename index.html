@@ -109,11 +109,14 @@
         window.addEventListener('unhandledrejection', function (e) {
           showFault('async fault', e.reason && e.reason.message ? e.reason.message : String(e.reason), '');
         });
-        // If React has not mounted within 8 seconds, say so explicitly.
+        // If React has not mounted within 8 seconds, diagnose and offer a fix.
         setTimeout(function () {
-          if (!window.__OCE_BOOTED__) {
-            showFault('boot timeout', 'The interface did not finish loading within 8 seconds — usually a stale cached bundle in the preview.', '');
-          }
+          if (window.__OCE_BOOTED__) return;
+          var ran = !!window.__OCE_JS_RAN__;
+          var msg = ran
+            ? 'The code started but the screen never finished drawing. This is usually a stale cached bundle — use the button below to reset, or hard refresh (Ctrl + Shift + R).'
+            : 'The application script never ran at all. The preview is likely serving a stale or blocked bundle — use the button below, or hard refresh (Ctrl + Shift + R).';
+          showFault(ran ? 'boot stalled' : 'script did not load', msg, '');
         }, 8000);
       })();
     </script>

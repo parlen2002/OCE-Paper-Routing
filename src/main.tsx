@@ -6,8 +6,12 @@ import App from "./App.tsx";
 declare global {
   interface Window {
     __OCE_BOOTED__?: boolean;
+    __OCE_JS_RAN__?: boolean;
   }
 }
+
+// First executable line: proves the bundle loaded and began executing.
+window.__OCE_JS_RAN__ = true;
 
 try {
   ReactDOM.createRoot(document.getElementById("root")!).render(<App />);

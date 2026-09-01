@@ -30,6 +30,35 @@ window.addEventListener('error', (e) => {
 class Boundary extends React.Component<{ children: React.ReactNode }, { err: Error | null }> {
   state = { err: null as Error | null };
   static getDerivedStateFromError(err: Error) { return { err }; }
+  componentDidCatch(err: Error, info: React.ErrorInfo) {
+    // Guarantee the failure is visible even if React's own handling is silent.
+    try { console.error('OCE Flow render fault:', err, info?.componentStack); } catch { /* */ }
+    try {
+      if (!document.getElementById('boot-fault')) {
+        const el = document.createElement('div');
+        el.id = 'boot-fault';
+        el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;z-index:10000;background:#071120;';
+        const card = document.createElement('div');
+        card.style.cssText = 'max-width:580px;border:1px solid #274468;background:#0d1d31;border-radius:10px;padding:28px;font-family:ui-monospace,monospace;color:#e4edf6;';
+        const k = document.createElement('p');
+        k.style.cssText = 'margin:0;letter-spacing:.2em;font-size:11px;color:#ff8a4c;text-transform:uppercase;';
+        k.textContent = 'OCE Flow — render fault';
+        const h = document.createElement('p');
+        h.style.cssText = 'font-size:18px;font-weight:700;margin:10px 0 4px;font-family:Segoe UI,sans-serif;';
+        h.textContent = 'Something crashed while drawing the screen';
+        const m = document.createElement('p');
+        m.style.cssText = 'font-size:12px;color:#a9c0d6;margin:0 0 6px;word-break:break-word;line-height:1.5;';
+        m.textContent = err?.message || String(err);
+        const btn = document.createElement('button');
+        btn.textContent = 'Clear data & reseed';
+        btn.style.cssText = 'margin-top:14px;padding:9px 16px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit;font-size:12px;';
+        btn.onclick = () => { try { Object.keys(localStorage).forEach((x) => { if (x.indexOf('ceoflow') === 0) localStorage.removeItem(x); }); } catch { /* */ } location.reload(); };
+        card.append(k, h, m, btn);
+        el.appendChild(card);
+        document.body.appendChild(el);
+      }
+    } catch { /* last resort failed; the React fallback below still renders */ }
+  }
   render() {
     if (this.state.err) {
       return (

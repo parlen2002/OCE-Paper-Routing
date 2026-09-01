@@ -5,17 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230a1728'/%3E%3Cpath d='M6 16.5 12 6l6 10.5' stroke='%23ff6b1c' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OCE Flow — CGPP Office of the City Engineer, Puerto Princesa</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
-    />
-    <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet" />
-    </noscript>
     <style>
       /* Instant, dependency-free boot screen — replaced the moment React mounts. */
       html, body { margin: 0; background: #071120; }
@@ -58,27 +47,61 @@
       </div>
     </div>
     <script>
-      // Fail-safe: surface any startup/runtime error instead of a blank screen,
-      // and a watchdog in case the app never mounts at all.
+      // Fail-safe built purely with DOM APIs (no string-escaping hazards):
+      // surfaces any startup/runtime error, and detects a hung boot.
       (function () {
         function showFault(title, msg, where) {
           if (document.getElementById('boot-fault')) return;
-          var el = document.createElement('div');
-          el.id = 'boot-fault';
-          el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;z-index:9999;background:#071120;';
-          el.innerHTML =
-            '<div style="max-width:560px;border:1px solid #274468;background:#0d1d31;border-radius:10px;padding:28px;font-family:ui-monospace,monospace;color:#e4edf6">' +
-            '<p style="letter-spacing:.2em;font-size:11px;color:#ff8a4c;text-transform:uppercase">OCE Flow — ' + title + '</p>' +
-            '<p style="font-size:18px;font-weight:700;margin:8px 0 4px;font-family:Segoe UI,sans-serif">The app could not start</p>' +
-            '<p style="font-size:12px;color:#a9c0d6;margin-bottom:14px;word-break:break-word">' + (msg || 'Unknown error') + '</p>' +
-            '<p style="font-size:11px;color:#86a2be">' + (where || '') + '</p>' +
-            '<p style="font-size:11px;color:#86a2be;margin-top:12px">Try a hard refresh (Ctrl + Shift + R). If it persists, reset the saved data below.</p>' +
-            '<button onclick="try{Object.keys(localStorage).forEach(function(k){if(k.indexOf(\'ceoflow\')===0)localStorage.removeItem(k)})}catch(e){};location.reload()" ' +
-            'style="margin-top:14px;padding:8px 14px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit">Clear data &amp; reseed</button>' +
-            '</div>';
           var s = document.getElementById('boot-sentinel');
-          if (s) s.remove();
-          document.body.appendChild(el);
+          if (s && s.parentNode) s.parentNode.removeChild(s);
+
+          var wrap = document.createElement('div');
+          wrap.id = 'boot-fault';
+          wrap.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;z-index:9999;background:#071120;';
+
+          var card = document.createElement('div');
+          card.style.cssText = 'max-width:580px;border:1px solid #274468;background:#0d1d31;border-radius:10px;padding:28px;font-family:ui-monospace,monospace;color:#e4edf6;';
+
+          var kicker = document.createElement('p');
+          kicker.style.cssText = 'margin:0;letter-spacing:.2em;font-size:11px;color:#ff8a4c;text-transform:uppercase;';
+          kicker.textContent = 'OCE Flow — ' + title;
+
+          var head = document.createElement('p');
+          head.style.cssText = 'font-size:18px;font-weight:700;margin:10px 0 4px;font-family:Segoe UI,sans-serif;';
+          head.textContent = 'The app could not start';
+
+          var body = document.createElement('p');
+          body.style.cssText = 'font-size:12px;color:#a9c0d6;margin:0 0 6px;word-break:break-word;line-height:1.5;';
+          body.textContent = msg || 'Unknown error';
+
+          var loc = document.createElement('p');
+          loc.style.cssText = 'font-size:11px;color:#86a2be;margin:0;word-break:break-all;';
+          loc.textContent = where || '';
+
+          var hint = document.createElement('p');
+          hint.style.cssText = 'font-size:11px;color:#86a2be;margin:14px 0 0;line-height:1.5;';
+          hint.textContent = 'Click inside the preview, then hard refresh (Ctrl + Shift + R). If it persists, use the button below to reset saved data.';
+
+          var btn = document.createElement('button');
+          btn.textContent = 'Clear data & reseed';
+          btn.style.cssText = 'margin-top:14px;padding:9px 16px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit;font-size:12px;';
+          btn.onclick = function () {
+            try {
+              Object.keys(localStorage).forEach(function (k) {
+                if (k.indexOf('ceoflow') === 0) localStorage.removeItem(k);
+              });
+            } catch (e) { /* ignore */ }
+            location.reload();
+          };
+
+          card.appendChild(kicker);
+          card.appendChild(head);
+          card.appendChild(body);
+          card.appendChild(loc);
+          card.appendChild(hint);
+          card.appendChild(btn);
+          wrap.appendChild(card);
+          document.body.appendChild(wrap);
         }
         window.addEventListener('error', function (e) {
           showFault('startup fault', e.message, (e.filename || '') + ':' + (e.lineno || ''));
@@ -89,7 +112,7 @@
         // If React has not mounted within 8 seconds, say so explicitly.
         setTimeout(function () {
           if (!window.__OCE_BOOTED__) {
-            showFault('boot timeout', 'The interface did not finish loading within 8 seconds. This is usually a stale cached bundle — use the button below, or a hard refresh (Ctrl + Shift + R).', '');
+            showFault('boot timeout', 'The interface did not finish loading within 8 seconds — usually a stale cached bundle in the preview.', '');
           }
         }, 8000);
       })();

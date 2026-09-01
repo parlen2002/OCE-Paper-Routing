@@ -792,7 +792,7 @@ export function freshSeed(): DB {
   for (const u of INITIAL_USERS) for (const ch of channels) reads[`${u.id}|${ch.id}`] = now;
   reads['u-admin|unit-maint'] = now - 2 * 36e5;
 
-  return { v: 17, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads, seq: 148 };
+  return { v: 18, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads, seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

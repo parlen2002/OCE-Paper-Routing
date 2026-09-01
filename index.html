@@ -19,6 +19,34 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Fail-safe: surface any startup/runtime error instead of a blank screen.
+      (function () {
+        function showFault(title, msg, where) {
+          if (document.getElementById('boot-fault')) return;
+          var el = document.createElement('div');
+          el.id = 'boot-fault';
+          el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;z-index:9999;background:#071120;';
+          el.innerHTML =
+            '<div style="max-width:560px;border:1px solid #274468;background:#0d1d31;border-radius:10px;padding:28px;font-family:ui-monospace,monospace;color:#e4edf6">' +
+            '<p style="letter-spacing:.2em;font-size:11px;color:#ff8a4c;text-transform:uppercase">OCE Flow — ' + title + '</p>' +
+            '<p style="font-size:18px;font-weight:700;margin:8px 0 4px;font-family:Segoe UI,sans-serif">The app could not start</p>' +
+            '<p style="font-size:12px;color:#a9c0d6;margin-bottom:14px;word-break:break-word">' + (msg || 'Unknown error') + '</p>' +
+            '<p style="font-size:11px;color:#86a2be">' + (where || '') + '</p>' +
+            '<p style="font-size:11px;color:#86a2be;margin-top:12px">Try a hard refresh (Ctrl + Shift + R). If it persists, reset the saved data below.</p>' +
+            '<button onclick="try{Object.keys(localStorage).forEach(function(k){if(k.indexOf(\'ceoflow\')===0)localStorage.removeItem(k)})}catch(e){};location.reload()" ' +
+            'style="margin-top:14px;padding:8px 14px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit">Clear data &amp; reseed</button>' +
+            '</div>';
+          document.body.appendChild(el);
+        }
+        window.addEventListener('error', function (e) {
+          showFault('startup fault', e.message, (e.filename || '') + ':' + (e.lineno || ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          showFault('async fault', e.reason && e.reason.message ? e.reason.message : String(e.reason), '');
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

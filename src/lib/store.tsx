@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Activity, Attachment, DB, DivInfo, DivisionMeta, Kind, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
+import type { Activity, Attachment, Channel, DB, DivInfo, DivisionMeta, Kind, Message, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { ALL_UNITS, deriveActivities, deriveLogs, divById, freshSeed, stageMeta, uid, INITIAL_USERS } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v16';
+const LS_KEY = 'ppc-ceoflow-v17';
 
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 16 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 17 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
+        if (!Array.isArray(d.channels)) d.channels = [];
+        if (!Array.isArray(d.messages)) d.messages = [];
+        if (!d.reads) d.reads = {};
         return d as DB;
       }
     }
@@ -20,7 +23,7 @@ function loadDb(): DB {
 
 export type Page =
   | 'dashboard' | 'board' | 'myboard' | 'personnel' | 'documents' | 'divisions'
-  | 'activity' | 'users' | 'userlogs';
+  | 'activity' | 'users' | 'userlogs' | 'messages';
 
 export interface ReportPreset { presetDiv?: string; paperId?: string; }
 
@@ -96,6 +99,15 @@ interface StoreCtx {
   updateDivision: (id: string, patch: { name?: string; desc?: string }) => void;
   setDivisionHead: (id: string, userId: string, temporary: boolean, note?: string) => void;
   removeDivisionOIC: (id: string) => void;
+  /** Live messaging. */
+  visibleChannels: Channel[];
+  messagesOf: (chId: string) => Message[];
+  unreadFor: (chId: string) => number;
+  msgUnreadTotal: number;
+  canPostChannel: (ch: Channel) => boolean;
+  sendMsg: (channelId: string, text: string, docId?: string) => void;
+  markChannelRead: (chId: string) => void;
+  manageChannelMember: (channelId: string, userId: string, add: boolean) => void;
   markAllRead: () => void;
   markRead: (notifId: string) => void;
   pushToast: (kind: Toast['kind'], text: string) => void;
@@ -178,6 +190,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* quota */ }
   }, [db]);
+
+  // Cross-tab sync: another tab's write (e.g. a new message) refreshes this tab live.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_KEY && e.newValue) {
+        try {
+          const d = JSON.parse(e.newValue);
+          if (d && d.v === 17) setDb(d as DB);
+        } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -265,7 +291,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    */
   const canManageDivision = (divId: string): boolean => {
     if (!user) return false;
-    if (user.role === 'admin' || user.role === 'supervisor') return true;
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return true;
     // An OIC never gets management rights over the division they are acting for.
     if (db.divisions?.[divId]?.oicId === user.id) return false;
     if (user.role === 'division') {
@@ -290,7 +316,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateDivision: StoreCtx['updateDivision'] = (id, patch) => {
     if (!canManageDivision(id)) {
-      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can edit this division.');
+      pushToast('warn', 'Only the program admin, an executive, the moderator, or the permanent division head can edit this division.');
       return;
     }
     const info = divOf(id);
@@ -303,7 +329,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setDivisionHead: StoreCtx['setDivisionHead'] = (id, userId, temporary, note) => {
     if (!canManageDivision(id)) {
-      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can change the head of this division.');
+      pushToast('warn', 'Only the program admin, an executive, the moderator, or the permanent division head can change the head of this division.');
       return;
     }
     const target = db.users.find((u) => u.id === userId);
@@ -328,7 +354,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const removeDivisionOIC: StoreCtx['removeDivisionOIC'] = (id) => {
     if (!canManageDivision(id)) {
-      pushToast('warn', 'Only the program admin, an executive, or the permanent division head can remove the OIC.');
+      pushToast('warn', 'Only the program admin, an executive, the moderator, or the permanent division head can remove the OIC.');
       return;
     }
     const info = divOf(id);
@@ -339,6 +365,99 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       `Removed ${oicName} as OIC of ${info?.name ?? id} — ${info?.head ?? 'the permanent head'} resumes command`
     );
     pushToast('ok', `OIC removed — ${info?.head ?? 'the permanent head'} resumes command of ${info?.code ?? id}`);
+  };
+
+  /* ---------------- live messaging ---------------- */
+
+  const overseer = (r?: Role) => r === 'admin' || r === 'supervisor' || r === 'moderator';
+
+  const canSeeChannel = (ch: Channel): boolean => {
+    if (!me) return false;
+    if (overseer(me.role)) return true;
+    if (ch.kind === 'floor') return true;
+    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
+    return me.divisionId === ch.unitId;
+  };
+
+  const canPostChannel = (ch: Channel): boolean => {
+    if (!me) return false;
+    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
+    if (ch.kind === 'floor') return true;
+    return overseer(me.role) || me.divisionId === ch.unitId;
+  };
+
+  const visibleChannels = useMemo(
+    () => (db.channels ?? []).filter((c) => canSeeChannel(c)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [db.channels, me]
+  );
+
+  const readKey = (uid0: string, chId: string) => `${uid0}|${chId}`;
+
+  const unreadFor = (chId: string): number => {
+    if (!me) return 0;
+    const last = db.reads?.[readKey(me.id, chId)] ?? 0;
+    return (db.messages ?? []).filter((m) => m.channelId === chId && m.at > last && m.authorId !== me.id).length;
+  };
+
+  const msgUnreadTotal = useMemo(
+    () => visibleChannels.reduce((a, c) => a + unreadFor(c.id), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleChannels, db.messages, db.reads, me]
+  );
+
+  const messagesOf = (chId: string): Message[] =>
+    (db.messages ?? []).filter((m) => m.channelId === chId).sort((a, b) => a.at - b.at);
+
+  const sendMsg: StoreCtx['sendMsg'] = (channelId, text, docId) => {
+    if (!me) return;
+    const ch = (db.channels ?? []).find((c) => c.id === channelId);
+    if (!ch) return;
+    if (!canPostChannel(ch)) {
+      pushToast('warn', 'You can read this channel but not post to it.');
+      return;
+    }
+    const t = text.trim();
+    if (!t) return;
+    const doc = docId ? db.papers.find((p) => p.id === docId) : undefined;
+    const m: Message = {
+      id: uid(), channelId, authorId: me.id, authorName: me.name,
+      text: t.slice(0, 600), at: Date.now(), docId: doc?.id, docRef: doc?.ref,
+    };
+    setDb((d) => ({ ...d, messages: [...(d.messages ?? []), m] }));
+  };
+
+  const markChannelRead: StoreCtx['markChannelRead'] = (chId) => {
+    if (!me) return;
+    setDb((d) => ({ ...d, reads: { ...(d.reads ?? {}), [readKey(me.id, chId)]: Date.now() } }));
+  };
+
+  const manageChannelMember: StoreCtx['manageChannelMember'] = (channelId, userId, add) => {
+    if (!me || !overseer(me.role)) return;
+    const ch = (db.channels ?? []).find((c) => c.id === channelId);
+    const target = db.users.find((u) => u.id === userId);
+    if (!ch || ch.kind !== 'executive' || !target) return;
+    // The core seats (admin, executives, moderator) cannot be removed.
+    const protectedIds = ['u-admin', 'u-sup1', 'u-sup2', 'u-mod'];
+    if (!add && protectedIds.includes(userId)) {
+      pushToast('warn', `${target.name} holds a permanent council seat and cannot be removed.`);
+      return;
+    }
+    const members = ch.memberIds ?? [];
+    const has = members.includes(userId);
+    if (add === has) return;
+    const nextMembers = add ? [...members, userId] : members.filter((x) => x !== userId);
+    const sys: Message = {
+      id: uid(), channelId, authorId: me.id, authorName: 'OCE Flow', system: true,
+      text: `${me.name} ${add ? 'added' : 'removed'} ${target.name} ${add ? 'to' : 'from'} the Executive Council.`,
+      at: Date.now(),
+    };
+    setDb((d) => ({
+      ...d,
+      channels: (d.channels ?? []).map((c) => (c.id === channelId ? { ...c, memberIds: nextMembers } : c)),
+      messages: [...(d.messages ?? []), sys],
+    }));
+    pushToast('ok', `${target.name} ${add ? 'added to' : 'removed from'} the Executive Council.`);
   };
 
   /* ---------------- auth ---------------- */
@@ -792,7 +911,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deletePaper = (id: string) => {
-    if (!user || user.role !== 'admin') return;
+    if (!user || (user.role !== 'admin' && user.role !== 'moderator')) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
     setDb((d) => withLog(
@@ -858,6 +977,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress,
     assignPaper, submitToHead, returnToEmployee, deletePaper, updatePaper, ackPaper,
     divOf, me, myUnitId, canManageDivision, updateDivision, setDivisionHead, removeDivisionOIC,
+    visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     markAllRead, markRead, pushToast,
   };
 

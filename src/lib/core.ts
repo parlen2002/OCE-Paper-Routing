@@ -142,6 +142,31 @@ export interface SysLog {
   docId?: string;
 }
 
+/** A messaging channel — executive council, whole-office floor, or per-division/team. */
+export interface Channel {
+  id: string;
+  kind: 'executive' | 'floor' | 'unit';
+  name: string;
+  /** Unit this channel belongs to (for kind === 'unit'). */
+  unitId?: string;
+  /** Explicit member list (executive council); unit/floor channels are membership-by-role. */
+  memberIds?: string[];
+}
+
+export interface Message {
+  id: string;
+  channelId: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  at: number;
+  /** Optional linked paperwork. */
+  docId?: string;
+  docRef?: string;
+  /** System event (member added / removed). */
+  system?: boolean;
+}
+
 export interface DB {
   v: number;
   session: string | null;
@@ -150,6 +175,10 @@ export interface DB {
   logs: SysLog[];
   users: User[];
   divisions?: Record<string, DivisionMeta>;
+  channels: Channel[];
+  messages: Message[];
+  /** Per-user per-channel last-read timestamps, keyed `${userId}|${channelId}`. */
+  reads: Record<string, number>;
   seq: number;
 }
 
@@ -710,7 +739,36 @@ export function freshSeed(): DB {
     }
   );
 
-  return { v: 16, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, seq: 148 };
+  /* ---- messaging: channels, seed conversation, read state ---- */
+  const channels: Channel[] = [
+    { id: 'exec', kind: 'executive', name: 'Executive Council', memberIds: ['u-admin', 'u-sup1', 'u-sup2', 'u-mod'] },
+    { id: 'floor', kind: 'floor', name: 'Office Floor — everyone' },
+    ...ALL_UNITS.map((u) => ({ id: `unit-${u.id}`, kind: 'unit' as const, name: `${u.code} channel`, unitId: u.id })),
+  ];
+
+  const msg = (channelId: string, authorId: string, text: string, at: number, docId?: string, docRef?: string): Message => {
+    const a = INITIAL_USERS.find((u) => u.id === authorId);
+    return { id: uid(), channelId, authorId, authorName: a?.name ?? 'Officer', text, at, docId, docRef };
+  };
+
+  const messages: Message[] = [
+    msg('exec', 'u-sup1', 'Supplemental budget OCE-2026-0142 — I need the Assistant’s concurrence before Friday’s signing.', now - 5 * 36e5, papers[7].id, papers[7].ref),
+    msg('exec', 'u-sup2', 'Reviewed the line items. The drainage allocation can proceed; hold the lighting line for MTQC’s test results.', now - 4.6 * 36e5, papers[7].id, papers[7].ref),
+    msg('exec', 'u-mod', 'Noted — I’ve flagged the affected divisions and posted the window on the floor.', now - 4.2 * 36e5),
+    msg('floor', 'u-admin', 'Scheduled maintenance: OCE Flow server backup this Saturday 22:00–23:00. Intake will be offline for that hour.', now - 8 * 36e5, papers[8].id, papers[8].ref),
+    msg('floor', 'u-admindiv', 'Paper intake at the front desk closes 30 minutes early that day. Urgent drop-offs go to the OIC of your division.', now - 7.5 * 36e5),
+    msg('unit-const', 'u-const', 'Brgy. San Manuel Phase 2 — concreting pour is scheduled Thursday. Paolo, confirm crew and materials.', now - 6 * 36e5, papers[0].id, papers[0].ref),
+    msg('unit-const', 'u-pmanalo', 'Crew and materials confirmed. Progress is at 45% — on track for the due date.', now - 5.5 * 36e5, papers[0].id, papers[0].ref),
+    msg('unit-maint', 'u-maint', 'Dennis is handling the Rizal Ave declogging (urgent). Kevin JO is backing him up.', now - 3 * 36e5, papers[1].id, papers[1].ref),
+    msg('unit-maint', 'u-daquino', 'Vactor is on site, 60% done. Expect the intersection clear by late afternoon.', now - 40 * 60e3, papers[1].id, papers[1].ref),
+  ];
+
+  // Read state: everyone is caught up except one demo unread for the admin in MAINT.
+  const reads: Record<string, number> = {};
+  for (const u of INITIAL_USERS) for (const ch of channels) reads[`${u.id}|${ch.id}`] = now;
+  reads['u-admin|unit-maint'] = now - 2 * 36e5;
+
+  return { v: 17, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads, seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

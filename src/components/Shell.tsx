@@ -9,9 +9,10 @@ const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division', 'moderator'] },
   { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee', 'joborder'] },
   { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin', 'moderator'] },
+  { page: 'messages', label: 'Messages', icon: 'send' },
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
-  { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin'] },
+  { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin', 'moderator'] },
   { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['admin'] },
   { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin'] },
 ];
@@ -104,7 +105,7 @@ function ProfileModal() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen, setProfileOpen } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -150,6 +151,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {n.label}
                 {n.page === 'board' && (
                   <span className="ml-auto rounded bg-ink-700 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyanx-400 tabular">{openPapers}</span>
+                )}
+                {n.page === 'messages' && msgUnreadTotal > 0 && (
+                  <span className="anim-badge ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{msgUnreadTotal}</span>
                 )}
               </button>
             );

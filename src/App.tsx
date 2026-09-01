@@ -7,7 +7,7 @@ import { Shell } from './components/Shell';
 import { Board } from './components/Board';
 import { DocDrawer } from './components/Drawer';
 import { NewDocModal } from './components/NewDoc';
-import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage } from './components/Pages';
+import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage } from './components/Pages';
 import { I, Seal, Toasts } from './components/ui';
 
 /* ---------------- startup fault + error boundary ---------------- */
@@ -671,10 +671,11 @@ function AppInner() {
         {page === 'myboard' && (user.role === 'employee' || user.role === 'joborder') && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
-        {page === 'activity' && (user.role === 'admin' || user.role === 'supervisor') && <ActivityPage />}
+        {page === 'activity' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && <ActivityPage />}
         {page === 'users' && user.role === 'admin' && <UsersPage />}
         {page === 'userlogs' && user.role === 'admin' && <LogsPage />}
         {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && <PersonnelPage />}
+        {page === 'messages' && <MessagesPage />}
       </Shell>
       <DocDrawer />
       <NewDocModal />

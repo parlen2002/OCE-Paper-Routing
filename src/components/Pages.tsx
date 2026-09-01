@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
-import type { Activity, DivInfo, Kind, Paper, Role, Stage, User, UserStatus } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, timeAgo } from '../lib/core';
+import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, timeAgo } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, type IconName } from './ui';
 
 function MiniBar({ v, w = 'w-full' }: { v: number; w?: string }) {
@@ -333,7 +333,7 @@ function DivisionManager({ divId, onClose }: { divId: string; onClose: () => voi
           <p className="text-[12.5px] leading-relaxed text-mist-400">
             {db.divisions?.[divId]?.oicId === me?.id
               ? 'You are the acting (OIC) head of this division. Temporary heads can run the board but cannot change the division title, description, or head assignment.'
-              : 'Only the program admin, an executive, or the permanent division head can manage this division.'}
+              : 'Only the program admin, an executive, the moderator, or the permanent division head can manage this division.'}
           </p>
         </div>
       ) : (
@@ -519,7 +519,7 @@ export function ActivityPage() {
   const [divF, setDivF] = useState<'all' | string>('all');
   const [monthF, setMonthF] = useState('');
   const [printOpen, setPrintOpen] = useState(false);
-  const isSup = user?.role === 'admin' || user?.role === 'supervisor';
+  const isSup = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'moderator';
 
   const filtered = useMemo(() => {
     let list = activities;
@@ -1356,6 +1356,238 @@ export function LogsPage() {
       </div>
 
       {printOpen && <PrintLogsModal rows={filtered} onClose={() => setPrintOpen(false)} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------ live messaging */
+const CH_META: Record<Channel['kind'], { icon: IconName; color: string; label: string }> = {
+  executive: { icon: 'shield', color: '#fbc94a', label: 'Council' },
+  floor: { icon: 'users', color: '#56c8f0', label: 'Office-wide' },
+  unit: { icon: 'sitemap', color: '#45e0cd', label: 'Unit' },
+};
+
+export function MessagesPage() {
+  const {
+    db, me, user, visibleChannels, messagesOf, unreadFor, canPostChannel,
+    sendMsg, markChannelRead, manageChannelMember, openDrawer, visiblePapers,
+  } = useStore();
+
+  const [sel, setSel] = useState<string | null>(visibleChannels[0]?.id ?? null);
+  const [draft, setDraft] = useState('');
+  const [docSel, setDocSel] = useState('');
+  const [mgrOpen, setMgrOpen] = useState(false);
+  const [addSel, setAddSel] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const channel = visibleChannels.find((c) => c.id === sel) ?? visibleChannels[0] ?? null;
+  const msgs = channel ? messagesOf(channel.id) : [];
+  const canPost = channel ? canPostChannel(channel) : false;
+  const canModerate = user?.role === 'admin' || user?.role === 'moderator';
+
+  // mark read on select / when new messages land while viewing
+  useEffect(() => {
+    if (channel) markChannelRead(channel.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel?.id, msgs.length]);
+
+  // keep the latest message in view
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [msgs.length, channel?.id]);
+
+  if (!me) return null;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!channel || !draft.trim() || !canPost) return;
+    sendMsg(channel.id, draft, docSel || undefined);
+    setDraft('');
+    setDocSel('');
+  };
+
+  const groups: { title: string; items: Channel[] }[] = [
+    { title: 'Executive', items: visibleChannels.filter((c) => c.kind === 'executive') },
+    { title: 'Office-wide', items: visibleChannels.filter((c) => c.kind === 'floor') },
+    { title: 'Divisions & teams', items: visibleChannels.filter((c) => c.kind === 'unit') },
+  ];
+
+  const members = channel?.kind === 'executive' ? (channel.memberIds ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is User => !!u) : [];
+  const addable = channel?.kind === 'executive'
+    ? db.users.filter((u) => u.status === 'active' && !(channel.memberIds ?? []).includes(u.id))
+    : [];
+  const protectedIds = ['u-admin', 'u-sup1', 'u-sup2', 'u-mod'];
+
+  return (
+    <div className="flex h-[calc(100vh-120px)] flex-col">
+      <PageHead
+        kicker="Live comms"
+        title="Messages"
+        sub="Coordinate across the office in real time. Executives, the program admin and the moderator oversee every channel; each division and team keeps its own."
+      />
+
+      <div className="flex min-h-0 flex-1 gap-4">
+        {/* channel list */}
+        <aside className="scroll-slim w-60 shrink-0 overflow-y-auto rounded-lg border border-ink-700 bg-ink-900/80 p-2.5">
+          {groups.map((g) =>
+            g.items.length === 0 ? null : (
+              <div key={g.title} className="mb-3">
+                <p className="px-1.5 pb-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-mist-600">{g.title}</p>
+                <div className="space-y-1">
+                  {g.items.map((c) => {
+                    const m = CH_META[c.kind];
+                    const active = channel?.id === c.id;
+                    const un = unreadFor(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setSel(c.id)}
+                        className={`flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left transition ${
+                          active ? 'border-ink-500 bg-ink-800' : 'border-transparent hover:bg-ink-850'
+                        }`}
+                      >
+                        <span style={{ color: m.color }}><I n={m.icon} className="h-3.5 w-3.5" sw={2} /></span>
+                        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-mist-200">{c.name}</span>
+                        {un > 0 && (
+                          <span className="anim-badge flex h-4 min-w-[16px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold text-ink-950 tabular">
+                            {un}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          )}
+        </aside>
+
+        {/* conversation */}
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80">
+          {channel ? (
+            <>
+              <div className="flex items-center gap-3 border-b border-ink-700 px-4 py-3">
+                <span style={{ color: CH_META[channel.kind].color }}><I n={CH_META[channel.kind].icon} className="h-4 w-4" sw={2} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-[17px] font-bold uppercase tracking-wide text-mist-50">{channel.name}</p>
+                  <p className="font-mono text-[8.5px] uppercase tracking-[0.16em] text-mist-500">
+                    {CH_META[channel.kind].label}
+                    {channel.kind === 'executive' ? ` · ${members.length} member${members.length === 1 ? '' : 's'}` : ''}
+                    {channel.kind === 'unit' && channel.unitId ? ` · ${divById(channel.unitId)?.name ?? ''}` : ''}
+                  </p>
+                </div>
+                {channel.kind === 'executive' && canModerate && (
+                  <button onClick={() => setMgrOpen((o) => !o)} className="btn btn-ghost px-3 py-1.5 text-[11px]">
+                    <I n="users" className="h-3.5 w-3.5" sw={2} /> {mgrOpen ? 'Close' : 'Manage members'}
+                  </button>
+                )}
+              </div>
+
+              {/* member manager */}
+              {mgrOpen && channel.kind === 'executive' && canModerate && (
+                <div className="border-b border-ink-700 bg-ink-950/40 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {members.map((u0) => (
+                      <span key={u0.id} className="inline-flex items-center gap-1.5 rounded-full border border-ink-600 bg-ink-850 py-1 pl-1 pr-2">
+                        <Avatar name={u0.name} size="sm" />
+                        <span className="text-[11px] font-semibold text-mist-200">{u0.name}</span>
+                        {!protectedIds.includes(u0.id) && (
+                          <button onClick={() => manageChannelMember(channel.id, u0.id, false)} title="Remove from council" className="rounded-full p-0.5 text-mist-500 transition hover:bg-redx-500/20 hover:text-redx-400">
+                            <I n="x" className="h-3 w-3" sw={2.4} />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <select className="field w-auto py-1.5 font-mono text-[11px]" value={addSel} onChange={(e) => setAddSel(e.target.value)}>
+                      <option value="">— add a member —</option>
+                      {addable.map((u0) => (<option key={u0.id} value={u0.id}>{u0.name} · {u0.title}</option>))}
+                    </select>
+                    <button className="btn btn-primary px-3 py-1.5 text-[11px]" disabled={!addSel}
+                      onClick={() => { manageChannelMember(channel.id, addSel, true); setAddSel(''); }}>
+                      <I n="plus" className="h-3.5 w-3.5" sw={2.4} /> Join to council
+                    </button>
+                    <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Protected seats can’t be removed</span>
+                  </div>
+                </div>
+              )}
+
+              {/* messages */}
+              <div ref={scrollRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                {msgs.length === 0 && (
+                  <p className="pt-10 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">No messages yet — start the thread.</p>
+                )}
+                <div className="space-y-3.5">
+                  {msgs.map((m) =>
+                    m.system ? (
+                      <p key={m.id} className="anim-fade-up text-center font-mono text-[9.5px] uppercase tracking-[0.14em] text-mist-600">
+                        — {m.text} —
+                      </p>
+                    ) : (
+                      <div key={m.id} className="anim-fade-up flex gap-2.5">
+                        <Avatar name={m.authorName} />
+                        <div className="min-w-0 max-w-[70%]">
+                          <p className="flex flex-wrap items-baseline gap-x-2">
+                            <span className={`text-[12.5px] font-bold ${m.authorId === me.id ? 'text-flare-400' : 'text-mist-100'}`}>{m.authorName}</span>
+                            <span className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">{fmtDT(m.at)}</span>
+                          </p>
+                          <div className="mt-1 rounded-lg rounded-tl-sm border border-ink-700 bg-ink-850 px-3 py-2 text-[13px] leading-relaxed text-mist-200">
+                            {m.text}
+                            {m.docId && m.docRef && (
+                              <button onClick={() => openDrawer(m.docId!)} className="mt-2 flex w-fit items-center gap-1.5 rounded-md border border-cyanx-500/50 bg-cyanx-500/10 px-2 py-1 font-mono text-[10px] font-bold text-cyanx-400 transition hover:bg-cyanx-500/20">
+                                <I n="file" className="h-3 w-3" sw={2.2} /> {m.docRef} — open paper
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* composer */}
+              <form onSubmit={submit} className="border-t border-ink-700 bg-ink-950/40 px-4 py-3">
+                {canPost ? (
+                  <>
+                    <div className="flex items-end gap-2">
+                      <textarea
+                        className="field max-h-28 min-h-[44px] flex-1 resize-y"
+                        rows={2}
+                        placeholder={`Message ${channel.name}… (Enter to send, Shift+Enter for a new line)`}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(e as unknown as React.FormEvent); }
+                        }}
+                      />
+                      <button type="submit" className="btn btn-primary" disabled={!draft.trim()}>
+                        <I n="send" className="h-4 w-4" sw={2} /> Send
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <I n="clip" className="h-3.5 w-3.5 shrink-0 text-mist-500" sw={2} />
+                      <select className="field w-auto max-w-xs py-1 font-mono text-[10.5px]" value={docSel} onChange={(e) => setDocSel(e.target.value)}>
+                        <option value="">Attach a paper (optional)</option>
+                        {visiblePapers.slice(0, 60).map((p) => (<option key={p.id} value={p.id}>{p.ref} — {p.title.slice(0, 40)}</option>))}
+                      </select>
+                      <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Delivered live to every open session</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="flex items-center gap-2 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-mist-600">
+                    <I n="lock" className="h-3.5 w-3.5" sw={2} /> Read-only — you’re not a member of this channel
+                  </p>
+                )}
+              </form>
+            </>
+          ) : (
+            <EmptyState icon="send" title="No channels available" sub="You have no visible channels." />
+          )}
+        </section>
+      </div>
     </div>
   );
 }

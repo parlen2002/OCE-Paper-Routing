@@ -275,8 +275,8 @@ export function DocDrawer() {
                 <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-cyanx-500/60 hover:text-cyanx-400" title="Edit this board entry">
                   <I n="wrench" className="h-3 w-3" sw={2.2} /> Edit
                 </button>
-                {user.role === 'admin' && (
-                  <button onClick={() => setDelOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-redx-500/60 hover:bg-redx-500/10 hover:text-redx-400" title="Administrator — delete this board entry">
+                {(user.role === 'admin' || user.role === 'moderator') && (
+                  <button onClick={() => setDelOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2.5 py-1.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-mist-300 transition hover:border-redx-500/60 hover:bg-redx-500/10 hover:text-redx-400" title="Administrator / Moderator — delete this board entry">
                     <I n="trash" className="h-3 w-3" sw={2.2} /> Delete
                   </button>
                 )}

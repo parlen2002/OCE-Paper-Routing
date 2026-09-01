@@ -1,0 +1,11 @@
+# OCE Flow — Django backend (LAN deployment)
+# Python 3.12+ · Django 6.1 · PostGIS · WebSockets for instant delivery
+
+Django>=6.1,<7.0
+djangorestframework>=3.16
+django-cors-headers>=4.6
+channels>=4.2
+channels-redis>=4.2
+daphne>=4.1
+psycopg[binary]>=3.2
+Pillow>=11.0

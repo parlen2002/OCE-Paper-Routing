@@ -181,6 +181,7 @@ export function Board() {
   const [over, setOver] = useState<Stage | null>(null);
   const [scope, setScope] = useState<'queue' | 'trail'>('queue');
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: Stage } | null>(null);
+  const [q, setQ] = useState('');
   const [monthF, setMonthF] = useState('');
   const [brgyF, setBrgyF] = useState('all');
   const [empF, setEmpF] = useState('all');
@@ -213,7 +214,7 @@ export function Board() {
   const hasExtraFilters = monthF !== '' || brgyF !== 'all' || empF !== 'all';
 
   const filtered = useMemo(() => {
-    const q = ui.search.trim().toLowerCase();
+    const ql = q.trim().toLowerCase();
     const [fy, fm] = monthF ? monthF.split('-').map(Number) : [0, 0];
     return visiblePapers.filter((p) => {
       if (!isField) {
@@ -229,11 +230,11 @@ export function Board() {
         if (!hay.includes(`brgy. ${brgyF.toLowerCase()}`) && !hay.includes(`brgy ${brgyF.toLowerCase()}`) && !hay.includes(`barangay ${brgyF.toLowerCase()}`)) return false;
       }
       if (empF !== 'all' && !(p.assignees ?? []).includes(empF)) return false;
-      if (!q) return true;
+      if (!ql) return true;
       const hay = `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase();
-      return hay.includes(q);
+      return hay.includes(ql);
     });
-  }, [visiblePapers, ui.search, ui.divFilter, isWide, isField, scope, user, monthF, brgyF, empF]);
+  }, [visiblePapers, q, ui.divFilter, isWide, isField, scope, user, monthF, brgyF, empF]);
 
   const byStage = (s: Stage) => filtered.filter((p) => p.stage === s);
 
@@ -308,8 +309,22 @@ export function Board() {
       {/* extra filters: month / barangay / employee */}
       <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-ink-700/70 bg-ink-900/55 px-3 py-2.5" style={{ animationDelay: '80ms' }}>
         <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-mist-500">
-          <I n="search" className="h-3 w-3" sw={2.2} /> Filter board
+          <I n="board" className="h-3 w-3" sw={2.2} /> Filter board
         </span>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search ref, title, origin, PIC…"
+            className="field w-64 py-1 pl-11 font-mono text-[11px]"
+          />
+          {q && (
+            <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
+              <I n="x" className="h-3 w-3" sw={2.6} />
+            </button>
+          )}
+        </div>
         <label className="flex items-center gap-1.5">
           <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Month</span>
           <input type="month" className="field w-auto py-1 font-mono text-[10.5px]" value={monthF} onChange={(e) => setMonthF(e.target.value)} />

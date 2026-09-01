@@ -106,7 +106,7 @@ function ProfileModal() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setSearch, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal, custom } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal, custom } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -188,14 +188,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <h2 className="truncate font-display text-[19px] font-bold uppercase leading-none tracking-wider text-mist-50">
               {NAV.find((n) => n.page === ui.page)?.label ?? 'OCE Flow'}
             </h2>
-          </div>
-
-          <div className="relative ml-2 hidden md:block">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-4 w-4" /></span>
-            <input value={ui.search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ref, title, origin, PIC…" className="field w-[260px] pl-9 font-mono text-[12px]" />
-            {ui.search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 hover:text-mist-200"><I n="x" className="h-3.5 w-3.5" /></button>
-            )}
           </div>
 
           <div className="ml-auto flex items-center gap-2.5">

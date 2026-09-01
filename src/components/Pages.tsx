@@ -199,22 +199,23 @@ export function Dashboard() {
 
 /* ------------------------------------------------ documents register */
 export function DocumentsPage() {
-  const { user, visiblePapers, ui, openDrawer, setNewOpen, setReportOpen } = useStore();
+  const { user, visiblePapers, openDrawer, setNewOpen, setReportOpen } = useStore();
   const [stage, setStage] = useState<'all' | Stage>('all');
   const [divF, setDivF] = useState<'all' | string>('all');
   const [kindF, setKindF] = useState<'all' | Kind>('all');
+  const [q, setQ] = useState('');
   const isSup = user?.role !== 'division' && user?.role !== 'employee' && user?.role !== 'joborder';
 
   const rows = useMemo(() => {
-    const q = ui.search.trim().toLowerCase();
+    const ql = q.trim().toLowerCase();
     return visiblePapers.filter((p) => {
       if (stage !== 'all' && p.stage !== stage) return false;
       if (divF !== 'all' && p.divisionId !== divF) return false;
       if (kindF !== 'all' && p.kind !== kindF) return false;
-      if (!q) return true;
-      return `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase().includes(q);
+      if (!ql) return true;
+      return `${p.ref} ${p.title} ${p.origin} ${divById(p.divisionId)?.name ?? ''}`.toLowerCase().includes(ql);
     });
-  }, [visiblePapers, stage, divF, kindF, ui.search]);
+  }, [visiblePapers, stage, divF, kindF, q]);
 
   return (
     <div>
@@ -235,6 +236,20 @@ export function DocumentsPage() {
       />
 
       <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search ref, title, origin…"
+            className="field w-64 py-1.5 pl-11 font-mono text-[11.5px]"
+          />
+          {q && (
+            <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
+              <I n="x" className="h-3 w-3" sw={2.6} />
+            </button>
+          )}
+        </div>
         <SearchSelect
           value={stage}
           onChange={(v) => setStage(v as 'all' | Stage)}

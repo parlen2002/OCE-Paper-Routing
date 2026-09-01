@@ -34,15 +34,15 @@
   <body>
     <div id="root">
       <div id="boot-sentinel">
-        <svg class="seal" width="64" height="64" viewBox="0 0 48 48" aria-hidden>
+        <svg id="boot-seal" class="seal" width="64" height="64" viewBox="0 0 48 48" aria-hidden>
           <circle cx="24" cy="24" r="21" fill="none" stroke="#ff6b1c" stroke-width="2.2" />
           <circle cx="24" cy="24" r="16.5" fill="none" stroke="#56c8f0" stroke-width="1.1" opacity=".8" />
           <path d="M14 30.5 24 13l10 17.5" fill="none" stroke="#ff6b1c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
           <path d="M17.5 30.5h13" stroke="#56c8f0" stroke-width="2" stroke-linecap="round" />
           <circle cx="24" cy="34.5" r="1.6" fill="#fbc94a" />
         </svg>
-        <h1>OCE <em>Flow</em></h1>
-        <p>Office of the City Engineer · starting</p>
+        <h1 id="boot-title">OCE <em>Flow</em></h1>
+        <p id="boot-sub">Office of the City Engineer · starting</p>
         <div class="bars"><i></i><i></i><i></i></div>
       </div>
     </div>
@@ -115,6 +115,70 @@
             : 'The application script never ran at all. The preview is likely serving a stale or blocked bundle — use the button below, or hard refresh (Ctrl + Shift + R).';
           showFault(ran ? 'boot stalled' : 'script did not load', msg, '');
         }, 8000);
+      })();
+    </script>
+    <script>
+      // Apply the saved program branding (custom logo, accent colors, tagline)
+      // to the boot screen instantly — before the app itself finishes loading.
+      (function () {
+        try {
+          var key = null;
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf('ppc-ceoflow') === 0) { key = k; break; }
+          }
+          if (!key) return;
+          var db = JSON.parse(localStorage.getItem(key) || 'null');
+          var c = (db && db.custom) || {};
+          var a1 = c.accent || '#ff6b1c';
+          var a2 = c.accent2 || '#56c8f0';
+
+          var seal = document.getElementById('boot-seal');
+          if (seal) {
+            if (c.logoKind === 'custom' && c.logoUrl) {
+              var img = document.createElement('img');
+              img.className = 'seal';
+              img.alt = 'Logo';
+              img.src = c.logoUrl;
+              img.style.cssText = 'width:64px;height:64px;border-radius:9999px;object-fit:cover;box-shadow:0 0 0 2px ' + a1 + '55, 0 0 26px ' + a1 + '33;';
+              seal.parentNode.replaceChild(img, seal);
+            } else {
+              var kind = c.logoKind || 'seal';
+              var outer = '<circle cx="24" cy="24" r="21" fill="none" stroke="' + a1 + '" stroke-width="2.2"/>' +
+                '<circle cx="24" cy="24" r="16.5" fill="none" stroke="' + a2 + '" stroke-width="1.1" opacity="0.8"/>';
+              var core;
+              if (kind === 'gear') {
+                core = '<circle cx="24" cy="24" r="7" fill="none" stroke="' + a1 + '" stroke-width="2.4"/>' +
+                  '<circle cx="24" cy="24" r="2.4" fill="' + a2 + '"/>';
+                for (var g = 0; g < 8; g++) {
+                  var ang = (g * Math.PI) / 4;
+                  core += '<line x1="' + (24 + Math.cos(ang) * 8.5).toFixed(2) + '" y1="' + (24 + Math.sin(ang) * 8.5).toFixed(2) +
+                    '" x2="' + (24 + Math.cos(ang) * 12.5).toFixed(2) + '" y2="' + (24 + Math.sin(ang) * 12.5).toFixed(2) +
+                    '" stroke="' + a1 + '" stroke-width="2.4" stroke-linecap="round"/>';
+                }
+              } else if (kind === 'bridge') {
+                core = '<path d="M12 31c3.5-9 20.5-9 24 0" fill="none" stroke="' + a1 + '" stroke-width="2.6" stroke-linecap="round"/>' +
+                  '<path d="M17.5 31h13" stroke="' + a2 + '" stroke-width="2" stroke-linecap="round"/>';
+              } else {
+                core = '<path d="M14 30.5 24 13l10 17.5" fill="none" stroke="' + a1 + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+                  '<path d="M17.5 30.5h13" stroke="' + a2 + '" stroke-width="2" stroke-linecap="round"/>';
+              }
+              seal.innerHTML = outer + core + '<circle cx="24" cy="34.5" r="1.6" fill="#fbc94a"/>';
+            }
+          }
+
+          var sub = document.getElementById('boot-sub');
+          if (sub && (c.tagline || c.orgName)) sub.textContent = (c.tagline || c.orgName) + ' · starting';
+
+          var em = document.querySelector('#boot-title em');
+          if (em) em.style.color = a1;
+
+          var bars = document.querySelectorAll('#boot-sentinel .bars i');
+          for (var b = 0; b < bars.length; b++) {
+            bars[b].style.background = 'linear-gradient(90deg, #122540, ' + a2 + ', #122540)';
+            bars[b].style.backgroundSize = '200% 100%';
+          }
+        } catch (e) { /* branding is best-effort — never break the boot */ }
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

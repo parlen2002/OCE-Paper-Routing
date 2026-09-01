@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Division, Kind, Priority, Stage } from '../lib/core';
 import { KINDS, PRIORITIES, stageMeta } from '../lib/core';
 import { useStore } from '../lib/store';
@@ -202,6 +202,234 @@ export function ProgressBar({ pct, tone = 'paper', h = 6 }: { pct: number; tone?
         className={`h-full rounded-full transition-all duration-500 ${!done && v > 0 && tone !== 'print' ? 'anim-barlive' : ''}`}
         style={{ width: `${v}%`, background: fill }}
       />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* SearchSelect — a searchable, keyboard-navigable dropdown           */
+/* ------------------------------------------------------------------ */
+
+export interface SearchOption {
+  value: string;
+  label: string;
+  sub?: string;
+  group?: string;
+  hint?: string;
+}
+
+/**
+ * Renders like the standard `.field` control but opens a type-to-filter list.
+ * Supports option groups, arrow-key navigation, Enter to select, Esc to close.
+ * The panel is viewport-fixed so it never clips inside scrollable ancestors.
+ */
+export function SearchSelect({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select…',
+  disabled = false,
+  width = 'w-60',
+  emptyLabel = 'No matches',
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: SearchOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  width?: string;
+  emptyLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
+  const [pos, setPos] = useState<{ top: number; left: number; w: number; up: boolean } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selected = options.find((o) => o.value === value);
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return options;
+    return options.filter((o) => `${o.label} ${o.sub ?? ''} ${o.group ?? ''} ${o.hint ?? ''}`.toLowerCase().includes(t));
+  }, [options, q]);
+
+  const grouped = useMemo(() => {
+    const m = new Map<string, SearchOption[]>();
+    for (const o of filtered) {
+      const g = o.group ?? '';
+      if (!m.has(g)) m.set(g, []);
+      m.get(g)!.push(o);
+    }
+    return [...m.entries()];
+  }, [filtered]);
+
+  // Position the panel relative to the button; flip up if near the bottom edge.
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const panelH = 300;
+      const up = r.bottom + panelH + 16 > window.innerHeight && r.top > panelH;
+      setPos({ top: up ? r.top - 8 : r.bottom + 8, left: r.left, w: Math.max(r.width, 280), up });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setQ('');
+      setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    setActive(0);
+  }, [q]);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.querySelector(`[data-idx="${active}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
+
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((a) => Math.min(filtered.length - 1, a + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((a) => Math.max(0, a - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const o = filtered[active];
+      if (o) pick(o.value);
+    } else if (e.key === 'Escape') {
+      e.stopPropagation();
+      setOpen(false);
+    }
+  };
+
+  let runningIdx = -1;
+
+  return (
+    <div ref={rootRef} className={`relative ${width}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className={`field flex w-full cursor-pointer items-center justify-between gap-2 text-left transition ${
+          open ? 'border-cyanx-500' : ''
+        } ${disabled ? 'cursor-not-allowed opacity-45' : ''}`}
+      >
+        <span className={`min-w-0 flex-1 truncate ${selected ? 'font-semibold text-mist-100' : 'text-mist-500'}`}>
+          {selected ? selected.label : placeholder}
+        </span>
+        {selected && selected.sub && (
+          <span className="hidden shrink-0 font-mono text-[9px] uppercase tracking-wider text-mist-500 sm:inline">{selected.sub}</span>
+        )}
+        <I
+          n="chevR"
+          className={`h-3.5 w-3.5 shrink-0 text-mist-400 transition-transform duration-200 ${open ? 'rotate-90 text-cyanx-400' : ''}`}
+          sw={2.4}
+        />
+      </button>
+
+      {open && pos && (
+        <div
+          className="anim-pop fixed z-[72] overflow-hidden rounded-lg border border-ink-600 bg-ink-850 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.85)]"
+          style={{
+            left: pos.left,
+            width: pos.w,
+            ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
+          }}
+        >
+          <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2">
+            <I n="search" className="h-3.5 w-3.5 shrink-0 text-mist-500" />
+            <input
+              ref={inputRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={onKey}
+              placeholder="Type to filter…"
+              className="w-full bg-transparent font-mono text-[12px] text-mist-100 outline-none placeholder:text-mist-600"
+            />
+            {q && (
+              <button type="button" onClick={() => setQ('')} className="text-mist-500 transition hover:text-mist-200" title="Clear search">
+                <I n="x" className="h-3 w-3" sw={2.4} />
+              </button>
+            )}
+          </div>
+
+          <div ref={listRef} className="scroll-slim max-h-64 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <p className="px-3 py-5 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-mist-600">
+                {emptyLabel}{q ? ` — “${q}”` : ''}
+              </p>
+            )}
+            {grouped.map(([g, opts]) => (
+              <div key={g || '__none'}>
+                {g && (
+                  <p className="px-3 pb-1 pt-2.5 font-mono text-[8.5px] font-bold uppercase tracking-[0.2em] text-mist-600">{g}</p>
+                )}
+                {opts.map((o) => {
+                  runningIdx += 1;
+                  const idx = runningIdx;
+                  const isActive = idx === active;
+                  const isSel = o.value === value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      data-idx={idx}
+                      onMouseEnter={() => setActive(idx)}
+                      onClick={() => pick(o.value)}
+                      className={`flex w-full items-center gap-2.5 border-l-2 px-3 py-2 text-left transition-colors ${
+                        isActive ? 'border-cyanx-500 bg-cyanx-500/12' : 'border-transparent hover:bg-ink-800/70'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className={`block truncate text-[12.5px] font-semibold ${isActive ? 'text-mist-50' : 'text-mist-200'}`}>
+                          {o.label}
+                        </span>
+                        {o.sub && (
+                          <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-mist-500">{o.sub}</span>
+                        )}
+                      </span>
+                      {isSel && <I n="checkc" className="h-3.5 w-3.5 shrink-0 text-cyanx-400" sw={2.2} />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

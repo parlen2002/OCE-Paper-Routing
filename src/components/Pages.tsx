@@ -2,7 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, timeAgo } from '../lib/core';
-import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, type IconName } from './ui';
+import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, SearchSelect, type IconName, type SearchOption } from './ui';
+
+/** Builds grouped division/team/desk options for the searchable dropdowns. */
+const unitOptions = (withAll: string | null): SearchOption[] => {
+  const group = (d: { id: string; cluster: string }) =>
+    d.id.startsWith('desk-') ? 'Executive desks' : d.cluster === 'ops' ? 'Field operations' : 'Technical services';
+  const base: SearchOption[] = ALL_UNITS.map((d) => ({ value: d.id, label: d.name, sub: d.code, group: group(d) }));
+  return withAll ? [{ value: 'all', label: withAll }, ...base] : base;
+};
 
 function MiniBar({ v, w = 'w-full' }: { v: number; w?: string }) {
   const pct = Math.max(0, Math.min(100, v));
@@ -232,10 +240,7 @@ export function DocumentsPage() {
           {STAGES.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}
         </select>
         {isSup && (
-          <select className="field w-auto" value={divF} onChange={(e) => setDivF(e.target.value)}>
-            <option value="all">All recipients</option>
-            {ALL_UNITS.map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
-          </select>
+          <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-72" placeholder="Filter by recipient…" />
         )}
         <select className="field w-auto" value={kindF} onChange={(e) => setKindF(e.target.value as 'all' | Kind)}>
           <option value="all">All kinds</option>

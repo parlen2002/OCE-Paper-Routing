@@ -57,6 +57,8 @@ interface StoreCtx {
   updateUser: (id: string, patch: Partial<User>) => void;
   changePassword: (current: string, next: string) => string | null;
   requestPasswordReset: () => void;
+  /** Pre-login: officer asks the program admin for a reset to the default password. Returns an error string or null. */
+  requestForgotPassword: (username: string, contact?: string) => string | null;
   approvePasswordReset: (userId: string) => void;
   logout: () => void;
   resetDemo: () => void;
@@ -439,11 +441,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!user || user.passwordResetAt) return;
     setDb((d) => {
       let next: DB = { ...d, users: d.users.map((x) => (x.id === user.id ? { ...x, passwordResetAt: Date.now() } : x)) };
-      next = withLog(next, { userId: user.id, userName: user.name, type: 'resetreq', text: 'Requested a password reset (to 123456) — awaiting program admin verification' });
-      next = pushNotif(next, { text: `Password reset request — ${user.name} (@${user.username}) asks to reset their password to 123456`, kind: 'account', scope: { type: 'supervisors' } }, user);
+      next = withLog(next, { userId: user.id, userName: user.name, type: 'resetreq', text: 'Requested a password reset (to OCE@2026) — awaiting program admin verification' });
+      next = pushNotif(next, { text: `Password reset request — ${user.name} (@${user.username}) asks to reset their password to OCE@2026`, kind: 'account', scope: { type: 'supervisors' } }, user);
       return next;
     });
-    pushToast('ok', 'Reset request sent — the program admin will verify and set it to 123456');
+    pushToast('ok', 'Reset request sent — the program admin will verify and set it to OCE@2026');
+  };
+
+  /** Pre-login flow: locate the account by username and file a reset request for the program admin. */
+  const requestForgotPassword: StoreCtx['requestForgotPassword'] = (username, contact) => {
+    const uname = username.trim().toLowerCase();
+    if (!uname) return 'Enter your username so the administrator can locate your account.';
+    const target = db.users.find((x) => x.username.toLowerCase() === uname);
+    if (!target) return 'No account matches that username — check it, or request a new account instead.';
+    if (target.status === 'disabled') return 'This account has been disabled. Contact the program administrator directly.';
+    if (target.passwordResetAt) return 'A reset request is already pending for this account — the program admin is on it.';
+    const hint = contact?.trim();
+    const targetSnapshot: User = { ...target };
+    setDb((d) => {
+      let next: DB = { ...d, users: d.users.map((x) => (x.id === targetSnapshot.id ? { ...x, passwordResetAt: Date.now() } : x)) };
+      next = withLog(next, {
+        userId: targetSnapshot.id,
+        userName: targetSnapshot.name,
+        type: 'resetreq',
+        text: `Forgot-password request from the sign-in gate${hint ? ` · contact given: ${hint}` : ''} — awaiting program admin verification`,
+      });
+      next = pushNotif(
+        next,
+        {
+          text: `Forgot-password request — ${targetSnapshot.name} (@${targetSnapshot.username})${hint ? ` · ${hint}` : ''} asks to reset to OCE@2026`,
+          kind: 'account',
+          scope: { type: 'supervisors' },
+        },
+        targetSnapshot
+      );
+      return next;
+    });
+    fireBrowser('OCE Flow — forgot password', `${targetSnapshot.name} (@${targetSnapshot.username}) requested a password reset`);
+    return null;
   };
 
   const approvePasswordReset = (userId: string) => {
@@ -451,12 +486,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const t = db.users.find((x) => x.id === userId);
     if (!t) return;
     setDb((d) => {
-      let next: DB = { ...d, users: d.users.map((x) => (x.id === userId ? { ...x, password: '123456', passwordResetAt: undefined } : x)) };
-      next = withLog(next, { userId: user.id, userName: user.name, type: 'reset', text: `Approved password reset for ${t.name} (@${t.username}) — set to 123456` });
-      next = pushNotif(next, { text: 'Your password was reset by the administrator — your new password is 123456', kind: 'account', scope: { type: 'division', divisionId: t.divisionId ?? '' }, targetUserId: t.id }, user);
+      let next: DB = { ...d, users: d.users.map((x) => (x.id === userId ? { ...x, password: 'OCE@2026', passwordResetAt: undefined } : x)) };
+      next = withLog(next, { userId: user.id, userName: user.name, type: 'reset', text: `Approved password reset for ${t.name} (@${t.username}) — set to the default OCE@2026` });
+      next = pushNotif(next, { text: 'Your password was reset by the administrator — your new default password is OCE@2026. Change it from your profile after signing in.', kind: 'account', scope: { type: 'division', divisionId: t.divisionId ?? '' }, targetUserId: t.id }, user);
       return next;
     });
-    pushToast('ok', `${t.name}'s password reset to 123456 — they have been notified`);
+    pushToast('ok', `${t.name}'s password reset to OCE@2026 — they have been notified`);
   };
 
   const logout = () => {
@@ -809,7 +844,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     db, user, toasts, ui, activities, visiblePapers, visibleNotifs, unread,
     canEdit, userUnitId, employeesOf,
     login, signup, approveUser, denyUser, updateUser,
-    changePassword, requestPasswordReset, approvePasswordReset,
+    changePassword, requestPasswordReset, requestForgotPassword, approvePasswordReset,
     logout, resetDemo,
     go: (page) => setUi((u) => ({ ...u, page })),
     openDrawer: (id) => setUi((u) => ({ ...u, drawerId: id })),

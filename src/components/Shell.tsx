@@ -83,12 +83,12 @@ function ProfileModal() {
             {me.passwordResetAt ? (
               <p className="mt-1.5 flex items-start gap-2 text-[11.5px] leading-relaxed text-amberx-400">
                 <I n="clock" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />
-                Reset request sent {timeAgo(me.passwordResetAt)} — the program admin will verify it and set your password to 123456.
+                Reset request sent {timeAgo(me.passwordResetAt)} — the program admin will verify it and set your password to OCE@2026.
               </p>
             ) : (
               <>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-mist-500">
-                  Send a request to the program admin. Once verified, your password is reset to <b className="font-mono text-mist-300">123456</b> — change it again after signing in.
+                  Send a request to the program admin. Once verified, your password is reset to the default <b className="font-mono text-mist-300">OCE@2026</b> — change it again after signing in.
                 </p>
                 <button className="btn btn-ghost mt-2 w-full justify-center" onClick={requestPasswordReset}>
                   <I n="refresh" className="h-3.5 w-3.5" sw={2.2} /> Request admin password reset

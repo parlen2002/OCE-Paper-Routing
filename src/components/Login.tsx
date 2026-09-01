@@ -13,12 +13,17 @@ const QUICK = [
 ];
 
 export function Login() {
-  const { login, signup } = useStore();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const { login, signup, requestForgotPassword } = useStore();
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [u, setU] = useState('');
   const [p, setP] = useState('');
   const [err, setErr] = useState('');
   const [shake, setShake] = useState(0);
+
+  const [fpUser, setFpUser] = useState('');
+  const [fpContact, setFpContact] = useState('');
+  const [fpErr, setFpErr] = useState('');
+  const [fpDone, setFpDone] = useState(false);
 
   const [suName, setSuName] = useState('');
   const [suUser, setSuUser] = useState('');
@@ -47,6 +52,13 @@ export function Login() {
     const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, phone: suPhone, address: suAddress, email: suEmail });
     if (reason) return setSuErr(reason);
     setSuDone(true);
+  };
+
+  const submitForgot = (e: React.FormEvent) => {
+    e.preventDefault();
+    const reason = requestForgotPassword(fpUser, fpContact);
+    if (reason) return setFpErr(reason);
+    setFpDone(true);
   };
 
   return (
@@ -117,10 +129,19 @@ export function Login() {
                 <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Username</span>
                 <input className="field font-mono" autoComplete="username" value={u} onChange={(e) => { setU(e.target.value); setErr(''); }} placeholder="e.g. agrande" />
               </label>
-              <label className="mb-3 block">
+              <label className="mb-1.5 block">
                 <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Password</span>
                 <input className="field font-mono" type="password" autoComplete="current-password" value={p} onChange={(e) => { setP(e.target.value); setErr(''); }} placeholder="••••••••••" />
               </label>
+              <div className="mb-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => { setMode('forgot'); setFpUser(u); setFpErr(''); setFpDone(false); }}
+                  className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-cyanx-400 underline decoration-cyanx-500/40 underline-offset-4 transition hover:text-cyanx-300 hover:decoration-cyanx-300"
+                >
+                  Forgot password?
+                </button>
+              </div>
               {err && (
                 <p className="mb-3 flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
                   <I n="lock" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />{err}
@@ -143,6 +164,50 @@ export function Login() {
                 </div>
               </div>
             </form>
+          ) : mode === 'forgot' ? (
+            fpDone ? (
+              <div className="anim-pop rounded-lg border border-greenx-500/40 bg-greenx-500/[0.07] p-5 text-center">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-greenx-500/50 bg-greenx-500/15 text-greenx-500">
+                  <I n="checkc" className="h-6 w-6" sw={1.8} />
+                </span>
+                <p className="font-display text-[20px] font-bold uppercase tracking-wider text-mist-50">Reset request sent</p>
+                <p className="mx-auto mt-2 max-w-xs text-[12.5px] leading-relaxed text-mist-400">
+                  The program administrator will verify your request. Once approved, your password becomes the default{' '}
+                  <b className="font-mono text-mist-200">OCE@2026</b> — sign in with it and change it from your profile.
+                </p>
+                <button className="btn btn-ghost mx-auto mt-4" onClick={() => { setMode('signin'); setFpDone(false); setFpUser(''); setFpContact(''); }}>
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={submitForgot} className="anim-fade-up">
+                <p className="font-display text-[22px] font-bold uppercase tracking-wider text-mist-50">Forgot password</p>
+                <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-mist-400">
+                  Send a reset request to the program administrator. After verification, your password is set to the default{' '}
+                  <b className="font-mono text-mist-200">OCE@2026</b>.
+                </p>
+                <label className="mb-3 block">
+                  <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Your username *</span>
+                  <input className="field font-mono" autoComplete="username" value={fpUser} onChange={(e) => { setFpUser(e.target.value); setFpErr(''); }} placeholder="e.g. agrande" />
+                </label>
+                <label className="mb-3 block">
+                  <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Email or phone (helps the admin verify it's you)</span>
+                  <input className="field font-mono" value={fpContact} onChange={(e) => { setFpContact(e.target.value); setFpErr(''); }} placeholder="e.g. juan@oce.pp.gov.ph" />
+                </label>
+                {fpErr && (
+                  <p className="mb-3 flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
+                    <I n="lock" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />{fpErr}
+                  </p>
+                )}
+                <button className="btn btn-primary w-full justify-center" type="submit" disabled={!fpUser.trim()}>
+                  <I n="send" className="h-4 w-4" sw={2} /> Send reset request
+                </button>
+                <button type="button" onClick={() => { setMode('signin'); setFpErr(''); }}
+                  className="mt-3 w-full text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-mist-500 transition hover:text-mist-200">
+                  ← Back to sign in
+                </button>
+              </form>
+            )
           ) : suDone ? (
             <div className="anim-pop rounded-lg border border-greenx-500/40 bg-greenx-500/[0.07] p-5 text-center">
               <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-greenx-500/50 bg-greenx-500/15 text-greenx-500">

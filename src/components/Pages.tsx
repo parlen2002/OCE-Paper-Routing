@@ -937,10 +937,10 @@ export function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13.5px] font-bold text-mist-50">{u.name}</p>
                   <p className="truncate font-mono text-[9.5px] uppercase tracking-wider text-mist-500">@{u.username} · asked {u.passwordResetAt ? timeAgo(u.passwordResetAt) : ''}</p>
-                  <p className="mt-0.5 text-[11px] text-mist-400">Approving resets the password to <b className="font-mono text-mist-200">123456</b>.</p>
+                  <p className="mt-0.5 text-[11px] text-mist-400">Approving resets the password to the default <b className="font-mono text-mist-200">OCE@2026</b>.</p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
-                  <button onClick={() => approvePasswordReset(u.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]"><I n="check" className="h-3.5 w-3.5" sw={2.4} /> Reset to 123456</button>
+                  <button onClick={() => approvePasswordReset(u.id)} className="btn btn-primary px-3 py-1.5 text-[11.5px]"><I n="check" className="h-3.5 w-3.5" sw={2.4} /> Reset to OCE@2026</button>
                   <button onClick={() => updateUser(u.id, { passwordResetAt: undefined })} className="btn btn-ghost px-3 py-1.5 text-[11.5px]">Dismiss</button>
                 </div>
               </div>

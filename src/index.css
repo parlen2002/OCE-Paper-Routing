@@ -56,6 +56,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Readability scale for smaller office monitors (e.g. 19"). Magnifies the whole
+   interface ~18% — text, chips, icons and spacing together — while reflowing into
+   the same physical viewport so nothing overflows. Tweak the two 1.18 values to taste. */
+body {
+  zoom: 1.18;
+  width: calc(100% / 1.18);
+}
+
 .bg-blueprint {
   background-image:
     radial-gradient(1100px 700px at 88% -12%, rgba(86, 200, 240, 0.08), transparent 60%),
@@ -133,13 +141,17 @@ body {
 .print-only { display: none !important; }
 @media print {
   .print-only { display: block !important; }
-  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  /* cancel the on-screen readability zoom for print… */
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; zoom: 1 !important; width: auto !important; }
   body * { visibility: hidden !important; }
   .print-sheet, .print-sheet * { visibility: visible !important; }
   .print-sheet {
     -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
     position: absolute !important; left: 0 !important; top: 0 !important;
-    width: 100% !important; max-height: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    /* …and enlarge the sheet itself so printed text is comfortable to read
+       (reflows across more pages instead of shrinking margins). */
+    zoom: 1.25;
+    width: calc(100% / 1.25) !important; max-height: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
   }
   .print-reset {
     position: static !important; inset: auto !important; display: block !important;

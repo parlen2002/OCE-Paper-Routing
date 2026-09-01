@@ -261,11 +261,14 @@ export function SearchSelect({
     const measure = () => {
       const r = rootRef.current?.getBoundingClientRect();
       if (!r) return;
+      // The layout is magnified via CSS `zoom`; getBoundingClientRect reports visual px
+      // while the portaled panel's own px are pre-zoom — divide offsets by the factor.
+      const zf = parseFloat(getComputedStyle(document.body).zoom) || 1;
       const panelH = 300;
       const up = r.bottom + panelH + 16 > window.innerHeight && r.top > panelH;
       const w = Math.min(Math.max(r.width, 340), Math.min(480, window.innerWidth - 24));
       const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
-      setPos({ top: up ? r.top - 8 : r.bottom + 8, left, w, up });
+      setPos({ top: (up ? r.top - 8 : r.bottom + 8) / zf, left: left / zf, w: w / zf, up });
     };
     measure();
     window.addEventListener('resize', measure);

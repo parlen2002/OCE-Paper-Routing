@@ -1323,6 +1323,45 @@ export function MessagesPage() {
   const members = channel?.memberIds?.map((id) => db.users.find((u) => u.id === id)).filter((u): u is User => !!u) ?? [];
   const addable = db.users.filter((u) => u.status === 'active' && !(channel?.memberIds ?? []).includes(u.id));
 
+  /* ---- grouped, ordered channel list (executives / floor / divisions / teams) ---- */
+  const execChans = visibleChannels.filter((c) => c.kind === 'executive');
+  const floorChans = visibleChannels.filter((c) => c.kind === 'floor');
+  // Unit channels, excluding the two executive-desk channels (City Engineer / Asst. City Engineer).
+  const unitChans = visibleChannels.filter((c) => c.kind === 'unit' && !(c.unitId ?? '').startsWith('desk-'));
+  const divChans = unitChans.filter((c) => DIVISIONS.some((d) => d.id === c.unitId));
+  const teamChans = unitChans.filter((c) => CROSS_UNITS.some((d) => d.id === c.unitId));
+
+  const chanRow = (c: Channel) => {
+    const un = unreadFor(c.id);
+    const active = channel?.id === c.id;
+    const tint = c.unitId ? (c.kind === 'unit' ? CU_TINT[c.unitId] ?? CH_TINT.unit : CH_TINT[c.kind]) : CH_TINT[c.kind];
+    return (
+      <button key={c.id} onClick={() => { setSelCh(c.id); }}
+        className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
+        style={active ? { borderColor: `${tint}90` } : undefined}>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
+          <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
+          <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+            {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
+          </span>
+        </span>
+        {un > 0 && (
+          <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
+        )}
+      </button>
+    );
+  };
+
+  const groupLabel = (text: string) => (
+    <div className="flex items-center gap-2 px-1.5 pt-3.5 first:pt-0">
+      <span className="shrink-0 font-mono text-[8px] font-bold uppercase tracking-[0.24em] text-mist-600">{text}</span>
+      <span className="h-px flex-1 bg-ink-700/70" />
+    </div>
+  );
+
   return (
     <div>
       <PageHead kicker="Live coordination" title="Messages"
@@ -1333,29 +1372,30 @@ export function MessagesPage() {
         <section className="anim-fade-up self-start rounded-lg border border-ink-700 bg-ink-900/80 p-3">
           <p className="px-1.5 pb-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.22em] text-mist-500">Channels · {visibleChannels.length}</p>
           <div className="scroll-slim max-h-[64vh] space-y-1.5 overflow-y-auto pr-1">
-            {visibleChannels.map((c) => {
-              const un = unreadFor(c.id);
-              const active = channel?.id === c.id;
-              const tint = c.unitId ? (c.kind === 'unit' ? CU_TINT[c.unitId] ?? CH_TINT.unit : CH_TINT[c.kind]) : CH_TINT[c.kind];
-              return (
-                <button key={c.id} onClick={() => { setSelCh(c.id); }}
-                  className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
-                  style={active ? { borderColor: `${tint}90` } : undefined}>
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
-                    <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
-                    <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
-                      {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
-                    </span>
-                  </span>
-                  {un > 0 && (
-                    <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
-                  )}
-                </button>
-              );
-            })}
+            {execChans.length > 0 && (
+              <>
+                {groupLabel('Executive')}
+                {execChans.map(chanRow)}
+              </>
+            )}
+            {floorChans.length > 0 && (
+              <>
+                {groupLabel('Office')}
+                {floorChans.map(chanRow)}
+              </>
+            )}
+            {divChans.length > 0 && (
+              <>
+                {groupLabel('Divisions')}
+                {divChans.map(chanRow)}
+              </>
+            )}
+            {teamChans.length > 0 && (
+              <>
+                {groupLabel('Teams')}
+                {teamChans.map(chanRow)}
+              </>
+            )}
           </div>
         </section>
 

@@ -293,7 +293,10 @@ export function SearchSelect({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -342,6 +345,44 @@ export function SearchSelect({
 
   let runningIdx = -1;
 
+  // Few options → a plain native select is the better control.
+  if (options.length <= searchableThreshold) {
+    const groups = new Map<string, SearchOption[]>();
+    for (const o of options) {
+      const g = o.group ?? '';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g)!.push(o);
+    }
+    return (
+      <select
+        className={`field ${width === 'w-full' ? '' : width}`}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {[...groups.entries()].map(([g, opts]) =>
+          g ? (
+            <optgroup key={g} label={g}>
+              {opts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                  {o.sub ? ` · ${o.sub}` : ''}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            opts.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+                {o.sub ? ` · ${o.sub}` : ''}
+              </option>
+            ))
+          )
+        )}
+      </select>
+    );
+  }
+
   return (
     <div ref={rootRef} className={`relative ${width}`}>
       <button
@@ -365,9 +406,11 @@ export function SearchSelect({
         />
       </button>
 
-      {open && pos && (
+      {open && pos &&
+        createPortal(
         <div
-          className="anim-pop fixed z-[72] overflow-hidden rounded-lg border border-ink-600 bg-ink-850 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.85)]"
+          ref={panelRef}
+          className="anim-pop fixed z-[95] overflow-hidden rounded-lg border border-ink-600 bg-ink-850 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.85)]"
           style={{
             left: pos.left,
             width: pos.w,
@@ -433,7 +476,8 @@ export function SearchSelect({
               </div>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

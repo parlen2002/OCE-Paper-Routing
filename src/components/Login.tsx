@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../lib/store';
 import { ALL_UNITS, DIVISIONS, CROSS_UNITS } from '../lib/core';
-import { I, Seal } from './ui';
+import { I, Seal, SearchSelect, type SearchOption } from './ui';
 
 const QUICK = [
   { u: 'admin', label: 'System Admin' },
@@ -245,10 +245,16 @@ export function Login() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team *</span>
-                  <select className="field" value={suDiv} onChange={(e) => { setSuDiv(e.target.value); setSuErr(''); }}>
-                    {DIVISIONS.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-                    {CROSS_UNITS.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-                  </select>
+                  <SearchSelect
+                    value={suDiv}
+                    onChange={(v) => { setSuDiv(v); setSuErr(''); }}
+                    options={[
+                      ...DIVISIONS.map((d): SearchOption => ({ value: d.id, label: d.name, sub: d.code, group: 'Divisions' })),
+                      ...CROSS_UNITS.map((d): SearchOption => ({ value: d.id, label: d.name, sub: d.code, group: 'Cross-division units' })),
+                    ]}
+                    width="w-full"
+                    placeholder="Search division / team…"
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Designation</span>

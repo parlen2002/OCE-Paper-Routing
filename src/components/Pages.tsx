@@ -583,10 +583,7 @@ export function ActivityPage() {
       />
       <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
         {isSup && (
-          <select className="field w-auto" value={divF} onChange={(e) => setDivF(e.target.value)}>
-            <option value="all">All desks</option>
-            {ALL_UNITS.map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
-          </select>
+          <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All desks')} width="w-72" placeholder="Search a desk…" />
         )}
         <label className="flex items-center gap-2">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mist-500">Month</span>
@@ -811,10 +808,14 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team</span>
-              <select className="field" value={divisionId} disabled={!divEditable} onChange={(e) => { setDivisionId(e.target.value); setErr(''); }}>
-                <option value="">— none —</option>
-                {[...DIVISIONS, ...CROSS_UNITS].map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-              </select>
+              <SearchSelect
+                value={divisionId}
+                onChange={(v) => { setDivisionId(v); setErr(''); }}
+                disabled={!divEditable}
+                options={unitOptions('— none —')}
+                width="w-full"
+                placeholder="Search division / team…"
+              />
               {!needsDivision && role === 'moderator' && (
                 <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
                   Optional — anchors the moderator to a home desk for board filters
@@ -1314,10 +1315,16 @@ export function LogsPage() {
       </div>
 
       <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
-        <select className="field w-auto" value={userF} onChange={(e) => setUserF(e.target.value)}>
-          <option value="all">All officers</option>
-          {db.users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
-        </select>
+        <SearchSelect
+          value={userF}
+          onChange={setUserF}
+          options={[
+            { value: 'all', label: 'All officers' },
+            ...db.users.map((u) => ({ value: u.id, label: u.name, sub: `@${u.username} · ${u.title}` })),
+          ]}
+          width="w-72"
+          placeholder="Search an officer…"
+        />
         <div className="flex overflow-hidden rounded-md border border-ink-600">
           {(['all', 'access', 'workflow'] as const).map((s) => (
             <button key={s} onClick={() => setScope(s)}

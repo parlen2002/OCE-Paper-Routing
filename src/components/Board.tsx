@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById } from '../lib/core';
 import type { Paper, Stage } from '../lib/core';
-import { I, DivChip, KindTag, PriorityTag, ProgressBar } from './ui';
+import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect } from './ui';
 import { timeAgo } from '../lib/core';
 
 function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; onOpen: () => void }) {
@@ -314,17 +314,33 @@ export function Board() {
         </label>
         <label className="flex items-center gap-1.5">
           <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Barangay</span>
-          <select className="field w-auto py-1 font-mono text-[10.5px]" value={brgyF} onChange={(e) => setBrgyF(e.target.value)}>
-            <option value="all">All barangays</option>
-            {barangays.map((b) => (<option key={b} value={b}>Brgy. {b}</option>))}
-          </select>
+          <SearchSelect
+            value={brgyF}
+            onChange={setBrgyF}
+            options={[
+              { value: 'all', label: 'All barangays' },
+              ...barangays.map((b) => ({ value: b, label: `Brgy. ${b}` })),
+            ]}
+            width="w-48"
+            placeholder="Search barangay…"
+          />
         </label>
         <label className="flex items-center gap-1.5">
           <span className="font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Employee</span>
-          <select className="field w-auto py-1 font-mono text-[10.5px]" value={empF} onChange={(e) => setEmpF(e.target.value)}>
-            <option value="all">All personnel</option>
-            {empRoster.map((e) => (<option key={e.id} value={e.id}>{e.name} · {divById(e.divisionId ?? '')?.code ?? ''}</option>))}
-          </select>
+          <SearchSelect
+            value={empF}
+            onChange={setEmpF}
+            options={[
+              { value: 'all', label: 'All personnel' },
+              ...empRoster.map((e) => ({
+                value: e.id,
+                label: e.name,
+                sub: `${e.title} · ${divById(e.divisionId ?? '')?.code ?? ''}`,
+              })),
+            ]}
+            width="w-56"
+            placeholder="Search employee…"
+          />
         </label>
         {hasExtraFilters && (
           <button className="btn btn-ghost py-1 text-[11px]" onClick={() => { setMonthF(''); setBrgyF('all'); setEmpF('all'); }}>

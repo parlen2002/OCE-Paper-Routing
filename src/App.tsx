@@ -8,7 +8,7 @@ import { Board } from './components/Board';
 import { DocDrawer } from './components/Drawer';
 import { NewDocModal } from './components/NewDoc';
 import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage } from './components/Pages';
-import { I, Seal, Toasts } from './components/ui';
+import { I, Seal, Toasts, SearchSelect, type SearchOption } from './components/ui';
 
 /* ---------------- startup fault + error boundary ---------------- */
 window.addEventListener('error', (e) => {
@@ -502,10 +502,21 @@ export function ReportModal() {
               <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="field w-[150px] py-1.5 font-mono text-[11.5px]" />
               <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
               {canSelectAll ? (
-                <select className="field w-auto py-1.5 font-mono text-[11px]" value={divSel} onChange={(e) => setDivSel(e.target.value)}>
-                  <option value="all">All divisions & offices</option>
-                  {ALL_UNITS.map((d) => (<option key={d.id} value={d.id}>{d.code} · {d.name}</option>))}
-                </select>
+                <SearchSelect
+                  value={divSel}
+                  onChange={setDivSel}
+                  options={[
+                    { value: 'all', label: 'All divisions & offices' },
+                    ...ALL_UNITS.map((d): SearchOption => ({
+                      value: d.id,
+                      label: d.name,
+                      sub: d.code,
+                      group: d.id.startsWith('desk-') ? 'Executive desks' : d.cluster === 'ops' ? 'Field operations' : 'Technical services',
+                    })),
+                  ]}
+                  width="w-72"
+                  placeholder="Search a division / office…"
+                />
               ) : (
                 <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider ${isField ? 'border-tealx-500/50 bg-tealx-500/10 text-tealx-400' : 'border-cyanx-500/50 bg-cyanx-500/10 text-cyanx-400'}`}
                   title="The report is limited to the papers on your own tracker board">

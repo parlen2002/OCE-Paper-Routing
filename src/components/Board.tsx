@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
-import { CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById } from '../lib/core';
+import { CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById, extractBarangays } from '../lib/core';
 import type { Paper, Stage } from '../lib/core';
 import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect } from './ui';
 import { timeAgo } from '../lib/core';
@@ -190,17 +190,9 @@ export function Board() {
   const isWide = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
   const myDiv = me?.divisionId ? divById(me.divisionId) : undefined;
 
-  /** Barangays mentioned across the visible paperwork (title, origin, remarks). */
+  /** Barangays mentioned across the visible paperwork, plus the administrator's custom list. */
   const barangays = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of visiblePapers) {
-      const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`;
-      for (const m of hay.matchAll(/(?:Brgy\.?|Barangay)\s+([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+)?)/g)) {
-        const name = m[1].replace(/\s+(Phase|Ext|cor|near|along|frontage|shoreline|road|street)\b.*$/i, '').trim();
-        if (name.length > 2) set.add(name);
-      }
-    }
-    // Merge in the administrator's custom barangay list.
+    const set = new Set(extractBarangays(visiblePapers));
     for (const b of custom.barangays ?? []) set.add(b.replace(/^Brgy\.?\s+/i, '').trim());
     return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [visiblePapers, custom.barangays]);
@@ -317,7 +309,8 @@ export function Board() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search ref, title, origin, PIC…"
-            className="field w-64 py-1 pl-11 font-mono text-[11px]"
+            title="Search by: paper reference (OCE-2026-…), title, origin, division name, or person-in-charge"
+            className="field w-80 py-1 pl-11 font-mono text-[11px]"
           />
           {q && (
             <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo, extractBarangays } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, SearchSelect, type IconName, type SearchOption } from './ui';
 
 /** Builds grouped division/team/desk options for the searchable dropdowns. */
@@ -242,7 +242,8 @@ export function DocumentsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search ref, title, origin…"
-            className="field w-64 py-1.5 pl-11 font-mono text-[11.5px]"
+            title="Search by: paper reference (OCE-2026-…), title, origin, or division name"
+            className="field w-80 py-1.5 pl-11 font-mono text-[11.5px]"
           />
           {q && (
             <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
@@ -1790,13 +1791,15 @@ function readFileAsUrl(f: File): Promise<string> {
 }
 
 export function CustomizePage() {
-  const { user, custom, updateCustom, pushToast } = useStore();
+  const { user, db, custom, updateCustom, pushToast } = useStore();
   const [newBrgy, setNewBrgy] = useState('');
   const logoRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   if (user?.role !== 'admin') return null;
 
   const brgyList = custom.barangays ?? [];
+  /** Barangays the board already detects from the demo / live paperwork. */
+  const derivedBrgys = useMemo(() => extractBarangays(db.papers), [db.papers]);
 
   const addBrgy = () => {
     const v = newBrgy.trim().replace(/^Brgy\.?\s+/i, '').trim();
@@ -1987,34 +1990,67 @@ export function CustomizePage() {
             <h3 className="mb-4 flex items-center gap-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">
               <I n="pin" className="h-4 w-4 text-tealx-400" sw={2} /> Barangay list (board filter)
             </h3>
-            <div className="mb-3 flex gap-2">
-              <input
-                className="field"
-                placeholder="e.g. San Jose"
-                value={newBrgy}
-                onChange={(e) => setNewBrgy(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addBrgy()}
-              />
-              <button className="btn btn-primary shrink-0 px-4" onClick={addBrgy}>
-                <I n="plus" className="h-4 w-4" sw={2.2} /> Add
-              </button>
+            <p className="mb-4 -mt-1 text-[11.5px] leading-relaxed text-mist-500">
+              Names detected from paperwork appear automatically; custom names are always kept in the Tracker Board's Barangay filter.
+            </p>
+
+            {/* detected from paperwork (read-only) */}
+            <div className="mb-4">
+              <span className="mb-1.5 block font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mist-600">
+                Detected from paperwork · {derivedBrgys.length}
+              </span>
+              {derivedBrgys.length === 0 ? (
+                <p className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+                  Nothing detected yet — mention "Brgy. …" in a paper's title, origin or remarks.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {derivedBrgys.map((b) => (
+                    <span key={b} className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-mist-300">
+                      <I n="pin" className="h-2.5 w-2.5 text-mist-500" sw={2.2} />
+                      {b}
+                      <span className="rounded-sm bg-ink-700 px-1 py-px text-[7.5px] font-bold text-mist-500">auto</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            {brgyList.length === 0 ? (
-              <p className="py-3 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
-                No custom barangays — the board derives them from paper details.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {brgyList.map((b) => (
-                  <span key={b} className="inline-flex items-center gap-1.5 rounded-md border border-tealx-500/40 bg-tealx-500/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-tealx-400">
-                    {b}
-                    <button onClick={() => updateCustom({ barangays: brgyList.filter((x) => x !== b) })} className="text-tealx-400/70 transition hover:text-redx-400" title="Remove">
-                      <I n="x" className="h-2.5 w-2.5" sw={2.6} />
-                    </button>
-                  </span>
-                ))}
+
+            {/* custom additions */}
+            <div>
+              <span className="mb-1.5 block font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mist-600">
+                Custom names · {brgyList.length}
+              </span>
+              <div className="mb-3 flex gap-2">
+                <input
+                  className="field"
+                  placeholder="e.g. San Jose"
+                  title="Type a barangay name — it will always appear in the board's Barangay filter"
+                  value={newBrgy}
+                  onChange={(e) => setNewBrgy(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addBrgy()}
+                />
+                <button className="btn btn-primary shrink-0 px-4" onClick={addBrgy}>
+                  <I n="plus" className="h-4 w-4" sw={2.2} /> Add
+                </button>
               </div>
-            )}
+              {brgyList.length === 0 ? (
+                <p className="py-2 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
+                  No custom names yet — add one to keep it in the filter permanently.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {brgyList.map((b) => (
+                    <span key={b} className="anim-pop inline-flex items-center gap-1.5 rounded-md border border-tealx-500/40 bg-tealx-500/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-tealx-400">
+                      {b}
+                      <button onClick={() => updateCustom({ barangays: brgyList.filter((x) => x !== b) })} className="text-tealx-400/70 transition hover:text-redx-400" title="Remove">
+                        <I n="x" className="h-2.5 w-2.5" sw={2.6} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         </div>
       </div>

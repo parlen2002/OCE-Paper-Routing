@@ -460,6 +460,19 @@ export async function buildAttachments(
   return { atts, skipped };
 }
 
+/** Extracts the distinct barangay names mentioned across paperwork (title, origin, remarks). */
+export function extractBarangays(papers: Paper[]): string[] {
+  const set = new Set<string>();
+  for (const p of papers) {
+    const hay = `${p.title} ${p.origin} ${p.remarks ?? ''}`;
+    for (const m of hay.matchAll(/(?:Brgy\.?|Barangay)\s+([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+)?)/g)) {
+      const name = m[1].replace(/\s+(Phase|Ext|cor|near|along|frontage|shoreline|road|street)\b.*$/i, '').trim();
+      if (name.length > 2) set.add(name);
+    }
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 /* ---------------- seed ---------------- */
 
 const D = 864e5;

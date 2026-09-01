@@ -1,97 +1,150 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230a1728'/%3E%3Cpath d='M6 16.5 12 6l6 10.5' stroke='%23ff6b1c' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>coder-app-name</title>
+    <title>OCE Flow — CGPP Office of the City Engineer, Puerto Princesa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      media="print"
+      onload="this.media='all'"
     />
-    <style>
-      /* 内联样式确保主题色立即生效，避免闪烁 */
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-      }
-      html.light,
-      html.light body {
-        background-color: #ffffff !important;
-        color: #000000;
-      }
-      html.dark,
-      html.dark body {
-        background-color: #1a1a1a !important;
-        color: #ffffff;
-      }
-    </style>
-    <script>
-      // 在 React 加载前立即设置主题，避免闪烁
-      (function () {
-        const isInIframe = window.self !== window.top;
-
-        function applyThemeToDOM(theme) {
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(theme);
-          document.documentElement.setAttribute("data-theme", theme);
-        }
-
-        if (isInIframe) {
-          // 监听父窗口主动推送的主题消息
-          window.addEventListener("message", function (event) {
-            if (event.data && typeof event.data.theme === "string") {
-              const theme = event.data.theme;
-              if (theme === "light" || theme === "dark") {
-                applyThemeToDOM(theme);
-              }
-            }
-          });
-        } else {
-          // 非 iframe 环境，使用默认 light 主题
-          applyThemeToDOM("light");
-        }
-      })();
-    </script>
-      <script>
-      (function () {
-        if (window.self === window.top) return;
-        var reported = {};
-        window.addEventListener("error", function (event) {
-          // 资源加载失败的 error 事件没有 message，此处仅上报 JS 运行时错误
-          if (!event || !event.message) return;
-          var key =
-            event.message + "|" + (event.filename || "") + "|" + (event.lineno || 0);
-          if (reported[key]) return; // 相同错误只上报一次，避免渲染循环刷屏
-          reported[key] = true;
-          try {
-            window.parent.postMessage(
-              {
-                type: "sandbox-runtime-error",
-                payload: {
-                  message: String(event.message).slice(0, 500),
-                  filename: event.filename || "",
-                  lineno: event.lineno || 0,
-                  colno: event.colno || 0,
-                  stack:
-                    event.error && event.error.stack
-                      ? String(event.error.stack).slice(0, 2000)
-                      : ""
-                }
-              },
-              "*"
-            );
-          } catch (e) {
-            /* 上报失败不影响页面运行 */
-          }
-        });
-      })();
-    </script>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="root">
+      <div id="boot-sentinel" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#071120;z-index:60;">
+        <svg id="boot-seal" class="seal" viewBox="0 0 48 48" style="width:64px;height:64px;animation:bootPulse 1.6s ease-in-out infinite;">
+          <circle cx="24" cy="24" r="21" fill="none" stroke="#ff6b1c" stroke-width="2.2"/>
+          <circle cx="24" cy="24" r="16.5" fill="none" stroke="#56c8f0" stroke-width="1.1" opacity="0.8"/>
+          <path d="M14 30.5 24 13l10 17.5" fill="none" stroke="#ff6b1c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M17.5 30.5h13" stroke="#56c8f0" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="24" cy="34.5" r="1.6" fill="#fbc94a"/>
+        </svg>
+        <div style="text-align:center;">
+          <p id="boot-title" style="font-family:'Big Shoulders Display','Arial Narrow',sans-serif;font-size:30px;font-weight:700;letter-spacing:.08em;color:#f2f7fc;margin:0;text-transform:uppercase;">OCE <em style="color:#ff6b1c;font-style:normal;">Flow</em></p>
+          <p id="boot-sub" style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:#6684a3;margin:8px 0 0;">Paperwork flow command · starting</p>
+        </div>
+        <div class="bars" style="display:flex;gap:6px;">
+          <i style="width:46px;height:5px;border-radius:3px;background:linear-gradient(90deg,#122540,#56c8f0,#122540);background-size:200% 100%;animation:bootShimmer 1.3s linear infinite;"></i>
+          <i style="width:64px;height:5px;border-radius:3px;background:linear-gradient(90deg,#122540,#56c8f0,#122540);background-size:200% 100%;animation:bootShimmer 1.3s linear infinite;animation-delay:.15s;"></i>
+          <i style="width:34px;height:5px;border-radius:3px;background:linear-gradient(90deg,#122540,#56c8f0,#122540);background-size:200% 100%;animation:bootShimmer 1.3s linear infinite;animation-delay:.3s;"></i>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes bootShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      @keyframes bootPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .85; } }
+      body { background: #071120; }
+    </style>
+    <script>
+      // Startup fault reporter — built with DOM APIs (no escaping hazards).
+      window.addEventListener('error', function (e) {
+        if (document.getElementById('boot-fault')) return;
+        var boot = document.getElementById('boot-sentinel');
+        var panel = document.createElement('div');
+        panel.id = 'boot-fault';
+        panel.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;z-index:999;background:#071120;';
+        var card = document.createElement('div');
+        card.style.cssText = 'max-width:560px;border:1px solid #274468;background:#0d1d31;border-radius:10px;padding:28px;font-family:ui-monospace,monospace;color:#e4edf6;';
+        var kicker = document.createElement('p');
+        kicker.textContent = 'OCE FLOW — STARTUP FAULT';
+        kicker.style.cssText = 'letter-spacing:.2em;font-size:11px;color:#ff8a4c;margin:0;';
+        var title = document.createElement('p');
+        title.textContent = 'The app could not start';
+        title.style.cssText = 'font-size:18px;font-weight:700;margin:8px 0 4px;font-family:Segoe UI,sans-serif;';
+        var msg = document.createElement('p');
+        msg.textContent = String((e && e.message) || 'Unknown error');
+        msg.style.cssText = 'font-size:12px;color:#a9c0d6;margin:0 0 6px;word-break:break-word;';
+        var loc = document.createElement('p');
+        loc.textContent = ((e && e.filename) || '') + ':' + ((e && e.lineno) || '');
+        loc.style.cssText = 'font-size:11px;color:#86a2be;margin:0;';
+        var btn = document.createElement('button');
+        btn.textContent = 'Clear data & reseed';
+        btn.style.cssText = 'margin-top:16px;padding:8px 14px;border-radius:6px;border:1px solid #274468;background:#122540;color:#e4edf6;cursor:pointer;font-family:inherit;';
+        btn.onclick = function () { try { localStorage.clear(); } catch (x) {} location.reload(); };
+        card.appendChild(kicker); card.appendChild(title); card.appendChild(msg); card.appendChild(loc); card.appendChild(btn);
+        panel.appendChild(card);
+        if (boot) boot.parentNode.replaceChild(panel, boot);
+        else document.body.appendChild(panel);
+      });
+    </script>
+    <script>
+      // Watchdog — if the app never mounts, say why and offer a reset.
+      window.__OCE_BOOTED__ = false;
+      setTimeout(function () {
+        if (window.__OCE_BOOTED__ || document.getElementById('boot-fault')) return;
+        var boot = document.getElementById('boot-sentinel');
+        if (!boot) return;
+        var sub = document.getElementById('boot-sub');
+        if (sub) sub.textContent = 'boot stalled — clear the data below to reseed';
+        var btn = document.createElement('button');
+        btn.textContent = 'Clear data & reseed';
+        btn.style.cssText = 'margin-top:6px;padding:8px 16px;border-radius:6px;border:1px solid #ff8a4c;background:rgba(255,107,28,.12);color:#ffa36e;cursor:pointer;font-family:IBM Plex Mono,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;';
+        btn.onclick = function () { try { localStorage.clear(); } catch (x) {} location.reload(); };
+        boot.appendChild(btn);
+      }, 8000);
+    </script>
+    <script>
+      // Apply saved branding (custom logo, accents, tagline) to the boot screen instantly.
+      (function () {
+        try {
+          var key = null;
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf('ppc-ceoflow') === 0) { key = k; break; }
+          }
+          if (!key) return;
+          var db = JSON.parse(localStorage.getItem(key) || 'null');
+          var c = (db && db.custom) || {};
+          var a1 = c.accent || '#ff6b1c';
+          var a2 = c.accent2 || '#56c8f0';
+          var seal = document.getElementById('boot-seal');
+          if (seal) {
+            if (c.logoKind === 'custom' && c.logoUrl) {
+              var img = document.createElement('img');
+              img.alt = 'Logo';
+              img.src = c.logoUrl;
+              img.style.cssText = 'width:64px;height:64px;border-radius:9999px;object-fit:cover;box-shadow:0 0 0 2px ' + a1 + '55, 0 0 26px ' + a1 + '33;';
+              seal.parentNode.replaceChild(img, seal);
+            } else {
+              var kind = c.logoKind || 'seal';
+              var outer = '<circle cx="24" cy="24" r="21" fill="none" stroke="' + a1 + '" stroke-width="2.2"/>' +
+                '<circle cx="24" cy="24" r="16.5" fill="none" stroke="' + a2 + '" stroke-width="1.1" opacity="0.8"/>';
+              var core;
+              if (kind === 'gear') {
+                core = '<circle cx="24" cy="24" r="7" fill="none" stroke="' + a1 + '" stroke-width="2.4"/><circle cx="24" cy="24" r="2.4" fill="' + a2 + '"/>';
+                for (var g = 0; g < 8; g++) {
+                  var ang = (g * Math.PI) / 4;
+                  core += '<line x1="' + (24 + Math.cos(ang) * 8.5).toFixed(2) + '" y1="' + (24 + Math.sin(ang) * 8.5).toFixed(2) +
+                    '" x2="' + (24 + Math.cos(ang) * 12.5).toFixed(2) + '" y2="' + (24 + Math.sin(ang) * 12.5).toFixed(2) +
+                    '" stroke="' + a1 + '" stroke-width="2.4" stroke-linecap="round"/>';
+                }
+              } else if (kind === 'bridge') {
+                core = '<path d="M12 31c3.5-9 20.5-9 24 0" fill="none" stroke="' + a1 + '" stroke-width="2.6" stroke-linecap="round"/>' +
+                  '<path d="M17.5 31h13" stroke="' + a2 + '" stroke-width="2" stroke-linecap="round"/>';
+              } else {
+                core = '<path d="M14 30.5 24 13l10 17.5" fill="none" stroke="' + a1 + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+                  '<path d="M17.5 30.5h13" stroke="' + a2 + '" stroke-width="2" stroke-linecap="round"/>';
+              }
+              seal.innerHTML = outer + core + '<circle cx="24" cy="34.5" r="1.6" fill="#fbc94a"/>';
+            }
+          }
+          var sub = document.getElementById('boot-sub');
+          if (sub && (c.tagline || c.orgName)) sub.textContent = (c.tagline || c.orgName) + ' · starting';
+          var em = document.querySelector('#boot-title em');
+          if (em) em.style.color = a1;
+          var bars = document.querySelectorAll('#boot-sentinel .bars i');
+          for (var b = 0; b < bars.length; b++) {
+            bars[b].style.background = 'linear-gradient(90deg, #122540, ' + a2 + ', #122540)';
+            bars[b].style.backgroundSize = '200% 100%';
+          }
+        } catch (e) { /* branding is best-effort */ }
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

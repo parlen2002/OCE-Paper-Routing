@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Attachment, Kind, Priority } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, buildAttachments, divById } from '../lib/core';
-import { I } from './ui';
+import { I, SearchSelect } from './ui';
 
 export function NewDocModal() {
   const { user, ui, setNewOpen, createPaper, pushToast, employeesOf } = useStore();
@@ -79,15 +79,13 @@ export function NewDocModal() {
           <div className="grid gap-3.5 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">Document kind</span>
-              <select className="field" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-                {Object.entries(KINDS).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-              </select>
+              <SearchSelect value={kind} onChange={(v) => setKind(v as Kind)} width="w-full"
+                options={Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))} />
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400">Priority</span>
-              <select className="field" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-                {Object.entries(PRIORITIES).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-              </select>
+              <SearchSelect value={priority} onChange={(v) => setPriority(v as Priority)} width="w-full"
+                options={Object.entries(PRIORITIES).map(([k, v]) => ({ value: k, label: v.label }))} />
             </label>
           </div>
 

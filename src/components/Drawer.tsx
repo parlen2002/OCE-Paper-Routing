@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Attachment, Kind, Paper, Priority, Stage } from '../lib/core';
 import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, mapsLink, osmEmbed, timeAgo, fmtDT } from '../lib/core';
-import { I, DivChip, KindTag, PriorityTag, StageChip, Section, ProgressBar } from './ui';
+import { I, DivChip, KindTag, PriorityTag, StageChip, Section, ProgressBar, SearchSelect } from './ui';
 
 function ConfirmDialog({
   title, kicker, body, confirmLabel, danger, icon, onConfirm, onClose,
@@ -149,15 +149,13 @@ function EditDocModal({ paper, onClose }: { paper: Paper; onClose: () => void })
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Kind</span>
-              <select className="field" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-                {Object.entries(KINDS).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-              </select>
+              <SearchSelect value={kind} onChange={(v) => setKind(v as Kind)} width="w-full"
+                options={Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))} />
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Priority</span>
-              <select className="field" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-                {Object.entries(PRIORITIES).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-              </select>
+              <SearchSelect value={priority} onChange={(v) => setPriority(v as Priority)} width="w-full"
+                options={Object.entries(PRIORITIES).map(([k, v]) => ({ value: k, label: v.label }))} />
             </label>
           </div>
           <label className="block">
@@ -566,11 +564,17 @@ export function DocDrawer() {
               <div className="grid gap-2.5 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-500">Move to stage</span>
-                  <select className="field" value={paper.stage} disabled={!editable} onChange={(e) => doMove(e.target.value as Stage)}>
-                    {STAGES.filter((s) => !(isField && s.id === 'completed')).map((s) => (
-                      <option key={s.id} value={s.id}>{s.label}{isField && s.id === 'verification' ? ' — final stage before head verification' : ''}</option>
-                    ))}
-                  </select>
+                  <SearchSelect
+                    value={paper.stage}
+                    onChange={(v) => doMove(v as Stage)}
+                    disabled={!editable}
+                    width="w-full"
+                    options={STAGES.filter((s) => !(isField && s.id === 'completed')).map((s) => ({
+                      value: s.id,
+                      label: s.label,
+                      sub: isField && s.id === 'verification' ? 'final stage before head verification' : s.hint,
+                    }))}
+                  />
                 </label>
                 <div className="sm:col-span-2">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">

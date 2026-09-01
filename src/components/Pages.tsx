@@ -235,17 +235,21 @@ export function DocumentsPage() {
       />
 
       <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
-        <select className="field w-auto" value={stage} onChange={(e) => setStage(e.target.value as 'all' | Stage)}>
-          <option value="all">All stages</option>
-          {STAGES.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}
-        </select>
+        <SearchSelect
+          value={stage}
+          onChange={(v) => setStage(v as 'all' | Stage)}
+          width="w-44"
+          options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s.id, label: s.label, hint: s.hint }))]}
+        />
         {isSup && (
           <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-72" placeholder="Filter by recipient…" />
         )}
-        <select className="field w-auto" value={kindF} onChange={(e) => setKindF(e.target.value as 'all' | Kind)}>
-          <option value="all">All kinds</option>
-          {Object.entries(KINDS).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-        </select>
+        <SearchSelect
+          value={kindF}
+          onChange={(v) => setKindF(v as 'all' | Kind)}
+          width="w-44"
+          options={[{ value: 'all', label: 'All kinds' }, ...Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))]}
+        />
         <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-mist-500">{rows.length} record{rows.length === 1 ? '' : 's'}</span>
       </div>
 
@@ -394,15 +398,23 @@ function DivisionManager({ divId, onClose }: { divId: string; onClose: () => voi
               ))}
             </div>
 
-            <label className="mt-2.5 block">
+            <div className="mt-2.5">
               <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">
                 {mode === 'temporary' ? 'Officer to act as OIC' : 'Officer to appoint as permanent head'}
               </span>
-              <select className="field" value={headSel} onChange={(e) => setHeadSel(e.target.value)}>
-                <option value="">— select an officer —</option>
-                {activeUsers.map((u) => (<option key={u.id} value={u.id}>{u.name} · {u.title}</option>))}
-              </select>
-            </label>
+              <SearchSelect
+                value={headSel}
+                onChange={setHeadSel}
+                options={activeUsers.map((u) => ({
+                  value: u.id,
+                  label: u.name,
+                  sub: `${u.title}${u.divisionId ? ` · ${divById(u.divisionId)?.code ?? ''}` : ''}`,
+                  group: u.role === 'supervisor' || u.role === 'admin' || u.role === 'moderator' ? 'Executive & staff' : u.role === 'division' ? 'Division heads & officers' : 'Personnel',
+                }))}
+                width="w-full"
+                placeholder="Search an officer…"
+              />
+            </div>
 
             {mode === 'temporary' && (
               <label className="mt-2.5 block">
@@ -797,14 +809,19 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Role</span>
-              <select className="field" value={role} onChange={(e) => { setRole(e.target.value as Role); setErr(''); }}>
-                <option value="division">Division Head</option>
-                <option value="employee">Employee</option>
-                <option value="joborder">Job-Order</option>
-                <option value="moderator">Moderator</option>
-                <option value="supervisor">Dept. Head</option>
-                <option value="admin">Admin</option>
-              </select>
+              <SearchSelect
+                value={role}
+                onChange={(v) => { setRole(v as Role); setErr(''); }}
+                width="w-full"
+                options={[
+                  { value: 'division', label: 'Division Head', sub: 'runs the division queue' },
+                  { value: 'employee', label: 'Employee', sub: 'personal work board' },
+                  { value: 'joborder', label: 'Job-Order', sub: 'personal work board' },
+                  { value: 'moderator', label: 'Moderator', sub: 'oversight & boards' },
+                  { value: 'supervisor', label: 'Dept. Head', sub: 'executive' },
+                  { value: 'admin', label: 'Admin', sub: 'full control' },
+                ]}
+              />
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Division / team</span>
@@ -824,11 +841,16 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
             </label>
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Status</span>
-              <select className="field" value={status} onChange={(e) => setStatus(e.target.value as UserStatus)}>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="disabled">Disabled</option>
-              </select>
+              <SearchSelect
+                value={status}
+                onChange={(v) => setStatus(v as UserStatus)}
+                width="w-full"
+                options={[
+                  { value: 'active', label: 'Active', sub: 'can sign in' },
+                  { value: 'pending', label: 'Pending', sub: 'awaiting verification' },
+                  { value: 'disabled', label: 'Disabled', sub: 'sign-in blocked' },
+                ]}
+              />
             </label>
           </div>
           <label className="block">
@@ -1513,10 +1535,17 @@ export function MessagesPage() {
                     ))}
                   </div>
                   <div className="mt-2.5 flex items-center gap-2">
-                    <select className="field w-auto py-1.5 font-mono text-[11px]" value={addSel} onChange={(e) => setAddSel(e.target.value)}>
-                      <option value="">— add a member —</option>
-                      {addable.map((u0) => (<option key={u0.id} value={u0.id}>{u0.name} · {u0.title}</option>))}
-                    </select>
+                    <SearchSelect
+                      value={addSel}
+                      onChange={setAddSel}
+                      width="w-72"
+                      placeholder="Search personnel to join…"
+                      options={addable.map((u0) => ({
+                        value: u0.id,
+                        label: u0.name,
+                        sub: `${u0.title}${u0.divisionId ? ` · ${divById(u0.divisionId)?.code ?? ''}` : ''}`,
+                      }))}
+                    />
                     <button className="btn btn-primary px-3 py-1.5 text-[11px]" disabled={!addSel}
                       onClick={() => { manageChannelMember(channel.id, addSel, true); setAddSel(''); }}>
                       <I n="plus" className="h-3.5 w-3.5" sw={2.4} /> Join to council
@@ -1581,10 +1610,28 @@ export function MessagesPage() {
                     </div>
                     <div className="mt-2 flex items-center gap-2">
                       <I n="clip" className="h-3.5 w-3.5 shrink-0 text-mist-500" sw={2} />
-                      <select className="field w-auto max-w-xs py-1 font-mono text-[10.5px]" value={docSel} onChange={(e) => setDocSel(e.target.value)}>
-                        <option value="">Attach a paper (optional)</option>
-                        {visiblePapers.slice(0, 60).map((p) => (<option key={p.id} value={p.id}>{p.ref} — {p.title.slice(0, 40)}</option>))}
-                      </select>
+                      <SearchSelect
+                        value={docSel}
+                        onChange={setDocSel}
+                        options={visiblePapers.slice(0, 120).map((p) => ({
+                          value: p.id,
+                          label: p.ref,
+                          sub: p.title,
+                          group: p.stage === 'completed' ? 'Completed' : 'Open',
+                        }))}
+                        width="w-80"
+                        placeholder="Attach a paper (optional) — type ref or title…"
+                      />
+                      {docSel && (
+                        <button
+                          type="button"
+                          onClick={() => setDocSel('')}
+                          className="rounded p-1 text-mist-500 transition hover:bg-ink-700 hover:text-redx-400"
+                          title="Remove attached paper"
+                        >
+                          <I n="x" className="h-3.5 w-3.5" sw={2.2} />
+                        </button>
+                      )}
                       <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Delivered live to every open session</span>
                     </div>
                   </>

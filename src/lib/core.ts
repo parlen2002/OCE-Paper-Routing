@@ -160,9 +160,11 @@ export interface Message {
   authorName: string;
   text: string;
   at: number;
-  /** Optional linked paperwork. */
+  /** Optional linked paperwork (single, legacy). */
   docId?: string;
   docRef?: string;
+  /** Multiple attached paperwork chips. */
+  docs?: { id: string; ref: string }[];
   /** System event (member added / removed). */
   system?: boolean;
 }

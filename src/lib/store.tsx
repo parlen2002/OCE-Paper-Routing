@@ -127,7 +127,7 @@ interface StoreCtx {
   unreadFor: (chId: string) => number;
   msgUnreadTotal: number;
   canPostChannel: (ch: Channel) => boolean;
-  sendMsg: (channelId: string, text: string, docId?: string) => void;
+  sendMsg: (channelId: string, text: string, docIds?: string[]) => void;
   markChannelRead: (chId: string) => void;
   manageChannelMember: (channelId: string, userId: string, add: boolean) => void;
   markAllRead: () => void;
@@ -475,7 +475,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const messagesOf = (chId: string): Message[] =>
     (db.messages ?? []).filter((m) => m.channelId === chId).sort((a, b) => a.at - b.at);
 
-  const sendMsg: StoreCtx['sendMsg'] = (channelId, text, docId) => {
+  const sendMsg: StoreCtx['sendMsg'] = (channelId, text, docIds) => {
     if (!me) return;
     const ch = (db.channels ?? []).find((c) => c.id === channelId);
     if (!ch) return;
@@ -485,10 +485,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     const t = text.trim();
     if (!t) return;
-    const doc = docId ? db.papers.find((p) => p.id === docId) : undefined;
+    const docs = (docIds ?? [])
+      .map((id) => db.papers.find((p) => p.id === id))
+      .filter((p): p is Paper => !!p)
+      .map((p) => ({ id: p.id, ref: p.ref }));
     const m: Message = {
       id: uid(), channelId, authorId: me.id, authorName: me.name,
-      text: t.slice(0, 600), at: Date.now(), docId: doc?.id, docRef: doc?.ref,
+      text: t.slice(0, 600), at: Date.now(),
+      docs: docs.length ? docs : undefined,
     };
     setDb((d) => ({ ...d, messages: [...(d.messages ?? []), m] }));
   };

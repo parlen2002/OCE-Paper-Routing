@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, timeAgo } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, EmptyState, SearchSelect, type IconName, type SearchOption } from './ui';
 
 /** Builds grouped division/team/desk options for the searchable dropdowns. */
@@ -1410,7 +1410,9 @@ export function MessagesPage() {
 
   const [sel, setSel] = useState<string | null>(visibleChannels[0]?.id ?? null);
   const [draft, setDraft] = useState('');
-  const [docSel, setDocSel] = useState('');
+  const [attachIds, setAttachIds] = useState<string[]>([]);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachQ, setAttachQ] = useState('');
   const [mgrOpen, setMgrOpen] = useState(false);
   const [addSel, setAddSel] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1437,10 +1439,22 @@ export function MessagesPage() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!channel || !draft.trim() || !canPost) return;
-    sendMsg(channel.id, draft, docSel || undefined);
+    sendMsg(channel.id, draft, attachIds.length ? attachIds : undefined);
     setDraft('');
-    setDocSel('');
+    setAttachIds([]);
+    setAttachOpen(false);
+    setAttachQ('');
   };
+
+  const toggleAttach = (id: string) =>
+    setAttachIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  const attachResults = useMemo(() => {
+    const t = attachQ.trim().toLowerCase();
+    return visiblePapers
+      .filter((p) => !t || `${p.ref} ${p.title} ${p.origin}`.toLowerCase().includes(t))
+      .slice(0, 40);
+  }, [visiblePapers, attachQ]);
 
   const groups: { title: string; items: Channel[] }[] = [
     { title: 'Executive', items: visibleChannels.filter((c) => c.kind === 'executive') },
@@ -1577,11 +1591,29 @@ export function MessagesPage() {
                           </p>
                           <div className="mt-1 rounded-lg rounded-tl-sm border border-ink-700 bg-ink-850 px-3 py-2 text-[13px] leading-relaxed text-mist-200">
                             {m.text}
-                            {m.docId && m.docRef && (
-                              <button onClick={() => openDrawer(m.docId!)} className="mt-2 flex w-fit items-center gap-1.5 rounded-md border border-cyanx-500/50 bg-cyanx-500/10 px-2 py-1 font-mono text-[10px] font-bold text-cyanx-400 transition hover:bg-cyanx-500/20">
-                                <I n="file" className="h-3 w-3" sw={2.2} /> {m.docRef} — open paper
-                              </button>
-                            )}
+                            {(() => {
+                              const docs = m.docs ?? (m.docId && m.docRef ? [{ id: m.docId, ref: m.docRef }] : []);
+                              if (docs.length === 0) return null;
+                              return (
+                                <span className="mt-2 flex flex-wrap gap-1.5">
+                                  {docs.map((d) => {
+                                    const p = db.papers.find((x) => x.id === d.id);
+                                    return (
+                                      <button
+                                        key={d.id}
+                                        onClick={() => openDrawer(d.id)}
+                                        className="flex max-w-full items-center gap-1.5 rounded-md border border-cyanx-500/50 bg-cyanx-500/10 px-2 py-1 text-left transition hover:bg-cyanx-500/20"
+                                        title={p?.title ?? d.ref}
+                                      >
+                                        <I n="file" className="h-3 w-3 shrink-0 text-cyanx-400" sw={2.2} />
+                                        <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400">{d.ref}</span>
+                                        {p && <span className="max-w-[140px] truncate text-[10.5px] font-semibold text-mist-300">{p.title}</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1609,32 +1641,108 @@ export function MessagesPage() {
                         <I n="send" className="h-4 w-4" sw={2} /> Send
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <I n="clip" className="h-3.5 w-3.5 shrink-0 text-mist-500" sw={2} />
-                      <SearchSelect
-                        value={docSel}
-                        onChange={setDocSel}
-                        options={visiblePapers.slice(0, 120).map((p) => ({
-                          value: p.id,
-                          label: p.ref,
-                          sub: p.title,
-                          group: p.stage === 'completed' ? 'Completed' : 'Open',
-                        }))}
-                        width="w-80"
-                        allowClear
-                        placeholder="Attach a paper (optional) — type ref or title…"
-                      />
-                      {docSel && (
+                    <div className="relative mt-2">
+                      {/* selected paper chips */}
+                      {attachIds.length > 0 && (
+                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                          {attachIds.map((id) => {
+                            const p = visiblePapers.find((x) => x.id === id) ?? db.papers.find((x) => x.id === id);
+                            if (!p) return null;
+                            return (
+                              <span key={id} className="anim-pop inline-flex max-w-full items-center gap-1.5 rounded-md border border-cyanx-500/45 bg-cyanx-500/10 py-1 pl-2 pr-1.5">
+                                <I n="file" className="h-3 w-3 shrink-0 text-cyanx-400" sw={2.2} />
+                                <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400">{p.ref}</span>
+                                <span className="max-w-[180px] truncate text-[11px] font-semibold text-mist-200" title={p.title}>{p.title}</span>
+                                <button type="button" onClick={() => toggleAttach(id)} className="rounded p-0.5 text-cyanx-400/70 transition hover:bg-redx-500/15 hover:text-redx-400" title="Remove">
+                                  <I n="x" className="h-2.5 w-2.5" sw={2.8} />
+                                </button>
+                              </span>
+                            );
+                          })}
+                          {attachIds.length > 1 && (
+                            <button type="button" onClick={() => setAttachIds([])} className="rounded px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-mist-500 transition hover:text-redx-400">
+                              Clear all
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* attach bar */}
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setDocSel('')}
-                          className="rounded p-1 text-mist-500 transition hover:bg-ink-700 hover:text-redx-400"
-                          title="Remove attached paper"
+                          onClick={() => setAttachOpen((o) => !o)}
+                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
+                            attachOpen || attachIds.length > 0
+                              ? 'border-cyanx-500/60 bg-cyanx-500/12 text-cyanx-400'
+                              : 'border-ink-600 bg-ink-850 text-mist-400 hover:border-cyanx-500/50 hover:text-mist-200'
+                          }`}
                         >
-                          <I n="x" className="h-3.5 w-3.5" sw={2.2} />
+                          <I n="clip" className="h-3.5 w-3.5" sw={2.2} />
+                          Attach papers
+                          {attachIds.length > 0 && (
+                            <span className="rounded-full bg-cyanx-500 px-1.5 py-px text-[9px] font-bold text-ink-950 tabular">{attachIds.length}</span>
+                          )}
                         </button>
+                        <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Delivered live to every open session</span>
+                      </div>
+
+                      {/* picker popover — opens upward like a chat attachment tray */}
+                      {attachOpen && (
+                        <div className="anim-pop absolute bottom-full left-0 z-30 mb-2 w-full max-w-lg overflow-hidden rounded-lg border border-ink-600 bg-ink-850 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.85)]">
+                          <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2">
+                            <I n="search" className="h-3.5 w-3.5 shrink-0 text-mist-500" />
+                            <input
+                              autoFocus
+                              value={attachQ}
+                              onChange={(e) => setAttachQ(e.target.value)}
+                              placeholder="Search by ref, title or origin…"
+                              className="w-full bg-transparent font-mono text-[11px] text-mist-100 outline-none placeholder:text-mist-600"
+                            />
+                            <span className="shrink-0 font-mono text-[9px] text-mist-600 tabular">{attachResults.length}</span>
+                            <button type="button" onClick={() => setAttachOpen(false)} className="shrink-0 rounded p-0.5 text-mist-500 transition hover:text-redx-400">
+                              <I n="x" className="h-3 w-3" sw={2.6} />
+                            </button>
+                          </div>
+                          <div className="scroll-slim max-h-64 overflow-y-auto py-1">
+                            {attachResults.length === 0 && (
+                              <p className="px-3 py-6 text-center font-mono text-[9.5px] uppercase tracking-[0.18em] text-mist-600">No papers match</p>
+                            )}
+                            {attachResults.map((p) => {
+                              const on = attachIds.includes(p.id);
+                              const done = p.stage === 'completed';
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => toggleAttach(p.id)}
+                                  className={`flex w-full items-center gap-2.5 border-l-2 px-3 py-2 text-left transition ${
+                                    on ? 'border-cyanx-500 bg-cyanx-500/12' : 'border-transparent hover:bg-ink-800/70'
+                                  }`}
+                                >
+                                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 text-ink-950' : 'border-ink-600'}`}>
+                                    {on && <I n="check" className="h-2.5 w-2.5" sw={3} />}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[12.5px] font-bold leading-tight text-mist-100">{p.title}</span>
+                                    <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-mist-500">
+                                      <span className="font-bold text-cyanx-400/90">{p.ref}</span>
+                                      {divById(p.divisionId)?.code}
+                                      <span className={done ? 'text-greenx-500' : 'text-amberx-400'}>{done ? 'completed' : stageMeta(p.stage).label}</span>
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center justify-between border-t border-ink-700 px-3 py-1.5">
+                            <span className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Tick every paper to attach</span>
+                            <button type="button" onClick={() => setAttachOpen(false)} className="font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 transition hover:text-cyanx-300">
+                              Done
+                            </button>
+                          </div>
+                        </div>
                       )}
-                      <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Delivered live to every open session</span>
                     </div>
                   </>
                 ) : (

@@ -1799,7 +1799,7 @@ export function CustomizePage() {
   const brgyList = custom.barangays ?? [];
 
   const addBrgy = () => {
-    const v = newBrgy.trim();
+    const v = newBrgy.trim().replace(/^Brgy\.?\s+/i, '').trim();
     if (!v) return;
     if (brgyList.some((b) => b.toLowerCase() === v.toLowerCase())) {
       pushToast('warn', 'That barangay is already on the list.');
@@ -1990,7 +1990,7 @@ export function CustomizePage() {
             <div className="mb-3 flex gap-2">
               <input
                 className="field"
-                placeholder="e.g. Brgy. San Jose"
+                placeholder="e.g. San Jose"
                 value={newBrgy}
                 onChange={(e) => setNewBrgy(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addBrgy()}

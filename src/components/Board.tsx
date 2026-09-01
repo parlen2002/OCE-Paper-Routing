@@ -336,7 +336,7 @@ export function Board() {
             onChange={setBrgyF}
             options={[
               { value: 'all', label: 'All barangays' },
-              ...barangays.map((b) => ({ value: b, label: `Brgy. ${b}` })),
+              ...barangays.map((b) => ({ value: b, label: b })),
             ]}
             width="w-48"
             placeholder="Search barangay…"

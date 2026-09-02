@@ -35,6 +35,7 @@ export function Dashboard() {
     { label: 'Being worked', value: working, hint: 'In progress + verification', color: '#ff8a4c', icon: 'wrench' },
     { label: 'Closed this week', value: doneWeek, hint: 'Completed, last 7 days', color: '#45d483', icon: 'checkc' },
     { label: 'Urgent open', value: urgentOpen.length, hint: 'Needs a department head eye', color: '#f4645c', icon: 'alert' },
+    { label: 'Overdue', value: overdueOpen.length, hint: 'Past deadline — act now', color: '#f5b924', icon: 'clock' },
   ];
 
   const ACT_META: Record<Activity['type'], { icon: IconName; color: string }> = {
@@ -62,7 +63,7 @@ export function Dashboard() {
         </button>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {stats.map((s, i) => (
           <div key={s.label} className="anim-fade-up relative overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 70}ms` }}>
             <span className="absolute right-3 top-3" style={{ color: `${s.color}66` }}><I n={s.icon} className="h-6 w-6" sw={1.4} /></span>
@@ -272,29 +273,26 @@ export function DocumentsPage() {
         }
       />
 
-      <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-ink-700/70 bg-ink-900/55 px-3 py-2.5">
-        <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-mist-500">
-          <I n="file" className="h-3 w-3" sw={2.2} /> Register
-        </span>
-        <div className="relative min-w-[220px] flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ref, title, origin…"
+      <div className="anim-fade-up scroll-slim mb-4 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-ink-700/70 bg-ink-900/55 px-3 py-2.5">
+        <div className="relative w-52 shrink-0">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ref, title…"
             title="Search by: paper reference (OCE-2026-…), title, origin, or division name"
-            className="field w-full py-1.5 pl-11 font-mono text-[11.5px]" />
+            className="field w-52 py-1.5 pl-9 font-mono text-[11.5px]" />
           {q && (
-            <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
+            <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
               <I n="x" className="h-3 w-3" sw={2.6} />
             </button>
           )}
         </div>
-        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-40"
+        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-52"
           options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s.id, label: s.label, sub: s.hint }))]} />
-        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-60" placeholder="Recipient…" />}
-        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-40"
+        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-52" placeholder="All recipients" />}
+        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-52"
           options={[{ value: 'all', label: 'All kinds' }, ...Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))]} />
         {(q || stage !== 'all' || divF !== 'all' || kindF !== 'all') && (
           <button onClick={() => { setQ(''); setStage('all'); setDivF('all'); setKindF('all'); }}
-            className="btn btn-ghost px-2.5 py-1 text-[11px]">
+            className="btn btn-ghost shrink-0 px-2.5 py-1 text-[11px]">
             <I n="x" className="h-3 w-3" sw={2.4} /> Clear
           </button>
         )}

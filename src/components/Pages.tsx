@@ -1291,8 +1291,7 @@ export function MessagesPage() {
   const [attachQ, setAttachQ] = useState('');
   const [manageOpen, setManageOpen] = useState(false);
   const [addSel, setAddSel] = useState('');
-  /* per-channel conversation search */
-  const [searchCh, setSearchCh] = useState<string | null>(null);
+  /* conversation search — lives inside the chat window of each channel */
   const [searchQ, setSearchQ] = useState('');
   /* inline message editing (author, 10-min window) */
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1349,8 +1348,8 @@ export function MessagesPage() {
   const canEditMsg = (m: Message) => !!me && !m.system && m.authorId === me.id && Date.now() - m.at < MSG_EDIT_WINDOW;
   const canDeleteMsg = (m: Message) => !!me && !m.system && (m.authorId === me.id || isOverseer);
 
-  /* ---- conversation search ---- */
-  const searching = searchCh !== null && searchCh === channel?.id && searchQ.trim().length > 0;
+  /* ---- conversation search (active while the query is non-empty) ---- */
+  const searching = searchQ.trim().length > 0;
   const shownMsgs = useMemo(() => {
     if (!searching) return msgs;
     const q = searchQ.trim().toLowerCase();
@@ -1388,33 +1387,23 @@ export function MessagesPage() {
     const un = unreadFor(c.id);
     const active = channel?.id === c.id;
     const tint = c.unitId ? (c.kind === 'unit' ? CU_TINT[c.unitId] ?? CH_TINT.unit : CH_TINT[c.kind]) : CH_TINT[c.kind];
-    const isSearching = searchCh === c.id;
     return (
-      <div key={c.id}
-        className={`group/chan flex w-full items-center gap-1.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
+      <button key={c.id} onClick={() => setSelCh(c.id)}
+        className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
         style={active ? { borderColor: `${tint}90` } : undefined}>
-        <button onClick={() => { setSelCh(c.id); if (isSearching) { setSearchCh(null); setSearchQ(''); } }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
-            <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
+          <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
+          <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+            {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
-            <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
-              {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
-            </span>
-          </span>
-          {un > 0 && (
-            <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
-          )}
-        </button>
-        <button
-          onClick={() => { setSelCh(c.id); setSearchCh(isSearching ? null : c.id); setSearchQ(''); }}
-          title={isSearching ? 'Close search' : `Search ${c.name}`}
-          className={`shrink-0 rounded p-1 transition ${isSearching ? 'bg-amberx-400/20 text-amberx-400' : 'text-mist-500 hover:bg-ink-700 hover:text-cyanx-400'}`}
-        >
-          <I n="search" className="h-3.5 w-3.5" sw={2.2} />
-        </button>
-      </div>
+        </span>
+        {un > 0 && (
+          <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
+        )}
+      </button>
     );
   };
 
@@ -1543,27 +1532,32 @@ export function MessagesPage() {
                 </div>
               )}
 
-              {/* conversation search bar */}
-              {searching && channel && (
-                <div className="flex items-center gap-2.5 border-b border-ink-700 bg-amberx-500/[0.05] px-4 py-2">
-                  <I n="search" className="h-3.5 w-3.5 shrink-0 text-amberx-400" sw={2.2} />
+              {/* in-window conversation search — always available, filters as you type */}
+              {channel && (
+                <div className={`flex items-center gap-2.5 border-b px-4 py-2 transition-colors ${searching ? 'border-amberx-500/40 bg-amberx-500/[0.06]' : 'border-ink-700 bg-ink-900/40'}`}>
+                  <I n="search" className={`h-3.5 w-3.5 shrink-0 transition-colors ${searching ? 'text-amberx-400' : 'text-mist-500'}`} sw={2.2} />
                   <input
-                    autoFocus
                     value={searchQ}
                     onChange={(e) => setSearchQ(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Escape') { setSearchCh(null); setSearchQ(''); } }}
-                    placeholder={`Search this conversation…`}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setSearchQ(''); }}
+                    placeholder={`Search the ${channel.name} conversation…`}
                     className="w-full bg-transparent font-mono text-[12px] text-mist-100 outline-none placeholder:text-mist-600"
                   />
-                  <span className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wider text-amberx-400 tabular">
-                    {shownMsgs.length} of {msgs.length} match{shownMsgs.length === 1 ? '' : 'es'}
-                  </span>
-                  <button
-                    onClick={() => { setSearchCh(null); setSearchQ(''); }}
-                    className="shrink-0 rounded p-1 text-mist-400 transition hover:bg-ink-700 hover:text-redx-400"
-                    title="Close search (Esc)">
-                    <I n="x" className="h-3.5 w-3.5" sw={2.4} />
-                  </button>
+                  {searching ? (
+                    <>
+                      <span className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wider text-amberx-400 tabular">
+                        {shownMsgs.length} of {msgs.length} match{shownMsgs.length === 1 ? '' : 'es'}
+                      </span>
+                      <button
+                        onClick={() => setSearchQ('')}
+                        className="shrink-0 rounded p-1 text-mist-400 transition hover:bg-ink-700 hover:text-redx-400"
+                        title="Clear search (Esc)">
+                        <I n="x" className="h-3.5 w-3.5" sw={2.4} />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="shrink-0 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">{msgs.length} message{msgs.length === 1 ? '' : 's'}</span>
+                  )}
                 </div>
               )}
 

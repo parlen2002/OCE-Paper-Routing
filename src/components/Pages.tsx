@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo, extractBarangays } from '../lib/core';
@@ -491,7 +492,8 @@ export function DivisionsPage() {
 /* ------------------------------------------------ activity log */
 function PrintActivityModal({ rows, scopeLabel, onClose }: { rows: Activity[]; scopeLabel: string; onClose: () => void }) {
   const META: Record<Activity['type'], string> = { create: 'Logged', move: 'Moved', route: 'Routed', note: 'Remark', attach: 'Attached', complete: 'Completed' };
-  return (
+  // Portal to <body> so the app is removed from the print flow cleanly.
+  return createPortal(
     <div className="print-reset fixed inset-0 z-[68] overflow-y-auto">
       <div className="no-print fixed inset-0 bg-ink-950/85 backdrop-blur-sm" onClick={onClose} />
       <div className="print-reset relative mx-auto my-6 w-[min(880px,94vw)]">
@@ -531,7 +533,8 @@ function PrintActivityModal({ rows, scopeLabel, onClose }: { rows: Activity[]; s
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1113,7 +1116,8 @@ const LOG_META: Record<string, { icon: IconName; color: string; label: string }>
 };
 
 function PrintLogsModal({ rows, onClose }: { rows: { id: string; at: number; userName: string; type: string; text: string; ref?: string }[]; onClose: () => void }) {
-  return (
+  // Portal to <body> so the app is removed from the print flow cleanly.
+  return createPortal(
     <div className="print-reset fixed inset-0 z-[68] overflow-y-auto">
       <div className="no-print fixed inset-0 bg-ink-950/85 backdrop-blur-sm" onClick={onClose} />
       <div className="print-reset relative mx-auto my-6 w-[min(860px,94vw)]">
@@ -1156,7 +1160,8 @@ function PrintLogsModal({ rows, onClose }: { rows: { id: string; at: number; use
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

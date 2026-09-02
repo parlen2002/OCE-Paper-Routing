@@ -141,15 +141,22 @@ body {
 .print-only { display: none !important; }
 @media print {
   .print-only { display: block !important; }
-  /* cancel the on-screen readability zoom for print… */
+
+  /* A4 with comfortable half-inch margins on every side. */
+  @page { size: A4 portrait; margin: 0.5in; }
+
+  /* Cancel the on-screen readability zoom for print. */
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; zoom: 1 !important; width: auto !important; }
-  body * { visibility: hidden !important; }
-  .print-sheet, .print-sheet * { visibility: visible !important; }
+
+  /* The print sheet is rendered through a portal (direct child of <body>),
+     so the whole app can be removed from the print flow — no overlay offsets,
+     no blank pages, content paginates in normal document flow. */
+  #root, #boot-sentinel { display: none !important; }
+
   .print-sheet {
     -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
-    position: absolute !important; left: 0 !important; top: 0 !important;
-    /* …and enlarge the sheet itself so printed text is comfortable to read
-       (reflows across more pages instead of shrinking margins). */
+    position: static !important; left: auto !important; top: auto !important;
+    /* Enlarge the sheet for readable print — reflows across more pages. */
     zoom: 1.25;
     width: calc(100% / 1.25) !important; max-height: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
   }
@@ -160,7 +167,6 @@ body {
   }
   .print-scroll { max-height: none !important; height: auto !important; overflow: visible !important; }
   .no-print { display: none !important; }
-  @page { size: A4 portrait; margin: 10mm 9mm; }
 }
 
 @keyframes printSlide { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }

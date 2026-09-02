@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
 import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
@@ -584,7 +585,9 @@ export function ReportModal() {
     })),
   ];
 
-  return (
+  // Portal the whole modal to <body> so printing can remove the app (#root)
+  // from the flow and lay the sheet out in normal document flow.
+  return createPortal(
     <div className="print-reset fixed inset-0 z-[65] overflow-y-auto">
       <div className="no-print fixed inset-0 bg-ink-950/85 backdrop-blur-sm" onClick={close} />
       <div className="print-reset relative mx-auto my-6 w-[min(920px,94vw)]">
@@ -732,7 +735,8 @@ export function ReportModal() {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

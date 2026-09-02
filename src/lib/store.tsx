@@ -90,6 +90,8 @@ interface StoreCtx {
   updateUser: (id: string, patch: Partial<User>) => void;
   changePassword: (current: string, next: string) => string | null;
   requestPasswordReset: () => void;
+  /** Self-service profile editing — name, position, phone, email, address. Returns an error or null. */
+  updateProfile: (patch: { name?: string; title?: string; phone?: string; email?: string; address?: string }) => string | null;
   requestForgotPassword: (username: string, contact?: string) => string | null;
   approvePasswordReset: (userId: string) => void;
   logout: () => void;
@@ -394,6 +396,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
+  const updateProfile: StoreCtx['updateProfile'] = (patch) => {
+    if (!user) return 'Not signed in.';
+    const name = (patch.name ?? user.name).trim();
+    if (name.length < 3) return 'Full name must be at least 3 characters.';
+    const email = (patch.email ?? '').trim() || undefined;
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) return 'That email address does not look valid.';
+    const clean = {
+      name,
+      title: (patch.title ?? user.title).trim() || user.title,
+      phone: (patch.phone ?? '').trim() || undefined,
+      email,
+      address: (patch.address ?? '').trim() || undefined,
+    };
+    setDb((d) => withLog({ ...d, users: d.users.map((x) => (x.id === user.id ? { ...x, ...clean } : x)) },
+      { userId: user.id, userName: user.name, type: 'profile', text: 'Updated their profile details from the profile panel' }));
+    pushToast('ok', 'Profile updated.');
+    return null;
+  };
+
   const requestPasswordReset = () => {
     if (!user || user.passwordResetAt) return;
     setDb((d) => {
@@ -609,15 +630,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setProgress: StoreCtx['setProgress'] = (id, value) => {
     if (!me) return;
-    const v = Math.max(0, Math.min(100, Math.round(value)));
+    /* half-percent granularity: 52, 52.5, 53 … */
+    const v = Math.max(0, Math.min(100, Math.round(value * 2) / 2));
     const p = db.papers.find((x) => x.id === id);
     if (!p || !canEdit(p)) return;
+    if (p.progress === v) return;
     if ((me.role === 'employee' || me.role === 'joborder') && v >= 100) {
       pushToast('warn', 'Only the division head can mark a work order 100% complete — submit it for verification instead');
       return;
     }
+    const label = v % 1 === 0 ? String(v) : v.toFixed(1);
     setDb((d) => withLog({ ...d, papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, progress: v })) : x)) },
-      { userId: me.id, userName: me.name, type: 'stage', text: `Set completion of ${p.ref} to ${v}%`, ref: p.ref, docId: p.id }));
+      { userId: me.id, userName: me.name, type: 'stage', text: `Set completion of ${p.ref} to ${label}%`, ref: p.ref, docId: p.id }));
   };
 
   const assignPaper: StoreCtx['assignPaper'] = (id, ids) => {
@@ -975,7 +999,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value: StoreCtx = {
     db, user, me, myUnitId, toasts, ui, activities, visiblePapers, visibleNotifs, unread, custom, geotagBrgys,
     canEdit, canManageDivision, employeesOf, divOf,
-    login, signup, approveUser, denyUser, updateUser, changePassword, requestPasswordReset, requestForgotPassword, approvePasswordReset, logout, resetDemo,
+    login, signup, approveUser, denyUser, updateUser, changePassword, requestPasswordReset, requestForgotPassword, approvePasswordReset, updateProfile, logout, resetDemo,
     go: (page) => setUi((u) => ({ ...u, page })),
     openDrawer: (id) => setUi((u) => ({ ...u, drawerId: id })),
     closeDrawer: () => setUi((u) => ({ ...u, drawerId: null })),

@@ -35,6 +35,12 @@ export const STAGES: { id: Stage; label: string; hint: string; color: string }[]
 ];
 export const stageMeta = (s: Stage) => STAGES.find((x) => x.id === s) ?? STAGES[0];
 
+/** Completion rates move in half-percent steps — format without noise (52 vs 52.5). */
+export const fmtPct = (v: number): string => {
+  const r = Math.round(v * 2) / 2;
+  return r % 1 === 0 ? String(r) : r.toFixed(1);
+};
+
 export const PRIORITIES: Record<Priority, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: '#f4645c' },
   priority: { label: 'Priority', color: '#f5b924' },

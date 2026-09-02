@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Attachment, Custody, Kind, Paper, Priority, Stage } from '../lib/core';
-import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, fmtDT, geobrgyKey, mapsLink, osmEmbed, timeAgo } from '../lib/core';
+import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, fmtDT, fmtPct, geobrgyKey, mapsLink, osmEmbed, timeAgo } from '../lib/core';
 import { useStore } from '../lib/store';
 import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect, Section, StageChip } from './ui';
 
@@ -26,7 +26,7 @@ export function DocDrawer() {
   const isField = me.role === 'employee' || me.role === 'joborder';
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
-  const pct = Math.round(paper.progress ?? (paper.stage === 'completed' ? 100 : 0));
+  const pct = paper.progress ?? (paper.stage === 'completed' ? 100 : 0);
 
   /* route path — every desk the paper physically touched */
   const path: { id: string; at: number; by: string }[] = [];
@@ -40,6 +40,12 @@ export function DocDrawer() {
     }
   }
   if (path[path.length - 1]?.id !== paper.divisionId) path.push({ id: paper.divisionId, at: paper.updatedAt, by: '' });
+
+  /* desks the paper passed through (everything except the current holder) + where it was logged */
+  const hops = path.slice(0, -1);
+  const createdEntry = custodySorted.find((e) => e.action === 'created');
+  const originDivId = createdEntry?.fromDivisionId ?? createdEntry?.toDivisionId ?? paper.divisionId;
+  const originDiv = divById(originDivId);
 
   const receipts = custodySorted.filter((e) => e.action === 'received');
   const pendingDesks = ((paper.recipientIds ?? []).filter((r) => !(paper.receivedBy ?? []).includes(r)));
@@ -120,21 +126,31 @@ export function DocDrawer() {
                 );
               })}
             </div>
-            {(receipts.length > 0 || pendingDesks.length > 0) && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.18em] text-mist-600">Receipt stamps</span>
-                {receipts.map((r) => (
-                  <span key={r.id} className="stamp border-greenx-500 px-2 py-0.5 text-[9.5px] text-greenx-500" title={`${r.byName} · ${fmtDT(r.at)}`}>
-                    {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · {r.byName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]}
-                  </span>
-                ))}
-                {pendingDesks.map((rid) => (
-                  <span key={rid} className="rounded-sm border border-dashed border-amberx-500/60 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-amberx-400">
-                    {divById(rid)?.code ?? rid} pending
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* routing stamps — always complete, always printable */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.18em] text-mist-600">Routing stamps</span>
+              <span className="stamp border-cyanx-500/80 px-2 py-0.5 text-[9.5px] text-cyanx-400" title={`Logged by ${paper.byName} · ${fmtDT(paper.createdAt)}`}>
+                {originDiv?.code ?? 'OCE'} · logged
+              </span>
+              {hops.slice(0, -1).map((h, i) => (
+                <span key={`hop-${h.id}-${i}`} className="stamp border-mist-400/60 px-2 py-0.5 text-[9.5px] text-mist-300" title={h.by ? `Transmitted by ${h.by}${h.at ? ` · ${fmtDT(h.at)}` : ''}` : undefined}>
+                  {divById(h.id)?.code ?? h.id} · passed
+                </span>
+              ))}
+              {receipts.map((r) => (
+                <span key={r.id} className="anim-pop stamp border-greenx-500 px-2 py-0.5 text-[9.5px] text-greenx-500" title={`Received · ${r.byName} · ${fmtDT(r.at)}`}>
+                  {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · received
+                </span>
+              ))}
+              {pendingDesks.map((rid) => (
+                <span key={rid} className="stamp border-dashed border-amberx-500/70 px-2 py-0.5 text-[9.5px] text-amberx-400" title="Awaiting this desk's receipt stamp">
+                  {divById(rid)?.code ?? rid} · pending
+                </span>
+              ))}
+              <span className="stamp border-flare-500/80 px-2 py-0.5 text-[9.5px] text-flare-400" title={`Current holder${paper.diverted ? ' · re-routed from ' + (intended?.code ?? '') : ''}`}>
+                {div?.code ?? paper.divisionId} · now here
+              </span>
+            </div>
             {iAmAddressee && paper.stage !== 'completed' && (
               <button onClick={() => ackPaper(paper.id)} className="btn btn-primary mt-3 w-full justify-center">
                 <I n="checkc" className="h-4 w-4" sw={2} /> Receive — stamp {divById(myUnitId!)?.code}
@@ -148,20 +164,46 @@ export function DocDrawer() {
           </Section>
 
           {/* completion progress */}
-          <Section title={`Completion rate · ${pct}%`} icon="pulse">
+          <Section title={`Completion rate · ${fmtPct(pct)}%`} icon="pulse">
             <div className="flex items-center gap-3">
               <input
-                type="range" min={0} max={isField ? 95 : 100} step={5} value={Math.min(pct, isField ? 95 : 100)}
+                type="range" min={0} max={100} step={0.5} value={pct}
                 disabled={!editable}
                 onChange={(e) => setProgress(paper.id, Number(e.target.value))}
+                onPointerUp={(e) => setProgress(paper.id, Number((e.target as HTMLInputElement).value))}
                 className="range-teal flex-1 accent-tealx-500"
+                title="Drag in half-percent steps"
               />
-              <span className="w-14 text-right font-display text-[24px] font-bold tabular" style={{ color: pct >= 100 ? '#45d483' : pct >= 50 ? '#2dd4bf' : pct >= 25 ? '#f5b924' : '#ff8a4c' }}>{pct}%</span>
+              <span className="w-16 text-right font-display text-[24px] font-bold tabular" style={{ color: pct >= 100 ? '#45d483' : pct >= 50 ? '#2dd4bf' : pct >= 25 ? '#f5b924' : '#ff8a4c' }}>{fmtPct(pct)}%</span>
+            </div>
+            <div className="mt-2.5 flex items-center gap-1.5">
+              {[0, 25, 50, 75, 100].map((v) => {
+                const blocked = isField && v === 100;
+                const on = Math.abs(pct - v) < 0.25;
+                return (
+                  <button
+                    key={v}
+                    disabled={!editable || blocked}
+                    onClick={() => setProgress(paper.id, v)}
+                    title={blocked ? 'Completion is verified by the division head — submit for verification instead' : `Set to ${v}%`}
+                    className={`flex-1 rounded-md border px-2 py-1.5 font-mono text-[10.5px] font-bold tabular transition active:scale-[0.96] ${
+                      on
+                        ? v >= 100 ? 'border-greenx-500/70 bg-greenx-500/15 text-greenx-500' : 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400'
+                        : blocked
+                          ? 'cursor-not-allowed border-ink-700 bg-ink-850 text-mist-600'
+                          : 'border-ink-600 bg-ink-850 text-mist-300 hover:border-tealx-500/50 hover:text-tealx-400'
+                    }`}
+                  >
+                    {v}%
+                  </button>
+                );
+              })}
             </div>
             <div className="mt-2"><ProgressBar value={pct} /></div>
             <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-mist-600">
               {paper.kind === 'work-order' ? 'Work order — tracked completion for the field report' : 'Optional tracking for this document kind'}
-              {isField && ' · you can raise progress; completion is verified by the division head'}
+              {' · half-percent steps'}
+              {isField && ' · completion (100%) is verified by the division head'}
             </p>
           </Section>
 

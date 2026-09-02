@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo, extractBarangays } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, fmtPct, stageMeta, timeAgo, extractBarangays } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, type IconName, type SearchOption } from './ui';
 
 const unitOptions = (allLabel: string): SearchOption[] => [
@@ -121,7 +121,7 @@ export function Dashboard() {
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-mist-100">{p.title}</span>
                       {d && <DivChip div={d} />}
                       <StageChip stage={p.stage} />
-                      <span className="w-10 font-mono text-[10px] font-bold text-mist-300 tabular">{Math.round(p.progress ?? (p.stage === 'completed' ? 100 : 0))}%</span>
+                      <span className="w-10 font-mono text-[10px] font-bold text-mist-300 tabular">{fmtPct(p.progress ?? (p.stage === 'completed' ? 100 : 0))}%</span>
                       {isOverdue && <span className="font-mono text-[9.5px] font-bold uppercase text-redx-400">overdue</span>}
                     </button>
                   </li>
@@ -275,8 +275,8 @@ export function DocumentsPage() {
                       <td className="px-3 py-3"><StageChip stage={p.stage} /></td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
-                          <ProgressBar value={Math.round(p.progress ?? (p.stage === 'completed' ? 100 : 0))} w="w-24" />
-                          <span className="font-mono text-[10.5px] font-bold text-mist-200 tabular">{Math.round(p.progress ?? (p.stage === 'completed' ? 100 : 0))}%</span>
+                          <ProgressBar value={p.progress ?? (p.stage === 'completed' ? 100 : 0)} w="w-24" />
+                          <span className="font-mono text-[10.5px] font-bold text-mist-200 tabular">{fmtPct(p.progress ?? (p.stage === 'completed' ? 100 : 0))}%</span>
                         </div>
                       </td>
                       <td className="px-3 py-3 font-mono text-[9.5px] uppercase tracking-wider text-mist-500">{timeAgo(p.updatedAt)}</td>
@@ -985,7 +985,7 @@ export function PersonnelPage() {
               const ps = papersOf(e.id);
               const open = ps.filter((p) => p.stage !== 'completed').length;
               const review = ps.filter((p) => p.pendingHeadReview && p.stage !== 'completed').length;
-              const avg = ps.length ? Math.round(ps.reduce((a, p) => a + (p.progress ?? (p.stage === 'completed' ? 100 : 0)), 0) / ps.length) : 0;
+              const avg = ps.length ? Math.round((ps.reduce((a, p) => a + (p.progress ?? (p.stage === 'completed' ? 100 : 0)), 0) / ps.length) * 2) / 2 : 0;
               const d = e.divisionId ? divById(e.divisionId) : undefined;
               const active = selected?.id === e.id;
               return (
@@ -1005,7 +1005,7 @@ export function PersonnelPage() {
                   </span>
                   <span className="mt-2 flex items-center gap-2">
                     <ProgressBar value={avg} />
-                    <span className="font-mono text-[9px] font-bold text-mist-400 tabular">{avg}%</span>
+                    <span className="font-mono text-[9px] font-bold text-mist-400 tabular">{fmtPct(avg)}%</span>
                   </span>
                 </button>
               );
@@ -1045,7 +1045,7 @@ export function PersonnelPage() {
                           </div>
                           <div className="space-y-2">
                             {list.map((p) => {
-                              const pct = Math.round(p.progress ?? (p.stage === 'completed' ? 100 : 0));
+                              const pct = p.progress ?? (p.stage === 'completed' ? 100 : 0);
                               return (
                                 <button key={p.id} onClick={() => openDrawer(p.id)} className="paper-card group relative w-full cursor-pointer overflow-hidden rounded-md p-2.5 pl-3 text-left transition hover:-translate-y-0.5">
                                   <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: p.priority === 'urgent' ? '#f4645c' : p.priority === 'priority' ? '#f5b924' : '#6684a3' }} />
@@ -1053,7 +1053,7 @@ export function PersonnelPage() {
                                   <p className="mt-0.5 line-clamp-2 font-display text-[13.5px] font-bold leading-tight tracking-wide text-[#132437]">{p.title}</p>
                                   <span className="mt-1.5 flex items-center gap-2">
                                     <ProgressBar value={pct} />
-                                    <span className="shrink-0 font-mono text-[9px] font-bold text-[#5b7089] tabular">{pct}%</span>
+                                    <span className="shrink-0 font-mono text-[9px] font-bold text-[#5b7089] tabular">{fmtPct(pct)}%</span>
                                   </span>
                                 </button>
                               );

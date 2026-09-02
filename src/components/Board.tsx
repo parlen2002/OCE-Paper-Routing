@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Paper, Stage } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById, extractBarangays, paperBarangays, timeAgo } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, PRIORITIES, STAGES, divById, extractBarangays, fmtPct, paperBarangays, timeAgo } from '../lib/core';
 import { useStore } from '../lib/store';
 import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect } from './ui';
 
@@ -17,7 +17,7 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
   const addressedToMe = !!myDesk && recipients.includes(myDesk);
   const iAcknowledged = !!myDesk && (paper.receivedBy ?? []).includes(myDesk);
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
-  const pct = Math.round(paper.progress ?? (done ? 100 : 0));
+  const pct = paper.progress ?? (done ? 100 : 0);
 
   return (
     <div
@@ -77,7 +77,7 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
 
       <div className="mt-2 flex items-center gap-1.5">
         <ProgressBar value={pct} />
-        <span className="shrink-0 font-mono text-[9px] font-bold text-[#5b7089] tabular">{pct}%</span>
+        <span className="shrink-0 font-mono text-[9px] font-bold text-[#5b7089] tabular">{fmtPct(pct)}%</span>
       </div>
 
       {(imgs.length > 0 || pdfs > 0 || geo) && (

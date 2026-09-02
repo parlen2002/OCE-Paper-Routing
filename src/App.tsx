@@ -202,14 +202,15 @@ function Signatures({ preparedBy, preparedTitle, users }: { preparedBy: string; 
 }
 
 function PrintBar({ v }: { v: number }) {
-  const pct = Math.max(0, Math.min(100, Math.round(v)));
+  const pct = Math.max(0, Math.min(100, Math.round(v * 2) / 2));
+  const label = pct % 1 === 0 ? String(pct) : pct.toFixed(1);
   const color = pct >= 100 ? '#1f9d55' : pct >= 50 ? '#0d9488' : pct >= 25 ? '#b45309' : '#c24a0c';
   return (
     <div className="flex items-center gap-2">
       <div className="h-[9px] flex-1 overflow-hidden rounded-full border border-[#c8d3e0] bg-[#eef2f7]">
         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="w-11 text-right font-mono text-[11px] font-bold tabular" style={{ color }}>{pct}%</span>
+      <span className="w-12 text-right font-mono text-[11px] font-bold tabular" style={{ color }}>{label}%</span>
     </div>
   );
 }
@@ -389,21 +390,39 @@ function PaperSheet({ paper, userName, userTitle, users, geobrgy = {} }: { paper
           );
         })}
       </div>
-      {receipts.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">Receipt stamps</span>
-          {receipts.map((r) => (
-            <span key={r.id} className="stamp border-[#1f9d55] px-2 py-0.5 text-[9.5px] text-[#1f9d55]">
-              {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · {r.byName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]} · {fmtDT(r.at)}
+      {/* routing stamps — the complete set, always, on every printout */}
+      {(() => {
+        const createdEntry = trail.find((e) => e.action === 'created');
+        const originId = createdEntry?.fromDivisionId ?? createdEntry?.toDivisionId ?? paper.divisionId;
+        const pending = (paper.recipientIds ?? []).filter((rid) => !(paper.receivedBy ?? []).includes(rid));
+        const passedHops = hops.slice(0, -1);
+        return (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[#5b7089]">Routing stamps</span>
+            <span className="stamp border-[#0e7490] px-2 py-0.5 text-[9.5px] text-[#0e7490]" title={`Logged by ${paper.byName} · ${fmtDT(paper.createdAt)}`}>
+              {divById(originId)?.code ?? 'OCE'} · logged · {fmtDT(paper.createdAt)}
             </span>
-          ))}
-          {(paper.recipientIds ?? []).filter((rid) => !(paper.receivedBy ?? []).includes(rid)).map((rid) => (
-            <span key={rid} className="rounded-sm border border-dashed border-[#b45309] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#b45309]">
-              {divById(rid)?.code ?? rid} pending
+            {passedHops.map((h, i) => (
+              <span key={`ph-${h.id}-${i}`} className="stamp border-[#6684a3] px-2 py-0.5 text-[9.5px] text-[#6684a3]" title={h.by ? `Transmitted by ${h.by}${h.at ? ` · ${fmtDT(h.at)}` : ''}` : undefined}>
+                {divById(h.id)?.code ?? h.id} · passed{h.at ? ` · ${fmtDT(h.at)}` : ''}
+              </span>
+            ))}
+            {receipts.map((r) => (
+              <span key={r.id} className="stamp border-[#1f9d55] px-2 py-0.5 text-[9.5px] text-[#1f9d55]">
+                {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · received · {r.byName.replace(/^(Engr|Mr|Ms|Mrs)\.?\s+/i, '').split(' ')[0]} · {fmtDT(r.at)}
+              </span>
+            ))}
+            {pending.map((rid) => (
+              <span key={rid} className="stamp border-dashed border-[#b45309] px-2 py-0.5 text-[9.5px] text-[#b45309]">
+                {divById(rid)?.code ?? rid} · pending
+              </span>
+            ))}
+            <span className="stamp border-[#c24a0c] px-2 py-0.5 text-[9.5px] text-[#c24a0c]" title={`Current holder${paper.diverted ? ` · re-routed from ${intended?.code ?? ''}` : ''}`}>
+              {div?.code ?? paper.divisionId} · now here
             </span>
-          ))}
-        </div>
-      )}
+          </div>
+        );
+      })()}
       {paper.diverted && <p className="mt-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#b45309]">Paper was re-routed — now outside its originally intended desk.</p>}
 
       <h2 className="mt-7 border-b-2 border-[#182a3e] pb-1 font-display text-[15px] font-bold uppercase tracking-[0.14em]">2 · Chain of custody</h2>

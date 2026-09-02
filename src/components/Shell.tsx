@@ -187,7 +187,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function ProfileModal() {
-  const { user, db, ui, setProfileOpen, changePassword, requestPasswordReset } = useStore();
+  const { user, db, ui, setProfileOpen, changePassword, requestPasswordReset, updateProfile } = useStore();
+  const meUser0 = user ? db.users.find((x) => x.id === user.id) ?? user : null;
+  /* profile details (self-service) */
+  const [pName, setPName] = useState(meUser0?.name ?? '');
+  const [pTitle, setPTitle] = useState(meUser0?.title ?? '');
+  const [pPhone, setPPhone] = useState(meUser0?.phone ?? '');
+  const [pEmail, setPEmail] = useState(meUser0?.email ?? '');
+  const [pAddress, setPAddress] = useState(meUser0?.address ?? '');
+  const [pErr, setPErr] = useState('');
+  /* password */
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -202,6 +211,12 @@ function ProfileModal() {
     const reason = changePassword(cur, next);
     if (reason) return setErr(reason);
     setCur(''); setNext(''); setConfirm('');
+  };
+
+  const saveProfile = () => {
+    setPErr('');
+    const reason = updateProfile({ name: pName, title: pTitle, phone: pPhone, email: pEmail, address: pAddress });
+    if (reason) return setPErr(reason);
   };
 
   return (
@@ -221,6 +236,48 @@ function ProfileModal() {
         </div>
 
         <div className="mt-5 space-y-3">
+          {/* profile details */}
+          <p className="flex items-center gap-2 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-cyanx-400">
+            <I n="user" className="h-3 w-3" sw={2.2} /> Profile details
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Full name</span>
+              <input className="field" value={pName} onChange={(e) => { setPName(e.target.value); setPErr(''); }} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Position / designation</span>
+              <input className="field" value={pTitle} onChange={(e) => setPTitle(e.target.value)} />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Phone number</span>
+              <input className="field font-mono" placeholder="e.g. 0917 000 0000" value={pPhone} onChange={(e) => setPPhone(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Email address</span>
+              <input className="field font-mono" placeholder="name@office.gov.ph" value={pEmail} onChange={(e) => { setPEmail(e.target.value); setPErr(''); }} />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Home address</span>
+            <input className="field" placeholder="Street, barangay, city" value={pAddress} onChange={(e) => setPAddress(e.target.value)} />
+          </label>
+          {pErr && (
+            <p className="flex items-start gap-2 rounded-md border border-redx-500/40 bg-redx-500/10 px-3 py-2 text-[12px] text-redx-400">
+              <I n="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" sw={2} />{pErr}
+            </p>
+          )}
+          <button className="btn btn-primary w-full justify-center" onClick={saveProfile}>
+            <I n="check" className="h-4 w-4" sw={2.2} /> Save profile
+          </button>
+
+          <div className="border-t border-ink-700 pt-3">
+            <p className="mb-3 flex items-center gap-2 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-flare-400">
+              <I n="lock" className="h-3 w-3" sw={2.2} /> Password
+            </p>
+          </div>
           <label className="block">
             <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Current password</span>
             <input type="password" className="field font-mono" value={cur} onChange={(e) => { setCur(e.target.value); setErr(''); }} />

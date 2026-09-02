@@ -288,11 +288,11 @@ export function DocumentsPage() {
             </button>
           )}
         </div>
-        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-48" placeholder="All recipients" />}
-        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-40"
-          options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s.id, label: s.label, sub: s.hint }))]} />
-        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-36"
-          options={[{ value: 'all', label: 'All kinds' }, ...Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))]} />
+        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-56" placeholder="All recipients" />}
+        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-32"
+          options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s.id, label: s.label }))]} />
+        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-32"
+          options={[{ value: 'all', label: 'All kinds' }, ...Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label }))]} />
         {(q || stage !== 'all' || divF !== 'all' || kindF !== 'all') && (
           <button onClick={() => { setQ(''); setStage('all'); setDivF('all'); setKindF('all'); }}
             className="btn btn-ghost shrink-0 px-2.5 py-1 text-[11px]">
@@ -947,12 +947,12 @@ export function UsersPage() {
             {filteredUsers.length} of {db.users.length}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-b border-ink-700 bg-ink-950/30 px-4 py-2.5">
-          <div className="relative min-w-[200px] flex-1">
+        <div className="scroll-slim flex flex-nowrap items-center gap-2 overflow-x-auto border-b border-ink-700 bg-ink-950/30 px-4 py-2.5">
+          <div className="relative w-72 shrink-0">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
             <input value={uQ} onChange={(e) => setUQ(e.target.value)} placeholder="Search name, username, title, contact…"
               title="Search by full name, @username, title, email or phone"
-              className="field w-full py-1.5 pl-11 font-mono text-[11.5px]" />
+              className="field w-72 py-1.5 pl-11 font-mono text-[11.5px]" />
             {uQ && (
               <button onClick={() => setUQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
                 <I n="x" className="h-3 w-3" sw={2.6} />
@@ -962,13 +962,13 @@ export function UsersPage() {
           <SearchSelect
             value={uRoleF}
             onChange={(v) => setURoleF(v as 'all' | Role)}
-            width="w-40"
+            width="w-32"
             options={[
               { value: 'all', label: 'All roles' },
               ...Object.entries(ROLE_CHIP).map(([k, v]) => ({ value: k, label: v.label })),
             ]}
           />
-          <SearchSelect value={uDivF} onChange={setUDivF} options={unitOptions('All departments / teams')} width="w-56" placeholder="Department…" />
+          <SearchSelect value={uDivF} onChange={setUDivF} options={unitOptions('All departments / teams')} width="w-64" placeholder="Department…" />
           {(uQ || uDivF !== 'all' || uRoleF !== 'all') && (
             <button onClick={() => { setUQ(''); setUDivF('all'); setURoleF('all'); }} className="btn btn-ghost px-2.5 py-1 text-[11px]">
               <I n="x" className="h-3 w-3" sw={2.4} /> Clear

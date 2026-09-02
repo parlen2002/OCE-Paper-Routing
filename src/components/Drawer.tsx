@@ -59,7 +59,7 @@ export function DocDrawer() {
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const iAmPic = isField && (paper.assignees ?? []).includes(me.id);
   const roster = db.users.filter((u) => (u.role === 'employee' || u.role === 'joborder') && u.divisionId === paper.divisionId && u.status === 'active');
-  const canAssignRole = me.role === 'admin' || me.role === 'supervisor' || me.role === 'division' || me.role === 'moderator';
+  const canAssignRole = me.role === 'admin' || me.role === 'supervisor' || me.role === 'division' || me.role === 'moderator' || me.role === 'operator';
   const togglePic = (id: string) => {
     const cur = paper.assignees ?? [];
     assignPaper(paper.id, cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);

@@ -279,7 +279,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const canEdit = (p: Paper): boolean => {
     if (!me) return false;
-    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator') return true;
+    // operator moves/updates papers like the moderator — but never edits or deletes records
+    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator') return true;
     if (me.role === 'employee' || me.role === 'joborder') return (p.assignees ?? []).includes(me.id);
     if ((p.recipientIds?.length ?? 0) > 1) return (p.recipientIds ?? []).includes(me.divisionId ?? '');
     return me.divisionId === p.divisionId;
@@ -694,6 +695,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updatePaper: StoreCtx['updatePaper'] = (id, patch) => {
     if (!me) return;
+    if (me.role !== 'admin' && me.role !== 'moderator') {
+      pushToast('warn', 'Only the program admin or the moderator can edit board entries.');
+      return;
+    }
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
     setDb((d) => withLog({ ...d, papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, ...patch })) : x)) },

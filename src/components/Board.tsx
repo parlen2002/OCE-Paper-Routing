@@ -218,7 +218,7 @@ export function Board() {
     if (!id) return;
     const paper = visiblePapers.find((p) => p.id === id);
     if (!paper || paper.stage === stage) return;
-    const canAssign = me && (me.role === 'admin' || me.role === 'supervisor' || me.role === 'division' || me.role === 'moderator');
+    const canAssign = me && (me.role === 'admin' || me.role === 'supervisor' || me.role === 'division' || me.role === 'moderator' || me.role === 'operator');
     if (canAssign && employeesOf(paper.divisionId).length > 0) {
       setPendingMove({ id, stage });
       return;

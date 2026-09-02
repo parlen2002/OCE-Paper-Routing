@@ -142,23 +142,26 @@ body {
 @media print {
   .print-only { display: block !important; }
 
-  /* A4 with comfortable half-inch margins on every side. */
-  @page { size: A4 portrait; margin: 0.5in; }
+  /* A4 with tight 0.5 cm margins on every side. */
+  @page { size: A4 portrait; margin: 0.5cm; }
 
-  /* Cancel the on-screen readability zoom for print. */
-  html, body { height: auto !important; overflow: visible !important; background: #fff !important; zoom: 1 !important; width: auto !important; }
+  /* Readability boost applied at the PAGE level (same mechanism as browser
+     zoom): the print pipeline reflows content into the @page margin box, so
+     the sheet keeps full width, margins stay exact, and every PDF writer
+     handles it identically — no element-level zoom/width compensation. */
+  html { zoom: 1.18 !important; }
+  body { height: auto !important; overflow: visible !important; background: #fff !important; zoom: 1 !important; width: auto !important; }
 
   /* The print sheet is rendered through a portal (direct child of <body>),
-     so the whole app can be removed from the print flow — no overlay offsets,
+     so the whole app is removed from the print flow — no overlay offsets,
      no blank pages, content paginates in normal document flow. */
   #root, #boot-sentinel { display: none !important; }
 
   .print-sheet {
     -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
     position: static !important; left: auto !important; top: auto !important;
-    /* Enlarge the sheet for readable print — reflows across more pages. */
-    zoom: 1.25;
-    width: calc(100% / 1.25) !important; max-height: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    width: 100% !important; max-width: none !important; max-height: none !important;
+    border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
   }
   .print-reset {
     position: static !important; inset: auto !important; display: block !important;

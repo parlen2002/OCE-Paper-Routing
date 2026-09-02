@@ -178,7 +178,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1500px] px-5 py-6">{children}</main>
+        <main className="w-full min-w-0 px-5 py-6">{children}</main>
       </div>
 
       {ui.profileOpen && <ProfileModal />}

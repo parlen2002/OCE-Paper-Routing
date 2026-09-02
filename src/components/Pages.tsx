@@ -1513,11 +1513,67 @@ export function MessagesPage() {
                 </div>
               )}
 
+              {/* program admin — pending message-deletion requests */}
+              {pendingDeletes.length > 0 && (
+                <div className="border-b border-redx-500/30 bg-redx-500/[0.06] px-4 py-2.5">
+                  <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-redx-400">
+                    <I n="trash" className="h-3 w-3" sw={2.2} /> Deletion requests · verify to remove
+                  </p>
+                  <div className="space-y-1.5">
+                    {pendingDeletes.map((r) => {
+                      const ch = (db.channels ?? []).find((c) => c.id === r.channelId);
+                      return (
+                        <div key={r.id} className="flex items-center gap-3 rounded-md border border-ink-600 bg-ink-850 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12px] font-semibold text-mist-100" title={r.text}>“{r.text}”</p>
+                            <p className="mt-0.5 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-500">
+                              requested by {r.byName} · {ch?.name ?? 'channel'} · {timeAgo(r.at)}
+                            </p>
+                          </div>
+                          <button onClick={() => approveDeleteMessage(r.id)} className="btn btn-primary shrink-0 px-2.5 py-1 text-[10.5px]">
+                            <I n="check" className="h-3 w-3" sw={2.6} /> Delete
+                          </button>
+                          <button onClick={() => denyDeleteMessage(r.id)} className="btn btn-ghost shrink-0 px-2.5 py-1 text-[10.5px] hover:border-redx-500/60 hover:text-redx-400">
+                            Keep
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* conversation search bar */}
+              {searching && channel && (
+                <div className="flex items-center gap-2.5 border-b border-ink-700 bg-amberx-500/[0.05] px-4 py-2">
+                  <I n="search" className="h-3.5 w-3.5 shrink-0 text-amberx-400" sw={2.2} />
+                  <input
+                    autoFocus
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') { setSearchCh(null); setSearchQ(''); } }}
+                    placeholder={`Search this conversation…`}
+                    className="w-full bg-transparent font-mono text-[12px] text-mist-100 outline-none placeholder:text-mist-600"
+                  />
+                  <span className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wider text-amberx-400 tabular">
+                    {shownMsgs.length} of {msgs.length} match{shownMsgs.length === 1 ? '' : 'es'}
+                  </span>
+                  <button
+                    onClick={() => { setSearchCh(null); setSearchQ(''); }}
+                    className="shrink-0 rounded p-1 text-mist-400 transition hover:bg-ink-700 hover:text-redx-400"
+                    title="Close search (Esc)">
+                    <I n="x" className="h-3.5 w-3.5" sw={2.4} />
+                  </button>
+                </div>
+              )}
+
               <div className="scroll-slim flex-1 space-y-3 overflow-y-auto px-4 py-4">
-                {msgs.length === 0 && (
-                  <p className="py-10 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">No messages yet — start the thread.</p>
+                {shownMsgs.length === 0 && (
+                  <p className="py-10 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
+                    {searching ? 'No messages match your search.' : 'No messages yet — start the thread.'}
+                  </p>
                 )}
-                {msgs.map((m) => {
+                {shownMsgs.map((m) => {
                   const mine = m.authorId === me.id;
                   if (m.system) {
                     return (
@@ -1527,15 +1583,76 @@ export function MessagesPage() {
                     );
                   }
                   const docs = m.docs ?? (m.docId && m.docRef ? [{ id: m.docId, ref: m.docRef }] : []);
+                  const editable = canEditMsg(m);
+                  const deletable = canDeleteMsg(m);
+                  const editLeft = editable ? Math.max(0, Math.ceil((MSG_EDIT_WINDOW - (Date.now() - m.at)) / 60000)) : 0;
+                  const pendingDel = msgDeletes.some((r) => r.messageId === m.id);
+                  const isEditing = editingId === m.id;
                   return (
                     <div key={m.id} className={`anim-fade-up flex gap-2.5 ${mine ? 'flex-row-reverse' : ''}`}>
                       <Avatar name={m.authorName || 'Officer'} size="sm" />
-                      <div className={`max-w-[72%] rounded-lg border px-3 py-2.5 ${mine ? 'border-flare-500/40 bg-flare-500/[0.08]' : 'border-ink-700 bg-ink-850'}`}>
+                      <div className={`group/msg relative max-w-[72%] rounded-lg border px-3 py-2.5 transition ${mine ? 'border-flare-500/40 bg-flare-500/[0.08]' : 'border-ink-700 bg-ink-850'} ${deletable ? 'hover:border-ink-500' : ''}`}>
                         <p className="flex items-baseline gap-2">
                           <span className={`text-[11.5px] font-bold ${mine ? 'text-flare-400' : 'text-cyanx-400'}`}>{mine ? 'You' : m.authorName}</span>
                           <span className="font-mono text-[8.5px] uppercase tracking-wider text-mist-600">{fmtDT(m.at)}</span>
+                          {m.editedAt && (
+                            <span className="font-mono text-[8px] italic tracking-wider text-mist-500" title={`Edited ${fmtDT(m.editedAt)}`}>· edited</span>
+                          )}
                         </p>
-                        <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-mist-100">{m.text}</p>
+
+                        {isEditing ? (
+                          <div className="mt-1.5">
+                            <textarea
+                              autoFocus
+                              rows={2}
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null); }}
+                              className="field resize-y font-mono text-[12px]"
+                              placeholder="Rewrite your message…"
+                            />
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <button
+                                onClick={() => { if (editText.trim()) { updateMessage(m.id, editText); } setEditingId(null); }}
+                                className="btn btn-primary px-2.5 py-1 text-[10.5px]">
+                                <I n="check" className="h-3 w-3" sw={2.6} /> Save edit
+                              </button>
+                              <button onClick={() => setEditingId(null)} className="btn btn-ghost px-2.5 py-1 text-[10.5px]">Cancel</button>
+                              <span className="ml-auto font-mono text-[8px] uppercase tracking-wider text-mist-600">Esc to cancel</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-mist-100">{highlight(m.text)}</p>
+                        )}
+
+                        {pendingDel && (
+                          <p className="mt-1.5 flex items-center gap-1.5 rounded-sm border border-amberx-500/40 bg-amberx-500/10 px-2 py-1 font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-amberx-400">
+                            <I n="clock" className="h-2.5 w-2.5" sw={2.4} /> Deletion pending program-admin verification
+                          </p>
+                        )}
+
+                        {/* edit / delete — appear on hover, edit only within the 10-min window */}
+                        {(editable || deletable) && !isEditing && (
+                          <span className={`absolute -top-2.5 flex items-center gap-1 rounded-md border border-ink-600 bg-ink-800 px-1 py-0.5 opacity-0 shadow-lg transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100 ${mine ? 'right-2' : 'left-2'}`}>
+                            {editable && (
+                              <button
+                                onClick={() => { setEditingId(m.id); setEditText(m.text); }}
+                                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-cyanx-400 transition hover:bg-cyanx-500/15"
+                                title={`Edit — ${editLeft} min left in the window`}>
+                                <I n="wrench" className="h-2.5 w-2.5" sw={2.4} /> Edit · {editLeft}m
+                              </button>
+                            )}
+                            {deletable && (
+                              <button
+                                onClick={() => requestDeleteMessage(m.id)}
+                                disabled={pendingDel}
+                                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-redx-400 transition hover:bg-redx-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Send deletion request to the program admin">
+                                <I n="trash" className="h-2.5 w-2.5" sw={2.4} /> Delete
+                              </button>
+                            )}
+                          </span>
+                        )}
                         {docs.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {docs.map((d) => (

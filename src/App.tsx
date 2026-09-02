@@ -781,10 +781,10 @@ function AppInner() {
         {page === 'myboard' && (user.role === 'employee' || user.role === 'joborder') && <Board />}
         {page === 'documents' && <DocumentsPage />}
         {page === 'divisions' && <DivisionsPage />}
-        {page === 'activity' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && <ActivityPage />}
+        {page === 'activity' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator' || user.role === 'operator') && <ActivityPage />}
         {page === 'users' && user.role === 'admin' && <UsersPage />}
         {page === 'userlogs' && user.role === 'admin' && <LogsPage />}
-        {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') && <PersonnelPage />}
+        {page === 'personnel' && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator' || user.role === 'operator') && <PersonnelPage />}
         {page === 'messages' && <MessagesPage />}
         {page === 'customize' && user.role === 'admin' && <CustomizePage />}
       </Shell>

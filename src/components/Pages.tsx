@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useStore } from '../lib/store';
+import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, stageMeta, timeAgo, extractBarangays } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, type IconName, type SearchOption } from './ui';
@@ -191,7 +191,7 @@ export function DocumentsPage() {
   const [divF, setDivF] = useState<'all' | string>('all');
   const [kindF, setKindF] = useState<'all' | Kind>('all');
   const [q, setQ] = useState('');
-  const isSup = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
+  const isSup = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator' || me?.role === 'operator';
 
   const rows = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -543,7 +543,7 @@ export function ActivityPage() {
   const [divF, setDivF] = useState<'all' | string>('all');
   const [monthF, setMonthF] = useState('');
   const [printOpen, setPrintOpen] = useState(false);
-  const isSup = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
+  const isSup = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator' || me?.role === 'operator';
 
   const filtered = useMemo(() => {
     let list = activities;
@@ -649,7 +649,8 @@ export function ActivityPage() {
 /* ------------------------------------------------ users & accounts (admin) */
 const ROLE_CHIP: Record<Role, { label: string; color: string }> = {
   admin: { label: 'Admin', color: '#fbc94a' }, supervisor: { label: 'Dept. Head', color: '#ff8a4c' },
-  moderator: { label: 'Moderator', color: '#a78bfa' }, division: { label: 'Div. Head', color: '#56c8f0' },
+  moderator: { label: 'Moderator', color: '#a78bfa' }, operator: { label: 'Operator', color: '#8adcf8' },
+  division: { label: 'Div. Head', color: '#56c8f0' },
   employee: { label: 'Employee', color: '#45e0cd' }, joborder: { label: 'Job-Order', color: '#f5b924' },
 };
 const STATUS_CHIP: Record<UserStatus, { label: string; color: string }> = {
@@ -720,6 +721,7 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
                   { value: 'employee', label: 'Employee', sub: 'personal work board' },
                   { value: 'joborder', label: 'Job-Order', sub: 'personal work board' },
                   { value: 'moderator', label: 'Moderator', sub: 'oversight & boards' },
+                  { value: 'operator', label: 'Operator', sub: 'read-only oversight' },
                   { value: 'supervisor', label: 'Dept. Head', sub: 'executive' },
                   { value: 'admin', label: 'Admin', sub: 'full control' },
                 ]} />
@@ -942,7 +944,7 @@ export function PersonnelPage() {
     [db.users]
   );
   const [sel, setSel] = useState<string | null>(employees[0]?.id ?? null);
-  if (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'moderator') return null;
+  if (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'moderator' && user?.role !== 'operator') return null;
 
   const papersOf = (id: string) => db.papers.filter((p) => (p.assignees ?? []).includes(id));
   const selected = employees.find((e) => e.id === sel) ?? employees[0] ?? null;
@@ -1280,6 +1282,7 @@ export function MessagesPage() {
   const {
     db, me, visibleChannels, messagesOf, unreadFor, canPostChannel, sendMsg,
     markChannelRead, manageChannelMember, openDrawer, visiblePapers,
+    updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes,
   } = useStore();
   const [selCh, setSelCh] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -1288,7 +1291,20 @@ export function MessagesPage() {
   const [attachQ, setAttachQ] = useState('');
   const [manageOpen, setManageOpen] = useState(false);
   const [addSel, setAddSel] = useState('');
+  /* per-channel conversation search */
+  const [searchCh, setSearchCh] = useState<string | null>(null);
+  const [searchQ, setSearchQ] = useState('');
+  /* inline message editing (author, 10-min window) */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  /* re-render every 30s so the edit button disappears once the window closes */
+  const [, setTick] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 30 * 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const channel = visibleChannels.find((c) => c.id === selCh) ?? visibleChannels[0] ?? null;
   const msgs: Message[] = channel ? messagesOf(channel.id) : [];
@@ -1328,6 +1344,38 @@ export function MessagesPage() {
   const members = channel?.memberIds?.map((id) => db.users.find((u) => u.id === id)).filter((u): u is User => !!u) ?? [];
   const addable = db.users.filter((u) => u.status === 'active' && !(channel?.memberIds ?? []).includes(u.id));
 
+  /* ---- message edit / delete rules ---- */
+  const isOverseer = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator' || me?.role === 'operator';
+  const canEditMsg = (m: Message) => !!me && !m.system && m.authorId === me.id && Date.now() - m.at < MSG_EDIT_WINDOW;
+  const canDeleteMsg = (m: Message) => !!me && !m.system && (m.authorId === me.id || isOverseer);
+
+  /* ---- conversation search ---- */
+  const searching = searchCh !== null && searchCh === channel?.id && searchQ.trim().length > 0;
+  const shownMsgs = useMemo(() => {
+    if (!searching) return msgs;
+    const q = searchQ.trim().toLowerCase();
+    return msgs.filter((m) => m.text.toLowerCase().includes(q));
+  }, [msgs, searching, searchQ]);
+
+  /** Wrap query matches in a highlighted span. */
+  const highlight = (text: string) => {
+    if (!searching) return text;
+    const q = searchQ.trim();
+    if (!q) return text;
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${esc})`, 'ig'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === q.toLowerCase() ? (
+        <mark key={i} className="rounded-sm bg-amberx-400/90 px-0.5 font-semibold text-ink-950">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
+
+  /* ---- pending deletion requests (program admin verifies) ---- */
+  const pendingDeletes = me?.role === 'admin' ? msgDeletes : [];
+
   /* ---- grouped, ordered channel list (executives / floor / divisions / teams) ---- */
   const execChans = visibleChannels.filter((c) => c.kind === 'executive');
   const floorChans = visibleChannels.filter((c) => c.kind === 'floor');
@@ -1340,23 +1388,33 @@ export function MessagesPage() {
     const un = unreadFor(c.id);
     const active = channel?.id === c.id;
     const tint = c.unitId ? (c.kind === 'unit' ? CU_TINT[c.unitId] ?? CH_TINT.unit : CH_TINT[c.kind]) : CH_TINT[c.kind];
+    const isSearching = searchCh === c.id;
     return (
-      <button key={c.id} onClick={() => { setSelCh(c.id); }}
-        className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
+      <div key={c.id}
+        className={`group/chan flex w-full items-center gap-1.5 rounded-md border px-2.5 py-2.5 text-left transition ${active ? 'bg-ink-800' : 'border-ink-700 bg-ink-850/60 hover:border-ink-500 hover:bg-ink-800/70'}`}
         style={active ? { borderColor: `${tint}90` } : undefined}>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
-          <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
-          <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
-            {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
+        <button onClick={() => { setSelCh(c.id); if (isSearching) { setSearchCh(null); setSearchQ(''); } }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ border: `1px solid ${tint}70`, background: `${tint}14`, color: tint }}>
+            <I n={CH_ICON[c.kind]} className="h-4 w-4" sw={1.9} />
           </span>
-        </span>
-        {un > 0 && (
-          <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
-        )}
-      </button>
+          <span className="min-w-0 flex-1">
+            <span className={`block truncate text-[12.5px] font-bold ${active ? 'text-mist-50' : 'text-mist-200'}`}>{c.name}</span>
+            <span className="block font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">
+              {c.kind === 'executive' ? 'council · overseen' : c.kind === 'floor' ? 'all personnel' : `unit channel${c.unitId ? ` · ${divById(c.unitId)?.code}` : ''}`}
+            </span>
+          </span>
+          {un > 0 && (
+            <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
+          )}
+        </button>
+        <button
+          onClick={() => { setSelCh(c.id); setSearchCh(isSearching ? null : c.id); setSearchQ(''); }}
+          title={isSearching ? 'Close search' : `Search ${c.name}`}
+          className={`shrink-0 rounded p-1 transition ${isSearching ? 'bg-amberx-400/20 text-amberx-400' : 'text-mist-500 hover:bg-ink-700 hover:text-cyanx-400'}`}
+        >
+          <I n="search" className="h-3.5 w-3.5" sw={2.2} />
+        </button>
+      </div>
     );
   };
 

@@ -157,7 +157,20 @@ export interface Message {
   docId?: string;
   docRef?: string;
   docs?: { id: string; ref: string }[];
+  /** Set when the author edited the message (within the 10-minute window). */
+  editedAt?: number;
   system?: boolean;
+}
+
+/** A chat-message deletion awaiting program-admin verification. */
+export interface MsgDeleteRequest {
+  id: string;
+  messageId: string;
+  channelId: string;
+  byId: string;
+  byName: string;
+  text: string;
+  at: number;
 }
 
 export interface Customization {
@@ -199,6 +212,8 @@ export interface DB {
   reads: Record<string, number>;
   custom?: Customization;
   geobrgy?: Record<string, string>;
+  /** Chat-message deletions awaiting program-admin verification. */
+  msgDeletes?: MsgDeleteRequest[];
   seq: number;
 }
 
@@ -483,6 +498,7 @@ export const INITIAL_USERS: User[] = [
   { id: 'u-sup1', name: 'Engr. Aries S. Grande', username: 'agrande', password: 'cityeng2026', role: 'supervisor', title: 'CGPP Department Head II (City Engineer)', shortTitle: 'City Engineer', status: 'active' },
   { id: 'u-sup2', name: 'Engr. Julio B. Sergio', username: 'jsergio', password: 'cityeng2026', role: 'supervisor', title: 'CGPP Assistant Department Head II (Assistant City Engineer)', shortTitle: 'Asst. City Engineer', status: 'active' },
   { id: 'u-mod', name: 'Ms. Bianca Salonga', username: 'bsalonga', password: 'cityeng2026', role: 'moderator', title: 'Board Moderator — Office of the City Engineer', shortTitle: 'Moderator', status: 'active' },
+  { id: 'u-operator', name: 'Mr. Vince Ortega', username: 'vortega', password: 'cityeng2026', role: 'operator', title: 'Operator — Office of the City Engineer', shortTitle: 'Operator', status: 'active' },
   { id: 'u-const', name: 'Engr. Ramil Domingo', username: 'rdomingo', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'const', status: 'active' },
   { id: 'u-maint', name: 'Engr. Nardo Salvador', username: 'nsalvador', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'maint', status: 'active' },
   { id: 'u-psd', name: 'Engr. Liza Bartolome', username: 'lbartolome', password: 'cityeng2026', role: 'division', title: 'Division Head', divisionId: 'psd', status: 'active' },
@@ -719,7 +735,7 @@ export function freshSeed(): DB {
     [geobrgyKey(9.7435, 118.7349)]: 'Liwanag',
   };
 
-  return { v: 18, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads: {}, geobrgy, seq: 148 };
+  return { v: 19, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads: {}, geobrgy, msgDeletes: [], seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

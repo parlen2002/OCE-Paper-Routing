@@ -6,13 +6,13 @@ import { I, Seal, Avatar, type IconName } from './ui';
 
 const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
   { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin'] },
-  { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division', 'moderator'] },
+  { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division', 'moderator', 'operator'] },
   { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee', 'joborder'] },
-  { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin', 'moderator'] },
+  { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin', 'moderator', 'operator'] },
   { page: 'messages', label: 'Messages', icon: 'send' },
   { page: 'documents', label: 'Documents', icon: 'file' },
   { page: 'divisions', label: 'Divisions', icon: 'sitemap' },
-  { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin', 'moderator'] },
+  { page: 'activity', label: 'Activity Log', icon: 'pulse', roles: ['supervisor', 'admin', 'moderator', 'operator'] },
   { page: 'users', label: 'Users & Accounts', icon: 'users', roles: ['admin'] },
   { page: 'userlogs', label: 'User History & Logs', icon: 'history', roles: ['admin'] },
   { page: 'customize', label: 'Customize', icon: 'wrench', roles: ['admin'] },

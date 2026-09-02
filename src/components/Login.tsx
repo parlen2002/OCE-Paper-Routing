@@ -10,6 +10,7 @@ const QUICK = [
   { u: 'bsalonga', label: 'Moderator' },
   { u: 'rdomingo', label: 'Construction Head' },
   { u: 'kvillanueva', label: 'Employee' },
+  { u: 'vortega', label: 'Operator' },
 ];
 
 function wrapHeading(s: string): string[] {

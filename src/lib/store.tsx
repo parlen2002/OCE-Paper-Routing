@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
+import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, MsgDeleteRequest, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, geobrgyKey, nominatimReverseUrl, stageMeta, uid } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v18';
+const LS_KEY = 'ppc-ceoflow-v19';
+
+/** A chat message may be edited by its author for 10 minutes after posting. */
+export const MSG_EDIT_WINDOW = 10 * 60 * 1000;
 
 function shade(hex: string, amt: number): string {
   const m = hex.replace('#', '');
@@ -27,11 +30,12 @@ function loadDb(): DB {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 18 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 19 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         if (!Array.isArray(d.channels)) d.channels = [];
         if (!Array.isArray(d.messages)) d.messages = [];
         if (!d.reads) d.reads = {};
+        if (!Array.isArray(d.msgDeletes)) d.msgDeletes = [];
         return d as DB;
       }
     }
@@ -123,6 +127,13 @@ interface StoreCtx {
   canPostChannel: (ch: Channel) => boolean;
   sendMsg: (channelId: string, text: string, docIds?: string[]) => void;
   markChannelRead: (chId: string) => void;
+  /** Author edits own message (10-min window). */
+  updateMessage: (msgId: string, text: string) => void;
+  /** Files a deletion request for the program admin to verify. */
+  requestDeleteMessage: (msgId: string) => void;
+  approveDeleteMessage: (reqId: string) => void;
+  denyDeleteMessage: (reqId: string) => void;
+  msgDeletes: MsgDeleteRequest[];
   manageChannelMember: (channelId: string, userId: string, add: boolean) => void;
   markAllRead: () => void;
   markRead: (notifId: string) => void;
@@ -194,7 +205,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       setUi((u) => ({
         ...u,
-        page: user.role === 'employee' || user.role === 'joborder' ? 'myboard' : user.role === 'division' || user.role === 'moderator' ? 'board' : 'dashboard',
+        page: user.role === 'employee' || user.role === 'joborder' ? 'myboard' : user.role === 'division' || user.role === 'moderator' || user.role === 'operator' ? 'board' : 'dashboard',
         divFilter: 'all',
       }));
     }
@@ -226,7 +237,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const visiblePapers = useMemo(() => {
     if (!me) return [];
-    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator') return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
     if (me.role === 'employee' || me.role === 'joborder')
       return db.papers.filter((p) => (p.assignees ?? []).includes(me.id)).sort((a, b) => b.updatedAt - a.updatedAt);
     const mine = (p: Paper) =>
@@ -239,7 +250,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const visibleNotifs = useMemo(() => {
     if (!me) return [];
     const vis = db.notifs.filter((n) =>
-      me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator'
+      me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator'
         ? true
         : (n.scope.type === 'division' && n.scope.divisionId === me.divisionId) || n.targetUserId === me.id
     );
@@ -276,7 +287,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const canManageDivision = (divId: string): boolean => {
     if (!user) return false;
-    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return true;
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator' || user.role === 'operator') return true;
     if (db.divisions?.[divId]?.oicId === user.id) return false;
     if (user.role === 'division') {
       const info = divOf(divId);
@@ -792,7 +803,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [db.papers]);
 
   /* ---- messaging ---- */
-  const overseer = (r?: Role) => r === 'admin' || r === 'supervisor' || r === 'moderator';
+  const overseer = (r?: Role) => r === 'admin' || r === 'supervisor' || r === 'moderator' || r === 'operator';
   const canSeeChannel = (ch: Channel): boolean => {
     if (!me) return false;
     if (overseer(me.role)) return true;
@@ -834,6 +845,98 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const markChannelRead: StoreCtx['markChannelRead'] = (chId) => {
     if (!me) return;
     setDb((d) => ({ ...d, reads: { ...(d.reads ?? {}), [readKey(me.id, chId)]: Date.now() } }));
+  };
+
+  /* ---- message edit / admin-verified delete ---- */
+
+  /** Author may edit their own message within MSG_EDIT_WINDOW of posting. */
+  const updateMessage: StoreCtx['updateMessage'] = (msgId, text) => {
+    if (!me) return;
+    const m = (db.messages ?? []).find((x) => x.id === msgId);
+    if (!m) return;
+    if (m.authorId !== me.id) {
+      pushToast('warn', 'You can only edit your own messages.');
+      return;
+    }
+    if (Date.now() - m.at > MSG_EDIT_WINDOW) {
+      pushToast('warn', 'The 10-minute edit window for this message has closed.');
+      return;
+    }
+    const t = text.trim();
+    if (!t) return;
+    setDb((d) => ({
+      ...d,
+      messages: (d.messages ?? []).map((x) => (x.id === msgId ? { ...x, text: t.slice(0, 600), editedAt: Date.now() } : x)),
+    }));
+    pushToast('ok', 'Message updated.');
+  };
+
+  /** Deletion is never instant — it files a request for the program admin to verify. */
+  const requestDeleteMessage: StoreCtx['requestDeleteMessage'] = (msgId) => {
+    if (!me) return;
+    const m = (db.messages ?? []).find((x) => x.id === msgId);
+    if (!m || m.system) return;
+    const isAuthor = m.authorId === me.id;
+    if (!isAuthor && !overseer(me.role)) {
+      pushToast('warn', 'Only the author or an overseer can request a message deletion.');
+      return;
+    }
+    if ((db.msgDeletes ?? []).some((r) => r.messageId === msgId)) {
+      pushToast('warn', 'A deletion request for this message is already pending with the program admin.');
+      return;
+    }
+    const req: MsgDeleteRequest = {
+      id: uid(),
+      messageId: m.id,
+      channelId: m.channelId,
+      byId: me.id,
+      byName: me.name,
+      text: m.text,
+      at: Date.now(),
+    };
+    setDb((d) => {
+      let next: DB = { ...d, msgDeletes: [...(d.msgDeletes ?? []), req] };
+      // Notify every program admin so they can verify in the Messages tab.
+      for (const admin of d.users.filter((u) => u.role === 'admin' && u.id !== me!.id)) {
+        next = pushNotif(
+          next,
+          {
+            text: `Deletion request — ${me!.name} asks to remove a message from ${
+              (d.channels ?? []).find((c) => c.id === m.channelId)?.name ?? 'a channel'
+            }`,
+            kind: 'account',
+            scope: { type: 'division', divisionId: '' },
+            targetUserId: admin.id,
+          },
+          me!
+        );
+      }
+      return next;
+    });
+    pushToast('ok', 'Deletion request sent — the program admin must verify before it is removed.');
+  };
+
+  const approveDeleteMessage: StoreCtx['approveDeleteMessage'] = (reqId) => {
+    if (!me || me.role !== 'admin') return;
+    const req = (db.msgDeletes ?? []).find((r) => r.id === reqId);
+    if (!req) return;
+    setDb((d) =>
+      withLog(
+        {
+          ...d,
+          messages: (d.messages ?? []).filter((x) => x.id !== req.messageId),
+          msgDeletes: (d.msgDeletes ?? []).filter((r) => r.id !== reqId),
+        },
+        { userId: me.id, userName: me.name, type: 'delete', text: `Verified & removed a chat message requested by ${req.byName}` }
+      )
+    );
+    pushToast('ok', 'Message deleted after verification.');
+  };
+
+  const denyDeleteMessage: StoreCtx['denyDeleteMessage'] = (reqId) => {
+    if (!me || me.role !== 'admin') return;
+    setDb((d) => ({ ...d, msgDeletes: (d.msgDeletes ?? []).filter((r) => r.id !== reqId) }));
+    pushToast('warn', 'Deletion request denied — the message stays.');
   };
 
   const manageChannelMember: StoreCtx['manageChannelMember'] = (channelId, userId, add) => {
@@ -881,6 +984,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     deletePaper, updatePaper, ackPaper,
     updateDivision, setDivisionHead, removeDivisionOIC, updateCustom,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
+    updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [],
     markAllRead, markRead, pushToast,
   };
 

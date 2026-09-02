@@ -57,11 +57,13 @@ body {
 }
 
 /* Readability scale for smaller office monitors (e.g. 19"). Magnifies the whole
-   interface ~18% — text, chips, icons and spacing together — while reflowing into
-   the same physical viewport so nothing overflows. Tweak the two 1.18 values to taste. */
-body {
+   interface ~18% — text, chips, icons and spacing together. The zoom lives on the
+   ROOT element, which resizes the layout viewport itself: the page fills the
+   screen edge-to-edge with no width-compensation math, so there is no rounding
+   gap on the right and no child can escape the frame. Tweak 1.18 to taste. */
+html {
   zoom: 1.18;
-  width: calc(100% / 1.18);
+  overflow-x: clip; /* never allow a page-level horizontal scrollbar */
 }
 
 .bg-blueprint {
@@ -143,7 +145,7 @@ body {
   .print-only { display: block !important; }
 
   /* A4 with tight 0.5 cm margins on every side. */
-  @page { size: A4 portrait; margin: 0.5cm; }
+  @page { size: A4 portrait; margin: 0.25cm; }
 
   /* Readability boost applied at the PAGE level (same mechanism as browser
      zoom): the print pipeline reflows content into the @page margin box, so

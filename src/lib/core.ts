@@ -1,6 +1,6 @@
 /* ============ OCE Flow — core types, organization, utilities, seed ============ */
 
-export type Role = 'admin' | 'supervisor' | 'moderator' | 'division' | 'employee' | 'joborder';
+export type Role = 'admin' | 'supervisor' | 'moderator' | 'operator' | 'division' | 'employee' | 'joborder';
 export type UserStatus = 'active' | 'pending' | 'disabled';
 
 export interface User {

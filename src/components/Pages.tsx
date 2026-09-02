@@ -23,6 +23,10 @@ export function Dashboard() {
   const week = Date.now() - 7 * 864e5;
   const doneWeek = papers.filter((p) => p.stage === 'completed' && p.updatedAt >= week).length;
   const urgentOpen = open.filter((p) => p.priority === 'urgent');
+  const overdueOpen = open
+    .filter((p) => p.dueAt != null && p.dueAt < Date.now())
+    .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
+  const daysOver = (dueAt: number) => Math.max(1, Math.ceil((Date.now() - dueAt) / 864e5));
   const load = ALL_UNITS.map((d) => ({ d: divOf(d.id)!, n: open.filter((p) => p.divisionId === d.id).length }));
   const maxLoad = Math.max(1, ...load.map((l) => l.n));
 
@@ -129,6 +133,52 @@ export function Dashboard() {
               })}
             </ul>
           </section>
+
+          {/* overdue — past deadline */}
+          <section className="anim-fade-up relative overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80" style={{ animationDelay: '240ms' }}>
+            <div className="flex items-center gap-2 border-b border-ink-700/70 px-4 py-3">
+              <I n="clock" className="h-3.5 w-3.5 text-amberx-400" sw={2} />
+              <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Overdue — past deadline</h3>
+              <span
+                className={`anim-badge ml-auto rounded px-2 py-0.5 font-mono text-[10px] font-bold tabular ${
+                  overdueOpen.length > 0 ? 'bg-amberx-500/20 text-amberx-400' : 'bg-ink-700 text-mist-500'
+                }`}
+              >
+                {overdueOpen.length}
+              </span>
+            </div>
+            {overdueOpen.length === 0 ? (
+              <p className="px-4 py-5 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">
+                All deadlines are being met — nothing is overdue
+              </p>
+            ) : (
+              <ul className="divide-y divide-ink-700/60">
+                {overdueOpen.map((p) => {
+                  const d = divOf(p.divisionId);
+                  const n = daysOver(p.dueAt ?? Date.now());
+                  return (
+                    <li key={p.id} className="relative">
+                      <span className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-amberx-500 to-flare-600" />
+                      <button onClick={() => openDrawer(p.id)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-ink-800/70">
+                        <span className="font-mono text-[10.5px] font-bold text-amberx-400">{p.ref}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-mist-100">{p.title}</span>
+                        {d && <DivChip div={d} />}
+                        <StageChip stage={p.stage} />
+                        <span
+                          className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider ${
+                            n >= 3 ? 'bg-redx-500/15 text-redx-400' : 'bg-amberx-500/15 text-amberx-400'
+                          }`}
+                          title={`Due ${new Date(p.dueAt ?? Date.now()).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`}
+                        >
+                          {n} day{n === 1 ? '' : 's'} late
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
         </div>
 
         <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: '160ms' }}>
@@ -222,24 +272,35 @@ export function DocumentsPage() {
         }
       />
 
-      <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative">
+      <div className="anim-fade-up mb-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-ink-700/70 bg-ink-900/55 px-3 py-2.5">
+        <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-mist-500">
+          <I n="file" className="h-3 w-3" sw={2.2} /> Register
+        </span>
+        <div className="relative min-w-[220px] flex-1">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ref, title, origin…"
             title="Search by: paper reference (OCE-2026-…), title, origin, or division name"
-            className="field w-80 py-1.5 pl-11 font-mono text-[11.5px]" />
+            className="field w-full py-1.5 pl-11 font-mono text-[11.5px]" />
           {q && (
             <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
               <I n="x" className="h-3 w-3" sw={2.6} />
             </button>
           )}
         </div>
-        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-44"
+        <SearchSelect value={stage} onChange={(v) => setStage(v as 'all' | Stage)} width="w-40"
           options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s.id, label: s.label, sub: s.hint }))]} />
-        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-72" placeholder="Filter by recipient…" />}
-        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-44"
+        {isSup && <SearchSelect value={divF} onChange={setDivF} options={unitOptions('All recipients')} width="w-60" placeholder="Recipient…" />}
+        <SearchSelect value={kindF} onChange={(v) => setKindF(v as 'all' | Kind)} width="w-40"
           options={[{ value: 'all', label: 'All kinds' }, ...Object.entries(KINDS).map(([k, v]) => ({ value: k, label: v.label, sub: v.short }))]} />
-        <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-mist-500">{rows.length} record{rows.length === 1 ? '' : 's'}</span>
+        {(q || stage !== 'all' || divF !== 'all' || kindF !== 'all') && (
+          <button onClick={() => { setQ(''); setStage('all'); setDivF('all'); setKindF('all'); }}
+            className="btn btn-ghost px-2.5 py-1 text-[11px]">
+            <I n="x" className="h-3 w-3" sw={2.4} /> Clear
+          </button>
+        )}
+        <span className="ml-auto shrink-0 rounded bg-ink-800 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-cyanx-400 tabular">
+          {rows.length} record{rows.length === 1 ? '' : 's'}
+        </span>
       </div>
 
       {rows.length === 0 ? (
@@ -781,10 +842,23 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
 export function UsersPage() {
   const { user, db, approveUser, denyUser, go, approvePasswordReset, updateUser } = useStore();
   const [editing, setEditing] = useState<User | null>(null);
+  const [uDivF, setUDivF] = useState<'all' | string>('all');
+  const [uRoleF, setURoleF] = useState<'all' | Role>('all');
+  const [uQ, setUQ] = useState('');
   if (user?.role !== 'admin') return null;
 
   const pending = db.users.filter((u) => u.status === 'pending');
   const resets = db.users.filter((u) => u.passwordResetAt);
+
+  const filteredUsers = useMemo(() => {
+    const ql = uQ.trim().toLowerCase();
+    return db.users.filter((u) => {
+      if (uDivF !== 'all' && u.divisionId !== uDivF) return false;
+      if (uRoleF !== 'all' && u.role !== uRoleF) return false;
+      if (!ql) return true;
+      return `${u.name} ${u.username} ${u.title} ${u.email ?? ''} ${u.phone ?? ''}`.toLowerCase().includes(ql);
+    });
+  }, [db.users, uDivF, uRoleF, uQ]);
 
   return (
     <div>
@@ -868,7 +942,37 @@ export function UsersPage() {
         <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
           <I n="users" className="h-3.5 w-3.5 text-cyanx-400" sw={2} />
           <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Account register</h3>
-          <span className="rounded bg-ink-700 px-2 py-0.5 font-mono text-[10px] font-bold text-mist-200 tabular">{db.users.length}</span>
+          <span className="rounded bg-ink-700 px-2 py-0.5 font-mono text-[10px] font-bold text-mist-200 tabular">
+            {filteredUsers.length} of {db.users.length}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-b border-ink-700 bg-ink-950/30 px-4 py-2.5">
+          <div className="relative min-w-[200px] flex-1">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
+            <input value={uQ} onChange={(e) => setUQ(e.target.value)} placeholder="Search name, username, title, contact…"
+              title="Search by full name, @username, title, email or phone"
+              className="field w-full py-1.5 pl-11 font-mono text-[11.5px]" />
+            {uQ && (
+              <button onClick={() => setUQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
+                <I n="x" className="h-3 w-3" sw={2.6} />
+              </button>
+            )}
+          </div>
+          <SearchSelect value={uDivF} onChange={setUDivF} options={unitOptions('All departments / teams')} width="w-56" placeholder="Department…" />
+          <SearchSelect
+            value={uRoleF}
+            onChange={(v) => setURoleF(v as 'all' | Role)}
+            width="w-40"
+            options={[
+              { value: 'all', label: 'All roles' },
+              ...Object.entries(ROLE_CHIP).map(([k, v]) => ({ value: k, label: v.label })),
+            ]}
+          />
+          {(uQ || uDivF !== 'all' || uRoleF !== 'all') && (
+            <button onClick={() => { setUQ(''); setUDivF('all'); setURoleF('all'); }} className="btn btn-ghost px-2.5 py-1 text-[11px]">
+              <I n="x" className="h-3 w-3" sw={2.4} /> Clear
+            </button>
+          )}
         </div>
         <div className="scroll-slim overflow-x-auto">
           <table className="w-full min-w-[760px] text-left">
@@ -883,7 +987,15 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {db.users.map((u, i) => {
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center">
+                    <p className="font-display text-[16px] font-bold uppercase tracking-wide text-mist-400">No accounts match</p>
+                    <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-mist-600">Loosen the search or filters to see more officers</p>
+                  </td>
+                </tr>
+              )}
+              {filteredUsers.map((u, i) => {
                 const div = u.divisionId ? divById(u.divisionId) : undefined;
                 const onDuty = db.session === u.id;
                 const lastEvent = db.logs.find((l) => l.userId === u.id);

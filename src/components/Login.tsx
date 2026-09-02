@@ -72,44 +72,45 @@ export function Login() {
   };
 
   return (
-    <div className="bg-blueprint flex min-h-screen">
-      {/* left: identity panel */}
-      <div className="relative hidden w-[46%] flex-col justify-between overflow-hidden border-r border-ink-700/70 bg-ink-900/70 p-10 lg:flex">
-        <div>
-          <div className="flex items-center gap-3">
-            <Seal className="h-14 w-14" />
-            <div>
-              <p className="font-display text-[26px] font-bold uppercase leading-none tracking-wider text-mist-50">
-                OCE <span className="text-flare-500">Flow</span>
-              </p>
-              <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.24em] text-mist-500">{custom.tagline || 'Paperwork flow command'}</p>
+    <div className="bg-blueprint flex min-h-screen items-center justify-center p-6">
+      <div className="grid w-full max-w-[880px] items-stretch gap-5 lg:grid-cols-[1fr_1.02fr]">
+        {/* left: brand box — seal, tagline, photo, description */}
+        <div className="anim-fade-up relative flex flex-col overflow-hidden rounded-xl border border-ink-600 bg-ink-900/80 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)]">
+          <span className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-flare-500 via-flare-400 to-cyanx-500" />
+          <div className="flex flex-1 flex-col p-7">
+            <div className="flex items-center gap-3">
+              <Seal className="h-12 w-12 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-display text-[22px] font-bold uppercase leading-none tracking-wider text-mist-50">
+                  OCE <span className="text-flare-500">Flow</span>
+                </p>
+                <p className="mt-1 truncate font-mono text-[8.5px] uppercase tracking-[0.22em] text-mist-500">{custom.tagline || 'Paperwork flow command'}</p>
+              </div>
             </div>
+
+            {custom.loginImage && (
+              <img src={custom.loginImage} alt="Office" className="mt-5 h-36 w-full rounded-lg border border-ink-700 object-cover shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]" />
+            )}
+
+            <p className="mt-5 font-mono text-[9px] uppercase tracking-[0.22em] text-flare-400">City Government of Puerto Princesa</p>
+            <h1 className="mt-1.5 font-display text-[32px] font-bold uppercase leading-[1.02] tracking-wide text-mist-50">
+              {wrapHeading(custom.orgName || 'Office of the City Engineer').map((line, i) => (
+                <span key={i}>{i > 0 && <br />}{line}</span>
+              ))}
+            </h1>
+            <p className="mt-3 text-[12.5px] leading-relaxed text-mist-400">
+              {custom.description || 'Every paper is tracked desk to desk — nine divisions, the Inspectorate Team, I.T. Section, Documentation & Monitoring, Subaybayan and the two executive desks, on one custody trail.'}
+            </p>
           </div>
-          {custom.loginImage && (
-            <img src={custom.loginImage} alt="Office" className="mt-7 h-40 w-full rounded-xl border border-ink-700 object-cover shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]" />
-          )}
-          <p className="mt-7 font-mono text-[10px] uppercase tracking-[0.24em] text-flare-400">City Government of Puerto Princesa</p>
-          <h1 className="mt-2 font-display text-[44px] font-bold uppercase leading-[0.98] tracking-wide text-mist-50">
-            {wrapHeading(custom.orgName || 'Office of the City Engineer').map((line, i) => (
-              <span key={i}>{i > 0 && <br />}{line}</span>
-            ))}
-          </h1>
-          <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-mist-400">
-            {custom.description || 'Every paper is tracked desk to desk — nine divisions, the Inspectorate Team, I.T. Section, Documentation & Monitoring, Subaybayan and the two executive desks, on one custody trail.'}
-          </p>
+          <div className="flex items-center gap-2 border-t border-ink-700/70 bg-ink-950/40 px-7 py-3">
+            <I n="lock" className="h-3 w-3 shrink-0 text-mist-600" sw={2.2} />
+            <p className="font-mono text-[8.5px] uppercase tracking-[0.18em] text-mist-600">Authorized personnel only · all activity is logged</p>
+          </div>
         </div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-mist-600">Authorized personnel only · all activity is logged</p>
-      </div>
 
-      {/* right: auth card */}
-      <div className="flex flex-1 items-center justify-center p-6">
-        <div key={shake} className={`w-full max-w-md ${shake ? 'anim-shake' : 'anim-fade-up'}`}>
-          <div className="mb-5 flex items-center gap-3 lg:hidden">
-            <Seal className="h-11 w-11" />
-            <p className="font-display text-xl font-bold uppercase tracking-wider text-mist-50">OCE <span className="text-flare-500">Flow</span></p>
-          </div>
-
-          <div className="rounded-xl border border-ink-600 bg-ink-900/90 p-7 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)]">
+        {/* right: auth card */}
+        <div key={shake} className={`flex ${shake ? 'anim-shake' : 'anim-fade-up'}`} style={{ animationDelay: '90ms' }}>
+          <div className="w-full self-center rounded-xl border border-ink-600 bg-ink-900/90 p-7 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)]">
             {mode === 'signin' && (
               <form onSubmit={submit}>
                 <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-flare-400">Restricted system</p>

@@ -264,17 +264,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const mist = mood.mist ?? DEFAULT_MIST;
     ['--color-mist-50', '--color-mist-100', '--color-mist-200', '--color-mist-300', '--color-mist-400', '--color-mist-500', '--color-mist-600'].forEach((k, i) => root.style.setProperty(k, mist[i]));
 
-    // ambient backdrop — grid lines + glows follow the mood's curated palette
+    // ambient backdrop — grid lines + glows follow the mood's curated palette.
+    // Opacities are deliberately bold so a mood switch is unmistakable, and the
+    // variables are written to both <html> and <body> so no cascade layer can
+    // strand them above the .bg-blueprint surfaces.
     const isLight = !!mood.mist;
     const line = mood.line ?? accent2 ?? '#56c8f0';
     const warm = accent ?? mood.warm ?? '#ff6b1c';
-    // light backgrounds need slightly stronger, warmer lines to stay legible
-    const gridA = isLight ? 0.12 : 0.05;
-    const gridB = isLight ? 0.06 : 0.024;
-    root.style.setProperty('--bg-grid', rgba(line, gridA));
-    root.style.setProperty('--bg-grid-fine', rgba(line, gridB));
-    root.style.setProperty('--bg-glow-a', rgba(line, isLight ? 0.10 : 0.08));
-    root.style.setProperty('--bg-glow-b', rgba(warm, isLight ? 0.08 : 0.07));
+    const gridA = isLight ? 0.16 : 0.09;
+    const gridB = isLight ? 0.08 : 0.045;
+    const glowA = isLight ? 0.14 : 0.14;
+    const glowB = isLight ? 0.10 : 0.11;
+    const pairs: [string, string][] = [
+      ['--bg-grid', rgba(line, gridA)],
+      ['--bg-grid-fine', rgba(line, gridB)],
+      ['--bg-glow-a', rgba(line, glowA)],
+      ['--bg-glow-b', rgba(warm, glowB)],
+    ];
+    for (const [k, v] of pairs) {
+      root.style.setProperty(k, v);
+      document.body.style.setProperty(k, v);
+    }
   }, [theme]);
 
   const activities = useMemo(() => deriveActivities(db.papers), [db.papers]);

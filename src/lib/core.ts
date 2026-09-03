@@ -225,8 +225,8 @@ export interface MoodDef {
 /** All background moods — classic, light/soft, and seasonal. */
 export const MOODS: Record<string, MoodDef> = {
   blueprint: { label: 'Blueprint', tones: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'], line: '#56c8f0', warm: '#ff6b1c' },
-  midnight: { label: 'Midnight', tones: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'], line: '#8b8bf5', warm: '#b06cf5' },
-  slate: { label: 'Slate', tones: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'], line: '#5f7d95', warm: '#c9a86a' },
+  midnight: { label: 'Midnight', tones: ['#08060f', '#0d0a19', '#120e23', '#191331', '#241c45', '#32275e', '#45367e'], line: '#9d8cff', warm: '#ff6ec7' },
+  slate: { label: 'Slate', tones: ['#101317', '#161a20', '#1c2128', '#242b34', '#303945', '#3f4b59', '#52606f'], line: '#8ba3ba', warm: '#e0b06a' },
   paper: {
     label: 'Paper (light)',
     tones: ['#f3efe7', '#fbf8f2', '#efe9dd', '#e6dfcf', '#d4cab6', '#bcae93', '#97896e'],
@@ -238,7 +238,7 @@ export const MOODS: Record<string, MoodDef> = {
     label: 'Blossom',
     tones: ['#170b14', '#1f101b', '#271422', '#311a2b', '#43243c', '#5a3050', '#74406a'],
     accent: '#ff7ab0', accent2: '#c9a7f5',
-    line: '#e88bbf', warm: '#ffb0cd',
+    line: '#f792c9', warm: '#ffc2d9',
     note: 'Soft rose',
   },
   christmas: {

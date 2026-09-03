@@ -19,6 +19,15 @@ function shade(hex: string, amt: number): string {
   return `#${[mix(r), mix(g), mix(b)].map((ch) => ch.toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** hex + alpha → rgba() string for ambient backdrop layers */
+function rgba(hex: string, a: number): string {
+  const m = hex.replace('#', '');
+  const full = m.length === 3 ? m.split('').map((ch) => ch + ch).join('') : m;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return `rgba(86,200,240,${a})`;
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 function loadDb(): DB {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -254,6 +263,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // light moods invert the text ramp so everything stays readable
     const mist = mood.mist ?? DEFAULT_MIST;
     ['--color-mist-50', '--color-mist-100', '--color-mist-200', '--color-mist-300', '--color-mist-400', '--color-mist-500', '--color-mist-600'].forEach((k, i) => root.style.setProperty(k, mist[i]));
+
+    // ambient backdrop — grid lines + glows follow the mood's curated palette
+    const isLight = !!mood.mist;
+    const line = mood.line ?? accent2 ?? '#56c8f0';
+    const warm = accent ?? mood.warm ?? '#ff6b1c';
+    // light backgrounds need slightly stronger, warmer lines to stay legible
+    const gridA = isLight ? 0.12 : 0.05;
+    const gridB = isLight ? 0.06 : 0.024;
+    root.style.setProperty('--bg-grid', rgba(line, gridA));
+    root.style.setProperty('--bg-grid-fine', rgba(line, gridB));
+    root.style.setProperty('--bg-glow-a', rgba(line, isLight ? 0.10 : 0.08));
+    root.style.setProperty('--bg-glow-b', rgba(warm, isLight ? 0.08 : 0.07));
   }, [theme]);
 
   const activities = useMemo(() => deriveActivities(db.papers), [db.papers]);

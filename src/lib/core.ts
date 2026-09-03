@@ -214,49 +214,59 @@ export interface MoodDef {
   mist?: string[];
   accent?: string;
   accent2?: string;
+  /** Grid-line / ambient tint for the backdrop. */
+  line?: string;
+  /** Secondary (warm) ambient glow color. */
+  warm?: string;
   seasonal?: boolean;
   note?: string;
 }
 
 /** All background moods — classic, light/soft, and seasonal. */
 export const MOODS: Record<string, MoodDef> = {
-  blueprint: { label: 'Blueprint', tones: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'] },
-  midnight: { label: 'Midnight', tones: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'] },
-  slate: { label: 'Slate', tones: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'] },
+  blueprint: { label: 'Blueprint', tones: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'], line: '#56c8f0', warm: '#ff6b1c' },
+  midnight: { label: 'Midnight', tones: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'], line: '#8b8bf5', warm: '#b06cf5' },
+  slate: { label: 'Slate', tones: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'], line: '#5f7d95', warm: '#c9a86a' },
   paper: {
     label: 'Paper (light)',
     tones: ['#f3efe7', '#fbf8f2', '#efe9dd', '#e6dfcf', '#d4cab6', '#bcae93', '#97896e'],
     mist: ['#16283c', '#1c2f45', '#2c4260', '#41597a', '#5a7391', '#748ca8', '#90a7bf'],
+    line: '#b3a07c', warm: '#c98d4f',
     note: 'Light reading mode',
   },
   blossom: {
     label: 'Blossom',
     tones: ['#170b14', '#1f101b', '#271422', '#311a2b', '#43243c', '#5a3050', '#74406a'],
     accent: '#ff7ab0', accent2: '#c9a7f5',
+    line: '#e88bbf', warm: '#ffb0cd',
     note: 'Soft rose',
   },
   christmas: {
     label: 'Christmas',
     tones: ['#07120c', '#0b1a10', '#102316', '#16301e', '#1f4429', '#2c5c38', '#3d7a4c'],
     accent: '#e0453a', accent2: '#fbc94a',
+    line: '#4dbd74', warm: '#e0453a',
     seasonal: true, note: 'Dec 15 – Jan 6',
   },
   valentine: {
     label: "Valentine's",
     tones: ['#160a10', '#1f0f17', '#28131e', '#331a27', '#462437', '#5c2f47', '#78405e'],
     accent: '#ff5c8a', accent2: '#fbc94a',
+    line: '#f27fa5', warm: '#fbc94a',
     seasonal: true, note: 'Feb 1 – 14',
   },
   summer: {
     label: 'Dry season',
     tones: ['#141007', '#1c160a', '#241d0e', '#2f2613', '#41341b', '#574626', '#74603a'],
     accent: '#f5b924', accent2: '#56c8f0',
+    line: '#e8c25a', warm: '#56c8f0',
     seasonal: true, note: 'Mar – May',
   },
   rainy: {
     label: 'Rainy season',
     tones: ['#071214', '#0b1a1d', '#102326', '#163034', '#1f4449', '#2c5c62', '#3d7a81'],
     accent: '#56c8f0', accent2: '#2dd4bf',
+    line: '#5fc4d4', warm: '#6cd1f4',
     seasonal: true, note: 'Jun – Oct',
   },
 };

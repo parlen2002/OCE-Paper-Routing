@@ -913,7 +913,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const missing: { lat: number; lng: number; key: string }[] = [];
     for (const p of db.papers) {
       for (const a of p.attachments) {
-        if (a.geotagged && a.lat != null && a.lng != null) {
+        // skip Null Island (0,0) — it means the GPS block was stripped, not a real site
+        if (a.geotagged && a.lat != null && a.lng != null && !(a.lat === 0 && a.lng === 0)) {
           const key = geobrgyKey(a.lat, a.lng);
           if (!(key in known) && !missing.some((m) => m.key === key)) missing.push({ lat: a.lat, lng: a.lng, key });
         }

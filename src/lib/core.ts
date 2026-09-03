@@ -420,20 +420,35 @@ export const dayLabel = (ts: number): string => {
 
 /* ---------------- geotags & barangays ---------------- */
 
+/**
+ * Reads GPS coordinates from a JPEG's EXIF block.
+ *
+ * Reads the ENTIRE file — Android gallery/camera photos are commonly 3–12 MB
+ * and their GPS rational values frequently sit beyond the first megabyte,
+ * which previously made them read as 0,0. Every offset is bounds-checked so a
+ * truncated or malformed block yields "no GPS" instead of garbage, and the
+ * impossible Null-Island coordinate (0,0) is rejected.
+ */
 export async function readGpsFromJpeg(file: File): Promise<{ lat: number; lng: number } | null> {
   try {
     if (!/jpe?g$/i.test(file.name) && !/jpeg/i.test(file.type)) return null;
-    const buf = await file.slice(0, 1024 * 1024).arrayBuffer();
+    if (file.size > 60 * 1024 * 1024) return null; // too large to be worth parsing
+    const buf = await file.arrayBuffer();
     const dv = new DataView(buf);
     if (dv.byteLength < 12 || dv.getUint16(0) !== 0xffd8) return null;
     let off = 2;
-    while (off + 4 < dv.byteLength) {
+    let guard = 0;
+    while (off + 4 <= dv.byteLength && guard++ < 256) {
       const marker = dv.getUint16(off);
       if ((marker & 0xff00) !== 0xff00) break;
-      if (marker === 0xffd8 || (marker >= 0xffd0 && marker <= 0xffd9)) { off += 2; continue; }
+      if (marker === 0xffd8 || (marker >= 0xffd0 && marker <= 0xffd9) || marker === 0xff01) { off += 2; continue; }
+      if (off + 4 > dv.byteLength) break;
       const segLen = dv.getUint16(off + 2);
-      if (marker === 0xffe1 && off + 10 < dv.byteLength && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0) {
-        return parseTiff(dv, off + 10);
+      if (segLen < 2) break;
+      if (marker === 0xffe1 && off + 12 <= dv.byteLength && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0) {
+        const gps = parseTiff(dv, off + 10);
+        if (gps) return gps;
+        // some files carry more than one APP1 (e.g. XMP after EXIF) — keep scanning
       }
       off += 2 + segLen;
     }
@@ -443,38 +458,65 @@ export async function readGpsFromJpeg(file: File): Promise<{ lat: number; lng: n
 
 function parseTiff(dv: DataView, base: number): { lat: number; lng: number } | null {
   try {
+    const len = dv.byteLength;
+    const inR = (o: number, n: number) => base + o + n <= len && base + o >= 0;
     const le = dv.getUint16(base) === 0x4949;
-    const u16 = (o: number) => dv.getUint16(base + o, le);
-    const u32 = (o: number) => dv.getUint32(base + o, le);
+    const u16 = (o: number): number | null => (inR(o, 2) ? dv.getUint16(base + o, le) : null);
+    const u32 = (o: number): number | null => (inR(o, 4) ? dv.getUint32(base + o, le) : null);
+    const u8 = (o: number): number | null => (inR(o, 1) ? dv.getUint8(base + o) : null);
     if (u16(2) !== 0x002a) return null;
     const ifd0 = u32(4);
-    const gps = findLongTag(dv, base, ifd0, 0x8825, le);
+    if (ifd0 == null) return null;
+    const gps = findLongTag(dv, base, ifd0, 0x8825, le, inR, u16, u32);
     if (gps == null) return null;
     const count = u16(gps);
+    if (count == null || count === 0 || count > 64) return null;
     let latRef = 'N', lngRef = 'E';
     let lat: number | null = null, lng: number | null = null;
-    const rat = (o: number) => u32(o) / Math.max(1, u32(o + 4));
+    /** one RATIONAL (num/den) with sanity checks */
+    const rat = (o: number): number | null => {
+      const n = u32(o), d = u32(o + 4);
+      if (n == null || d == null || d === 0) return null;
+      const v = n / d;
+      return Number.isFinite(v) ? v : null;
+    };
+    /** GPS coordinate = 3 rationals (deg, min, sec) — every part must be readable */
+    const coord = (o: number): number | null => {
+      const deg = rat(o), min = rat(o + 8), sec = rat(o + 16);
+      if (deg == null || min == null || sec == null) return null;
+      const v = deg + min / 60 + sec / 3600;
+      return Number.isFinite(v) ? v : null;
+    };
     for (let i = 0; i < count; i++) {
       const e = gps + 2 + i * 12;
+      if (!inR(e, 12)) break;
       const tag = u16(e);
-      if (tag === 0x0001) latRef = String.fromCharCode(dv.getUint8(base + e + 8));
-      else if (tag === 0x0003) lngRef = String.fromCharCode(dv.getUint8(base + e + 8));
-      else if (tag === 0x0002) { const o = u32(e + 8); lat = rat(o) + rat(o + 8) / 60 + rat(o + 16) / 3600; }
-      else if (tag === 0x0004) { const o = u32(e + 8); lng = rat(o) + rat(o + 8) / 60 + rat(o + 16) / 3600; }
+      if (tag === 0x0001) { const c = u8(e + 8); if (c != null) latRef = String.fromCharCode(c); }
+      else if (tag === 0x0003) { const c = u8(e + 8); if (c != null) lngRef = String.fromCharCode(c); }
+      else if (tag === 0x0002) { const o = u32(e + 8); if (o != null) lat = coord(o); }
+      else if (tag === 0x0004) { const o = u32(e + 8); if (o != null) lng = coord(o); }
     }
-    if (lat == null || lng == null || !isFinite(lat) || !isFinite(lng)) return null;
+    if (lat == null || lng == null) return null;
     if (latRef === 'S') lat = -lat;
     if (lngRef === 'W') lng = -lng;
+    // sanity: within the globe, and never exactly 0,0 ("Null Island" = stripped GPS)
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    if (lat === 0 && lng === 0) return null;
     return { lat, lng };
   } catch { return null; }
 }
 
-function findLongTag(dv: DataView, base: number, ifd: number, target: number, le: boolean): number | null {
-  const u16 = (o: number) => dv.getUint16(base + o, le);
-  const u32 = (o: number) => dv.getUint32(base + o, le);
-  for (let i = 0, n = u16(ifd); i < n; i++) {
+function findLongTag(
+  dv: DataView, base: number, ifd: number, target: number, le: boolean,
+  inR: (o: number, n: number) => boolean,
+  u16: (o: number) => number | null,
+  u32: (o: number) => number | null
+): number | null {
+  const n = u16(ifd);
+  if (n == null || n === 0 || n > 512) return null;
+  for (let i = 0; i < n; i++) {
     const e = ifd + 2 + i * 12;
+    if (!inR(e, 12)) return null;
     if (u16(e) === target) return u32(e + 8);
   }
   return null;

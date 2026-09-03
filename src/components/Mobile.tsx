@@ -13,6 +13,55 @@ import {
 } from '../lib/core';
 import { I, Avatar, StageChip, KindTag, PriorityTag, ProgressBar, DivChip, Seal, StaticMapImage, type IconName } from './ui';
 
+/* ------------------------------------------------------------------
+ * Android / mobile "back" handling.
+ * Keeps a stack of open overlays. While anything is open we hold one extra
+ * history entry, so the OS back gesture fires `popstate` (closing the top
+ * overlay) instead of navigating away / exiting the browser.
+ * ------------------------------------------------------------------ */
+const backStack: Array<() => void> = [];
+let backEntry = false;
+
+function onMobilePop() {
+  if (backStack.length === 0) {
+    backEntry = false;
+    return; // nothing open — let the browser handle it
+  }
+  const top = backStack.pop();
+  if (top) top();
+  if (backStack.length === 0) backEntry = false; // entry was consumed
+  else window.history.pushState({ oceBack: true }, ''); // keep one for the next press
+}
+
+if (typeof window !== 'undefined') window.addEventListener('popstate', onMobilePop);
+
+/** Register an overlay with the back stack. `open` toggles it, `onClose` fires on back. */
+function useMobileBack(open: boolean, onClose: () => void) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => closeRef.current();
+    backStack.push(handler);
+    if (!backEntry) {
+      backEntry = true;
+      window.history.pushState({ oceBack: true }, '');
+    }
+    return () => {
+      const idx = backStack.indexOf(handler);
+      if (idx !== -1) backStack.splice(idx, 1);
+      // closed programmatically (not via back) — rebalance the history entry
+      if (backStack.length === 0 && backEntry) {
+        backEntry = false;
+        window.history.back();
+      }
+    };
+  }, [open]);
+}
+
+/** True on Android — used to offer the native photo gallery / camera. */
+const IS_ANDROID = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+
 type TabId = 'home' | 'board' | 'docs' | 'chat' | 'me';
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
@@ -28,6 +77,8 @@ export function MobileApp() {
   const { me, unread, msgUnreadTotal, theme, custom } = store;
   const [tab, setTab] = useState<TabId>('home');
   const [alertsOpen, setAlertsOpen] = useState(false);
+  // OS back closes the alerts sheet before leaving the app
+  useMobileBack(alertsOpen, () => setAlertsOpen(false));
   if (!me) return null;
 
   return (
@@ -391,7 +442,7 @@ function MobilePaperCard({ paper, onOpen }: { paper: Paper; onOpen: () => void }
 /* ------------------------------------------------ paperwork bottom sheet */
 function MobilePaperSheet() {
   const store = useStore();
-  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, setReportOpen, employeesOf } = store;
+  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, employeesOf } = store;
   const paper = ui.drawerId ? db.papers.find((p) => p.id === ui.drawerId) : null;
 
   const [note, setNote] = useState('');
@@ -399,15 +450,29 @@ function MobilePaperSheet() {
   const [fwd, setFwd] = useState<string[]>([]);
   const [confirmDel, setConfirmDel] = useState(false);
   const [rmAtt, setRmAtt] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  /* completion slider — local draft while dragging, committed once on release (same as desktop) */
+  const [pctDraft, setPctDraft] = useState<number | null>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); }, [ui.drawerId]);
+  // OS back closes this sheet before leaving the app
+  useMobileBack(!!ui.drawerId, closeDrawer);
+
+  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setAttachOpen(false); setPctDraft(null); }, [ui.drawerId]);
   if (!paper || !me) return null;
 
   const editable = canEdit(paper);
   const isField = me.role === 'employee' || me.role === 'joborder';
   const pct = paper.progress ?? (paper.stage === 'completed' ? 100 : 0);
-  const shown = pct;
+  const shown = pctDraft ?? pct;
+  const commitPct = () => {
+    if (pctDraft == null) return;
+    setProgress(paper.id, pctDraft);
+    setPctDraft(null);
+  };
   const div = divById(paper.divisionId);
   const geo = paper.attachments.find((a) => a.geotagged && a.lat != null && a.lng != null);
   const custody = [...paper.custody].sort((a, b) => b.at - a.at);
@@ -418,11 +483,12 @@ function MobilePaperSheet() {
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const iAmPic = isField && (paper.assignees ?? []).includes(me.id);
 
-  const pickFiles = async (files: FileList | null) => {
+  const pickFiles = async (files: FileList | null, ref: React.RefObject<HTMLInputElement>) => {
     if (!files?.length) return;
     const { atts } = await buildAttachments(files, me.name);
     if (atts.length) addAttachments(paper.id, atts);
-    if (fileRef.current) fileRef.current.value = '';
+    if (ref.current) ref.current.value = '';
+    setAttachOpen(false);
   };
 
   return (
@@ -436,10 +502,7 @@ function MobilePaperSheet() {
             <span className="font-mono text-[11px] font-bold tracking-wider text-cyanx-400">{paper.ref}</span>
             <StageChip stage={paper.stage} />
             <KindTag kind={paper.kind} />
-            <button onClick={() => setReportOpen(true, { paperId: paper.id })} className="ml-auto rounded-md border border-flare-500/50 bg-flare-500/10 p-2 text-flare-400 active:scale-95" title="Print paperwork">
-              <I n="printer" className="h-4 w-4" sw={2} />
-            </button>
-            <button onClick={closeDrawer} className="rounded-md border border-ink-600 p-2 text-mist-400 active:scale-95" title="Close">
+            <button onClick={closeDrawer} className="ml-auto rounded-md border border-ink-600 p-2 text-mist-400 active:scale-95" title="Close">
               <I n="x" className="h-4 w-4" />
             </button>
           </div>
@@ -460,13 +523,19 @@ function MobilePaperSheet() {
 
           {/* completion */}
           <section>
-            <p className="mb-1.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Completion · <span className="text-tealx-400">{fmtPct(shown)}%</span></p>
+            <p className="mb-1.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">
+              Completion · <span className={pctDraft != null ? 'text-amberx-400' : 'text-tealx-400'}>{fmtPct(shown)}%</span>
+              {pctDraft != null && <span className="ml-1.5 text-amberx-400/80 normal-case tracking-normal">· release to save</span>}
+            </p>
             <input type="range" min={0} max={100} step={0.5} value={shown} disabled={!editable}
-              onChange={(e) => setProgress(paper.id, Number(e.target.value))}
+              onChange={(e) => setPctDraft(Number(e.target.value))}
+              onPointerUp={commitPct}
+              onTouchEnd={commitPct}
+              onBlur={commitPct}
               className="range-teal w-full accent-tealx-500" />
             <div className="mt-2 grid grid-cols-5 gap-1.5">
               {[0, 25, 50, 75, 100].map((v) => (
-                <button key={v} disabled={!editable || (isField && v === 100)} onClick={() => setProgress(paper.id, v)}
+                <button key={v} disabled={!editable || (isField && v === 100)} onClick={() => { setPctDraft(null); setProgress(paper.id, v); }}
                   className={`rounded-md border px-1 py-2 font-mono text-[10.5px] font-bold tabular transition active:scale-95 ${Math.abs(shown - v) < 0.25 ? 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400' : 'border-ink-600 bg-ink-850 text-mist-300'} disabled:cursor-not-allowed disabled:opacity-40`}>
                   {v}%
                 </button>
@@ -561,9 +630,12 @@ function MobilePaperSheet() {
           <section>
             <div className="mb-1.5 flex items-center gap-2">
               <p className="font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Evidence · {paper.attachments.length}</p>
-              <input ref={fileRef} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files)} />
-              <button onClick={() => fileRef.current?.click()} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95">
-                <I n="plus" className="h-3 w-3" sw={2.4} /> Add JPG/PDF
+              {/* Android photo gallery / camera / PDF pickers */}
+              <input ref={galleryRef} type="file" multiple accept="image/*" className="hidden" onChange={(e) => void pickFiles(e.target.files, galleryRef)} />
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void pickFiles(e.target.files, cameraRef)} />
+              <input ref={pdfRef} type="file" multiple accept=".pdf,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files, pdfRef)} />
+              <button onClick={() => setAttachOpen(true)} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95">
+                <I n="plus" className="h-3 w-3" sw={2.4} /> Add photo / PDF
               </button>
             </div>
             {geo && (
@@ -633,8 +705,8 @@ function MobilePaperSheet() {
               <p className="mb-2 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Record controls</p>
               {me.role === 'admin' ? (
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => updatePaper(paper.id, {})} className="btn btn-ghost justify-center opacity-60" title="Use the desktop view to edit fields">
-                    <I n="wrench" className="h-4 w-4" sw={2} /> Edit (desktop)
+                  <button onClick={() => setEditOpen(true)} className="btn btn-ghost justify-center" title="Edit paperwork fields">
+                    <I n="wrench" className="h-4 w-4" sw={2} /> Edit
                   </button>
                   <button
                     onClick={() => { if (confirmDel) { deletePaper(paper.id); closeDrawer(); } else { setConfirmDel(true); window.setTimeout(() => setConfirmDel(false), 3000); } }}
@@ -651,6 +723,122 @@ function MobilePaperSheet() {
               )}
             </section>
           )}
+        </div>
+      </div>
+
+      {/* edit paperwork bottom sheet */}
+      {editOpen && (
+        <MobileEditSheet paper={paper} onClose={() => setEditOpen(false)} onSave={(patch) => { updatePaper(paper.id, patch); setEditOpen(false); }} />
+      )}
+
+      {/* attach source action sheet (Android gallery / camera / PDF) */}
+      {attachOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={() => setAttachOpen(false)} />
+          <div className="anim-slide-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-ink-600 bg-ink-900 px-4 pb-6 pt-3" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-600" />
+            <p className="mb-3 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Add evidence · {IS_ANDROID ? 'Android device detected' : 'choose a source'}</p>
+            <div className="space-y-2">
+              <button onClick={() => galleryRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyanx-500/15 text-cyanx-400"><I n="cam" className="h-5 w-5" sw={1.8} /></span>
+                <span>
+                  <span className="block text-[14px] font-bold text-mist-50">Photo gallery</span>
+                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Pick one or more photos · geotags kept</span>
+                </span>
+              </button>
+              <button onClick={() => cameraRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-flare-500/15 text-flare-400"><I n="cam" className="h-5 w-5" sw={1.8} /></span>
+                <span>
+                  <span className="block text-[14px] font-bold text-mist-50">Take a photo</span>
+                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Use the camera · location stamped if enabled</span>
+                </span>
+              </button>
+              <button onClick={() => pdfRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-tealx-500/15 text-tealx-400"><I n="file" className="h-5 w-5" sw={1.8} /></span>
+                <span>
+                  <span className="block text-[14px] font-bold text-mist-50">PDF document</span>
+                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Attach plans, permits or reports</span>
+                </span>
+              </button>
+              <button onClick={() => setAttachOpen(false)} className="btn btn-ghost w-full justify-center">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------ mobile edit paperwork sheet */
+function MobileEditSheet({ paper, onClose, onSave }: { paper: Paper; onClose: () => void; onSave: (patch: Partial<Paper>) => void }) {
+  const [title, setTitle] = useState(paper.title);
+  const [origin, setOrigin] = useState(paper.origin);
+  const [kind, setKind] = useState<Kind>(paper.kind);
+  const [priority, setPriority] = useState<Priority>(paper.priority);
+  const [due, setDue] = useState(paper.dueAt ? new Date(paper.dueAt).toISOString().slice(0, 10) : '');
+  const [remarks, setRemarks] = useState(paper.remarks ?? '');
+  useMobileBack(true, onClose);
+
+  const save = () => {
+    if (!title.trim()) return;
+    onSave({
+      title: title.trim(),
+      origin: origin.trim(),
+      kind,
+      priority,
+      dueAt: due ? new Date(due + 'T17:00:00').getTime() : undefined,
+      remarks: remarks.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="anim-slide-up absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl border-t border-ink-600 bg-ink-900 px-4 pb-6 pt-3" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-600" />
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-flare-400">Edit paperwork</p>
+            <p className="mt-0.5 font-mono text-[11px] text-mist-400">{paper.ref}</p>
+          </div>
+          <button onClick={onClose} className="rounded-md border border-ink-600 p-2 text-mist-400 active:scale-95"><I n="x" className="h-4 w-4" /></button>
+        </div>
+
+        <div className="space-y-3.5">
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Title</span>
+            <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Origin</span>
+            <input className="field" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Kind</span>
+              <select className="field" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+                {Object.entries(KINDS).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Priority</span>
+              <select className="field" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+                {Object.entries(PRIORITIES).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Due date</span>
+            <input type="date" className="field" value={due} onChange={(e) => setDue(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block font-mono text-[9.5px] font-bold uppercase tracking-[0.18em] text-mist-500">Remarks</span>
+            <textarea className="field" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+          </label>
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose} className="btn btn-ghost flex-1 justify-center">Cancel</button>
+            <button onClick={save} disabled={!title.trim()} className="btn btn-primary flex-1 justify-center"><I n="check" className="h-4 w-4" sw={2.2} /> Save changes</button>
+          </div>
         </div>
       </div>
     </div>
@@ -722,6 +910,9 @@ function MobileMessages() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // OS back returns to the channel list before leaving the app
+  useMobileBack(!!sel, () => setSel(null));
 
   const channel = visibleChannels.find((c) => c.id === sel) ?? null;
   const msgs = channel ? messagesOf(channel.id) : [];
@@ -961,7 +1152,7 @@ function MobileAlerts() {
 /* ------------------------------------------------ me (profile + settings) */
 function MobileMe() {
   const store = useStore();
-  const { me, db, theme, updateMyTheme, updateProfile, changePassword, requestPasswordReset, setReportOpen, resetDemo, logout, custom } = store;
+  const { me, db, theme, updateMyTheme, updateProfile, changePassword, requestPasswordReset, resetDemo, logout, custom } = store;
   const [pName, setPName] = useState(me?.name ?? '');
   const [pTitle, setPTitle] = useState(me?.title ?? '');
   const [pPhone, setPPhone] = useState(me?.phone ?? '');
@@ -1054,7 +1245,6 @@ function MobileMe() {
 
       {/* actions */}
       <section className="space-y-2">
-        <button onClick={() => setReportOpen(true)} className="btn btn-ghost w-full justify-center"><I n="printer" className="h-4 w-4" sw={2} /> Print routing report</button>
         {me.role === 'admin' && <button onClick={resetDemo} className="btn btn-ghost w-full justify-center"><I n="refresh" className="h-4 w-4" sw={2} /> Reset demo data</button>}
         <button onClick={logout} className="btn w-full justify-center border border-redx-500/50 bg-redx-500/10 text-redx-400"><I n="out" className="h-4 w-4" sw={2} /> Sign out</button>
       </section>

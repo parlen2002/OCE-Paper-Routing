@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Role } from '../lib/core';
-import { timeAgo } from '../lib/core';
+import { MOODS, seasonalMood, timeAgo } from '../lib/core';
 import { useStore, type Page } from '../lib/store';
 import { I, Seal, Avatar, type IconName } from './ui';
 
@@ -181,8 +181,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const ACCENT_SWATCHES = ['#ff6b1c', '#56c8f0', '#2dd4bf', '#f5b924', '#45d483', '#f4645c', '#a78bfa'];
+const ACCENT2_SWATCHES = ['#56c8f0', '#ff6b1c', '#45e0cd', '#fbc94a', '#8adcf8', '#f8837c', '#6cd1f4'];
+
 function ProfileModal() {
-  const { user, db, ui, setProfileOpen, changePassword, requestPasswordReset, updateProfile } = useStore();
+  const { user, db, ui, setProfileOpen, changePassword, requestPasswordReset, updateProfile, theme, updateMyTheme } = useStore();
   const meUser0 = user ? db.users.find((x) => x.id === user.id) ?? user : null;
   /* profile details (self-service) */
   const [pName, setPName] = useState(meUser0?.name ?? '');
@@ -267,6 +270,91 @@ function ProfileModal() {
           <button className="btn btn-primary w-full justify-center" onClick={saveProfile}>
             <I n="check" className="h-4 w-4" sw={2.2} /> Save profile
           </button>
+
+          {/* personal theme — everyone can re-skin their own view */}
+          <div className="border-t border-ink-700 pt-3">
+            <p className="mb-2.5 flex items-center gap-2 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-tealx-400">
+              <I n="pulse" className="h-3 w-3" sw={2.2} /> My theme
+              {theme.isPersonal && (
+                <span className="rounded-sm bg-tealx-500/12 px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-wider text-tealx-400">personal</span>
+              )}
+              {theme.seasonal && theme.autoSeason && !meUser0?.themeTone && (
+                <span className="rounded-sm bg-amberx-500/12 px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-wider text-amberx-400">
+                  {MOODS[theme.seasonal]?.label} · auto
+                </span>
+              )}
+            </p>
+
+            <div className="mb-2.5">
+              <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Background mood</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {Object.entries(MOODS).map(([id, m]) => {
+                  const on = theme.toneId === id && !!meUser0?.themeTone;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => updateMyTheme({ themeTone: id })}
+                      title={`${m.label}${m.note ? ` — ${m.note}` : ''}`}
+                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left transition active:scale-[0.96] ${
+                        on ? 'border-tealx-500/70 bg-tealx-500/12' : 'border-ink-600 bg-ink-850 hover:border-ink-500'
+                      }`}
+                    >
+                      <span className="h-6 w-8 shrink-0 rounded" style={{ background: `linear-gradient(135deg, ${m.tones[1]}, ${m.tones[3]})` }} />
+                      <span className="min-w-0">
+                        <span className={`block truncate font-mono text-[9px] font-bold uppercase tracking-wider ${on ? 'text-tealx-400' : 'text-mist-300'}`}>{m.label}</span>
+                        {m.seasonal && <span className="block font-mono text-[7.5px] uppercase tracking-wider text-amberx-400/80">{m.note}</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mb-2.5 grid grid-cols-2 gap-2">
+              <div>
+                <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Primary accent</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {ACCENT_SWATCHES.map((c) => (
+                    <button key={c} onClick={() => updateMyTheme({ themeAccent: c })}
+                      className={`h-5 w-5 rounded-full border transition hover:scale-110 ${meUser0?.themeAccent === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ background: c }} title={c} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="mb-1 block font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Secondary accent</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {ACCENT2_SWATCHES.map((c) => (
+                    <button key={c} onClick={() => updateMyTheme({ themeAccent2: c })}
+                      className={`h-5 w-5 rounded-full border transition hover:scale-110 ${meUser0?.themeAccent2 === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ background: c }} title={c} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => updateMyTheme({ autoSeason: !theme.autoSeason })}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition ${
+                  theme.autoSeason ? 'border-amberx-500/60 bg-amberx-500/12 text-amberx-400' : 'border-ink-600 bg-ink-850 text-mist-400 hover:text-mist-200'
+                }`}
+                title="Automatically switch to the current season's mood"
+              >
+                <I n="refresh" className="h-3 w-3" sw={2.4} /> Auto seasonal {theme.autoSeason ? 'on' : 'off'}
+              </button>
+              <button
+                onClick={() => updateMyTheme({ themeTone: undefined, themeAccent: undefined, themeAccent2: undefined })}
+                className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]"
+                title="Follow the office default theme"
+              >
+                Office default
+              </button>
+            </div>
+            <p className="mt-1.5 font-mono text-[8px] uppercase tracking-[0.12em] text-mist-600">
+              Applies only to your view — the office default is set by the program admin.
+            </p>
+          </div>
 
           <div className="border-t border-ink-700 pt-3">
             <p className="mb-3 flex items-center gap-2 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-flare-400">

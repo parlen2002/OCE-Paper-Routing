@@ -25,6 +25,11 @@ export interface User {
   requestedTitle?: string;
   requestedAt?: number;
   passwordResetAt?: number;
+  /** Personal theme (set from the profile panel). Unset = follow the office default. */
+  themeAccent?: string;
+  themeAccent2?: string;
+  themeTone?: string;
+  autoSeason?: boolean;
 }
 
 export type Stage = 'received' | 'review' | 'progress' | 'verification' | 'completed';
@@ -190,7 +195,7 @@ export interface Customization {
   description?: string;
   accent?: string;
   accent2?: string;
-  bgTone?: 'blueprint' | 'midnight' | 'slate';
+  bgTone?: string;
   logoKind?: 'seal' | 'gear' | 'bridge' | 'custom';
   logoUrl?: string;
   loginImage?: string;
@@ -198,6 +203,74 @@ export interface Customization {
 }
 
 export const DEFAULT_CUSTOM: Customization = {};
+
+/** Default light-text ramp, restored when a dark mood is active. */
+export const DEFAULT_MIST = ['#f2f7fc', '#e4edf6', '#c7d8e8', '#a9c0d6', '#86a2be', '#6684a3', '#4c6785'];
+
+export interface MoodDef {
+  label: string;
+  tones: string[];
+  /** When present, the text ramp is inverted (light mood). */
+  mist?: string[];
+  accent?: string;
+  accent2?: string;
+  seasonal?: boolean;
+  note?: string;
+}
+
+/** All background moods — classic, light/soft, and seasonal. */
+export const MOODS: Record<string, MoodDef> = {
+  blueprint: { label: 'Blueprint', tones: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'] },
+  midnight: { label: 'Midnight', tones: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'] },
+  slate: { label: 'Slate', tones: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'] },
+  paper: {
+    label: 'Paper (light)',
+    tones: ['#f3efe7', '#fbf8f2', '#efe9dd', '#e6dfcf', '#d4cab6', '#bcae93', '#97896e'],
+    mist: ['#16283c', '#1c2f45', '#2c4260', '#41597a', '#5a7391', '#748ca8', '#90a7bf'],
+    note: 'Light reading mode',
+  },
+  blossom: {
+    label: 'Blossom',
+    tones: ['#170b14', '#1f101b', '#271422', '#311a2b', '#43243c', '#5a3050', '#74406a'],
+    accent: '#ff7ab0', accent2: '#c9a7f5',
+    note: 'Soft rose',
+  },
+  christmas: {
+    label: 'Christmas',
+    tones: ['#07120c', '#0b1a10', '#102316', '#16301e', '#1f4429', '#2c5c38', '#3d7a4c'],
+    accent: '#e0453a', accent2: '#fbc94a',
+    seasonal: true, note: 'Dec 15 – Jan 6',
+  },
+  valentine: {
+    label: "Valentine's",
+    tones: ['#160a10', '#1f0f17', '#28131e', '#331a27', '#462437', '#5c2f47', '#78405e'],
+    accent: '#ff5c8a', accent2: '#fbc94a',
+    seasonal: true, note: 'Feb 1 – 14',
+  },
+  summer: {
+    label: 'Dry season',
+    tones: ['#141007', '#1c160a', '#241d0e', '#2f2613', '#41341b', '#574626', '#74603a'],
+    accent: '#f5b924', accent2: '#56c8f0',
+    seasonal: true, note: 'Mar – May',
+  },
+  rainy: {
+    label: 'Rainy season',
+    tones: ['#071214', '#0b1a1d', '#102326', '#163034', '#1f4449', '#2c5c62', '#3d7a81'],
+    accent: '#56c8f0', accent2: '#2dd4bf',
+    seasonal: true, note: 'Jun – Oct',
+  },
+};
+
+/** The mood the calendar would pick right now, or null outside any season. */
+export function seasonalMood(date: Date = new Date()): string | null {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  if ((m === 12 && d >= 15) || (m === 1 && d <= 6)) return 'christmas';
+  if (m === 2 && d <= 14) return 'valentine';
+  if (m >= 3 && m <= 5) return 'summer';
+  if (m >= 6 && m <= 10) return 'rainy';
+  return null;
+}
 
 export interface DivisionMeta {
   name?: string;

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
-import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, fmtPct, stageMeta, timeAgo, extractBarangays } from '../lib/core';
+import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, MOODS, STAGES, divById, dayLabel, fmtDT, fmtPct, stageMeta, timeAgo, extractBarangays } from '../lib/core';
 import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, Seal, TeamChips, type IconName, type SearchOption } from './ui';
 
 const unitOptions = (allLabel: string): SearchOption[] => [
@@ -2316,19 +2316,35 @@ export function CustomizePage() {
               </div>
               <div>
                 <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Background mood</span>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { k: 'blueprint', label: 'Blueprint', c1: '#0a1728', c2: '#122540' },
-                    { k: 'midnight', label: 'Midnight', c1: '#0b0b16', c2: '#161628' },
-                    { k: 'slate', label: 'Slate', c1: '#131920', c2: '#1f2933' },
-                  ] as const).map((t) => (
-                    <button key={t.k} onClick={() => updateCustom({ bgTone: t.k })}
-                      className={`flex items-center gap-2.5 rounded-md border px-3 py-2 transition ${(custom.bgTone ?? 'blueprint') === t.k ? 'border-cyanx-500/70 bg-cyanx-500/12' : 'border-ink-600 bg-ink-850 hover:border-ink-500'}`}>
-                      <span className="h-7 w-10 rounded" style={{ background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` }} />
-                      <span className={`font-mono text-[10px] font-bold uppercase tracking-wider ${(custom.bgTone ?? 'blueprint') === t.k ? 'text-cyanx-400' : 'text-mist-400'}`}>{t.label}</span>
-                    </button>
-                  ))}
-                </div>
+                {([
+                  { title: 'Classic', ids: ['blueprint', 'midnight', 'slate'] },
+                  { title: 'Light & soft', ids: ['paper', 'blossom'] },
+                  { title: 'Seasonal (auto by calendar)', ids: ['christmas', 'valentine', 'summer', 'rainy'] },
+                ] as const).map((group) => (
+                  <div key={group.title} className="mb-3">
+                    <span className="mb-1.5 block font-mono text-[8px] font-bold uppercase tracking-[0.2em] text-mist-600">{group.title}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {group.ids.map((id) => {
+                        const m = MOODS[id];
+                        if (!m) return null;
+                        const on = (custom.bgTone ?? 'blueprint') === id;
+                        return (
+                          <button key={id} onClick={() => updateCustom({ bgTone: id })} title={m.note ?? m.label}
+                            className={`flex items-center gap-2.5 rounded-md border px-3 py-2 transition active:scale-[0.97] ${on ? 'border-cyanx-500/70 bg-cyanx-500/12' : 'border-ink-600 bg-ink-850 hover:border-ink-500'}`}>
+                            <span className="h-7 w-10 shrink-0 rounded" style={{ background: `linear-gradient(135deg, ${m.tones[1]}, ${m.tones[3]})` }} />
+                            <span className="text-left">
+                              <span className={`block font-mono text-[10px] font-bold uppercase tracking-wider ${on ? 'text-cyanx-400' : 'text-mist-400'}`}>{m.label}</span>
+                              {m.seasonal && <span className="block font-mono text-[8px] uppercase tracking-wider text-amberx-400/80">{m.note}</span>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <p className="font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+                  Sets the office default. Each officer can personalize their own view (and toggle auto-seasonal moods) from their profile panel.
+                </p>
               </div>
             </div>
           </Section>

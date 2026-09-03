@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, MsgDeleteRequest, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
-import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, geobrgyKey, nominatimReverseUrl, stageMeta, uid } from './core';
+import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, MoodDef, MsgDeleteRequest, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
+import { ALL_UNITS, DEFAULT_CUSTOM, DEFAULT_MIST, MOODS, deriveActivities, deriveLogs, divById, freshSeed, geobrgyKey, nominatimReverseUrl, seasonalMood, stageMeta, uid } from './core';
 
 const LS_KEY = 'ppc-ceoflow-v20';
 
@@ -18,12 +18,6 @@ function shade(hex: string, amt: number): string {
   const mix = (ch: number) => Math.round(ch + (t - ch) * p);
   return `#${[mix(r), mix(g), mix(b)].map((ch) => ch.toString(16).padStart(2, '0')).join('')}`;
 }
-
-const TONES: Record<NonNullable<Customization['bgTone']>, string[]> = {
-  blueprint: ['#071120', '#0a1728', '#0d1d31', '#122540', '#1b3354', '#274468', '#35557e'],
-  midnight: ['#07070e', '#0b0b16', '#10101e', '#161628', '#20203a', '#2c2c4e', '#3c3c64'],
-  slate: ['#0e1216', '#131920', '#182029', '#1f2933', '#2a3742', '#384856', '#49596a'],
-};
 
 function loadDb(): DB {
   try {
@@ -124,6 +118,9 @@ interface StoreCtx {
   setDivisionHead: (id: string, userId: string, temporary: boolean, note?: string) => void;
   removeDivisionOIC: (id: string) => void;
   updateCustom: (patch: Partial<Customization>) => void;
+  /** Resolved theme: personal choice > seasonal auto-mood > office default. */
+  theme: { toneId: string; mood: MoodDef; accent?: string; accent2?: string; seasonal: string | null; autoSeason: boolean; isPersonal: boolean };
+  updateMyTheme: (patch: Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>>) => void;
   visibleChannels: Channel[];
   messagesOf: (chId: string) => Message[];
   unreadFor: (chId: string) => number;
@@ -216,26 +213,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db.session]);
 
-  /* ---- theming ---- */
+  /* ---- theming ----
+   * Precedence: the user's personal theme (profile panel) beats the seasonal
+   * auto-mood, which beats the office default the program admin set in Customize. */
   const custom: Customization = useMemo(() => ({ ...DEFAULT_CUSTOM, ...(db.custom ?? {}) }), [db.custom]);
+
+  const theme = useMemo(() => {
+    const autoSeason = me?.autoSeason ?? true;
+    const seasonal = autoSeason ? seasonalMood() : null;
+    const toneId = me?.themeTone ?? seasonal ?? custom.bgTone ?? 'blueprint';
+    return {
+      toneId,
+      mood: MOODS[toneId] ?? MOODS.blueprint,
+      accent: me?.themeAccent ?? (seasonal ? MOODS[seasonal]?.accent : undefined) ?? custom.accent,
+      accent2: me?.themeAccent2 ?? (seasonal ? MOODS[seasonal]?.accent2 : undefined) ?? custom.accent2,
+      seasonal,
+      autoSeason,
+      isPersonal: !!(me?.themeTone || me?.themeAccent || me?.themeAccent2),
+    };
+  }, [custom, me]);
+
   useEffect(() => {
     const root = document.documentElement;
-    if (custom.accent) {
-      root.style.setProperty('--color-flare-300', shade(custom.accent, 0.35));
-      root.style.setProperty('--color-flare-400', shade(custom.accent, 0.18));
-      root.style.setProperty('--color-flare-500', custom.accent);
-      root.style.setProperty('--color-flare-600', shade(custom.accent, -0.12));
-      root.style.setProperty('--color-flare-700', shade(custom.accent, -0.22));
+    const { accent, accent2, mood } = theme;
+    if (accent) {
+      root.style.setProperty('--color-flare-300', shade(accent, 0.35));
+      root.style.setProperty('--color-flare-400', shade(accent, 0.18));
+      root.style.setProperty('--color-flare-500', accent);
+      root.style.setProperty('--color-flare-600', shade(accent, -0.12));
+      root.style.setProperty('--color-flare-700', shade(accent, -0.22));
     } else ['--color-flare-300', '--color-flare-400', '--color-flare-500', '--color-flare-600', '--color-flare-700'].forEach((k) => root.style.removeProperty(k));
-    if (custom.accent2) {
-      root.style.setProperty('--color-cyanx-300', shade(custom.accent2, 0.3));
-      root.style.setProperty('--color-cyanx-400', shade(custom.accent2, 0.15));
-      root.style.setProperty('--color-cyanx-500', custom.accent2);
-      root.style.setProperty('--color-cyanx-600', shade(custom.accent2, -0.18));
+    if (accent2) {
+      root.style.setProperty('--color-cyanx-300', shade(accent2, 0.3));
+      root.style.setProperty('--color-cyanx-400', shade(accent2, 0.15));
+      root.style.setProperty('--color-cyanx-500', accent2);
+      root.style.setProperty('--color-cyanx-600', shade(accent2, -0.18));
     } else ['--color-cyanx-300', '--color-cyanx-400', '--color-cyanx-500', '--color-cyanx-600'].forEach((k) => root.style.removeProperty(k));
-    const tone = TONES[custom.bgTone ?? 'blueprint'];
-    ['--color-ink-950', '--color-ink-900', '--color-ink-850', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500'].forEach((k, i) => root.style.setProperty(k, tone[i]));
-  }, [custom]);
+    ['--color-ink-950', '--color-ink-900', '--color-ink-850', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500'].forEach((k, i) => root.style.setProperty(k, mood.tones[i]));
+    // light moods invert the text ramp so everything stays readable
+    const mist = mood.mist ?? DEFAULT_MIST;
+    ['--color-mist-50', '--color-mist-100', '--color-mist-200', '--color-mist-300', '--color-mist-400', '--color-mist-500', '--color-mist-600'].forEach((k, i) => root.style.setProperty(k, mist[i]));
+  }, [theme]);
 
   const activities = useMemo(() => deriveActivities(db.papers), [db.papers]);
 
@@ -317,7 +335,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const canManageDivision = (divId: string): boolean => {
     if (!user) return false;
-    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator' || user.role === 'operator') return true;
+    // Operator is intentionally excluded — it can move paperwork but never manage heads / OICs.
+    if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'moderator') return true;
     if (db.divisions?.[divId]?.oicId === user.id) return false;
     if (user.role === 'division') {
       const info = divOf(divId);
@@ -819,6 +838,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', 'Customization saved — applied across the program.');
   };
 
+  /** Any signed-in user can personalize their own theme from the profile panel. */
+  const updateMyTheme: StoreCtx['updateMyTheme'] = (patch) => {
+    if (!user) return;
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === user.id ? { ...x, ...patch } : x)) },
+        { userId: user.id, userName: user.name, type: 'profile', text: 'Updated their personal theme' }
+      )
+    );
+    pushToast('ok', 'Theme preference saved.');
+  };
+
   /* ---- geotag barangay resolver ---- */
   const geotagBrgys = useMemo(
     () => [...new Set(Object.values(db.geobrgy ?? {}))].sort((a, b) => a.localeCompare(b)),
@@ -1040,7 +1071,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setViewer: (v) => setUi((u) => ({ ...u, viewer: v })),
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress, assignPaper, submitToHead, returnToEmployee,
     deletePaper, updatePaper, ackPaper,
-    updateDivision, setDivisionHead, removeDivisionOIC, updateCustom,
+    updateDivision, setDivisionHead, removeDivisionOIC, updateCustom, theme, updateMyTheme,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [],
     markAllRead, markRead, pushToast,

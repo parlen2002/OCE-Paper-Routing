@@ -219,7 +219,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const custom: Customization = useMemo(() => ({ ...DEFAULT_CUSTOM, ...(db.custom ?? {}) }), [db.custom]);
 
   const theme = useMemo(() => {
-    const autoSeason = me?.autoSeason ?? true;
+    // Off by default — seasonal moods opt in per user from the profile panel.
+    const autoSeason = me?.autoSeason ?? false;
     const seasonal = autoSeason ? seasonalMood() : null;
     const toneId = me?.themeTone ?? seasonal ?? custom.bgTone ?? 'blueprint';
     return {

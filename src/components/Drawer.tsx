@@ -28,6 +28,11 @@ export function DocDrawer() {
   const intended = divById(paper.intendedId);
   const pct = paper.progress ?? (paper.stage === 'completed' ? 100 : 0);
 
+  /* overdue — unfinished paper whose deadline has passed */
+  const isOverdue = paper.dueAt != null && paper.dueAt < Date.now() && paper.stage !== 'completed';
+  const daysOverdue = isOverdue ? Math.max(1, Math.ceil((Date.now() - (paper.dueAt ?? Date.now())) / 864e5)) : 0;
+  const hoursOverdue = isOverdue ? Math.max(1, Math.floor((Date.now() - (paper.dueAt ?? Date.now())) / 36e5)) : 0;
+
   /* route path — every desk the paper physically touched */
   const path: { id: string; at: number; by: string }[] = [];
   const custodySorted = [...paper.custody].sort((a, b) => a.at - b.at);

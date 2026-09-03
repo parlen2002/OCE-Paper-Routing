@@ -76,15 +76,6 @@ export function Dashboard() {
         )}
       </div>
 
-      {!isOver && (
-        <div className="anim-fade-up mb-4 flex items-center gap-2.5 rounded-md border border-cyanx-500/30 bg-cyanx-500/[0.06] px-3.5 py-2.5">
-          <I n="pulse" className="h-3.5 w-3.5 shrink-0 text-cyanx-400" sw={2} />
-          <p className="text-[12px] text-mist-300">
-            The live floor activity feed is visible to executives, the moderator, the operator and the program admin only.
-          </p>
-        </div>
-      )}
-
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {stats.map((s, i) => (
           <div key={s.label} className="anim-fade-up relative overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 70}ms` }}>

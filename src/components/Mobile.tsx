@@ -451,18 +451,22 @@ function MobilePaperSheet() {
   const [rmAtt, setRmAtt] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /* attach-source chooser (gallery vs. files) */
+  const [attachOpen, setAttachOpen] = useState(false);
   /* photos whose EXIF location was stripped — offered the device's live GPS */
   const [geoPending, setGeoPending] = useState<string[]>([]);
   const [geoBusy, setGeoBusy] = useState(false);
   /* completion slider — local draft while dragging, committed once on release (same as desktop) */
   const [pctDraft, setPctDraft] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /* "From files" path — no image/* accept, so Android returns original bytes with EXIF GPS intact */
+  const origRef = useRef<HTMLInputElement>(null);
 
   // OS back: photo viewer closes first, then this sheet
   useMobileBack(!!ui.viewer, () => setViewer(null));
   useMobileBack(!!ui.drawerId && !ui.viewer, closeDrawer);
 
-  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setBusy(false); setPctDraft(null); setGeoPending([]); setGeoBusy(false); setViewer(null); }, [ui.drawerId]);
+  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setAttachOpen(false); setBusy(false); setPctDraft(null); setGeoPending([]); setGeoBusy(false); setViewer(null); }, [ui.drawerId]);
   if (!paper || !me) return null;
 
   const editable = canEdit(paper);
@@ -496,7 +500,9 @@ function MobilePaperSheet() {
       if (missing.length) setGeoPending((g) => [...new Set([...g, ...missing])]);
     } finally {
       setBusy(false);
+      setAttachOpen(false);
       if (fileRef.current) fileRef.current.value = '';
+      if (origRef.current) origRef.current.value = '';
     }
   };
 
@@ -664,8 +670,7 @@ function MobilePaperSheet() {
           <section>
             <div className="mb-1.5 flex items-center gap-2">
               <p className="font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Evidence · {paper.attachments.length}</p>
-              <input ref={fileRef} type="file" multiple accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.heic,.heif,.pdf,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files)} />
-              <button onClick={() => fileRef.current?.click()} disabled={busy} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95 disabled:opacity-50">
+              <button onClick={() => setAttachOpen(true)} disabled={busy} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95 disabled:opacity-50">
                 {busy ? (
                   <><span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-cyanx-400/30 border-t-cyanx-400" /> Processing…</>
                 ) : (
@@ -776,6 +781,43 @@ function MobilePaperSheet() {
           )}
         </div>
       </div>
+
+      {/* attach-source chooser */}
+      {attachOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={() => setAttachOpen(false)} />
+          <div className="anim-slide-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-ink-600 bg-ink-900 px-4 pb-6 pt-3" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-600" />
+            <p className="mb-1 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Add evidence</p>
+            <p className="mb-3 text-[11px] leading-snug text-mist-400">
+              Android's <b className="text-mist-200">Photos / gallery picker strips the photo's GPS</b> for privacy.
+              To keep the location, choose <b className="text-tealx-400">From files</b> instead.
+            </p>
+
+            {/* Gallery / camera path (fast, but GPS is usually stripped) */}
+            <input ref={fileRef} type="file" multiple accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.pdf,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files)} />
+            <button onClick={() => fileRef.current?.click()} disabled={busy} className="mb-2 flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyanx-500/15 text-cyanx-400"><I n="cam" className="h-5 w-5" sw={1.8} /></span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-mist-50">Camera / gallery</span>
+                <span className="block font-mono text-[9px] uppercase tracking-wider text-mist-500">Quick pick · GPS usually stripped</span>
+              </span>
+            </button>
+
+            {/* Files path — original bytes, EXIF GPS preserved */}
+            <input ref={origRef} type="file" multiple accept="*/*" className="hidden" onChange={(e) => void pickFiles(e.target.files)} />
+            <button onClick={() => origRef.current?.click()} disabled={busy} className="mb-2 flex w-full items-center gap-3 rounded-xl border border-tealx-500/45 bg-tealx-500/[0.08] px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tealx-500/15 text-tealx-400"><I n="pin" className="h-5 w-5" sw={1.8} /></span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-mist-50">From files <span className="ml-1 rounded-sm bg-tealx-500/20 px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-wider text-tealx-400">Keeps photo location</span></span>
+                <span className="block font-mono text-[9px] uppercase tracking-wider text-mist-500">Browse Files / Drive · original with GPS</span>
+              </span>
+            </button>
+
+            <button onClick={() => setAttachOpen(false)} className="btn btn-ghost w-full justify-center">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* edit paperwork bottom sheet */}
       {editOpen && (

@@ -116,6 +116,7 @@ interface StoreCtx {
   addNote: (id: string, text: string) => void;
   addAttachments: (id: string, atts: Attachment[]) => void;
   removeAttachment: (docId: string, attId: string) => void;
+  stampGeoAttachments: (docId: string, attIds: string[], lat: number, lng: number) => void;
   setProgress: (id: string, value: number) => void;
   assignPaper: (id: string, ids: string[]) => void;
   submitToHead: (id: string) => void;
@@ -726,6 +727,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', remainingGeos === 0 && a.geotagged ? `${a.name} removed — no geotagged photos remain, so the map link was cleared` : `${a.name} removed from ${p.ref}`);
   };
 
+  /** Stamp the device's live GPS onto photos whose EXIF location was stripped by the browser/OS. */
+  const stampGeoAttachments: StoreCtx['stampGeoAttachments'] = (docId, attIds, lat, lng) => {
+    if (!me) return;
+    const p = db.papers.find((x) => x.id === docId);
+    if (!p) return;
+    const want = new Set(attIds);
+    const n = p.attachments.filter((a) => want.has(a.id) && !a.geotagged).length;
+    if (!n) return;
+    const coord = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const entry: CustodyEntryLocal = { id: uid(), at: Date.now(), byName: me.name, action: 'attachment', text: `Device GPS stamped on ${n} photo(s) — ${coord}` };
+    setDb((d) => withLog({ ...d, papers: d.papers.map((x) => x.id === docId ? touch(x, (pp) => ({
+      ...pp,
+      attachments: pp.attachments.map((a) => want.has(a.id) && !a.geotagged ? { ...a, geotagged: true, lat, lng } : a),
+      custody: [...pp.custody, entry],
+    })) : x) },
+      { userId: me.id, userName: me.name, type: 'attachment', text: `Stamped device GPS (${coord}) on ${n} photo(s) of ${p.ref}`, ref: p.ref, docId }));
+    pushToast('ok', `${n} photo(s) stamped at ${lat.toFixed(4)}, ${lng.toFixed(4)} — map updated`);
+  };
+
   const setProgress: StoreCtx['setProgress'] = (id, value) => {
     if (!me) return;
     /* half-percent granularity: 52, 52.5, 53 … */
@@ -1137,7 +1157,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     deletePaper, updatePaper, ackPaper,
     updateDivision, setDivisionHead, removeDivisionOIC, updateCustom, theme, updateMyTheme,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
-    updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [],
+    updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [], stampGeoAttachments,
     markAllRead, markRead, pushToast,
   };
 

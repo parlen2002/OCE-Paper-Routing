@@ -441,7 +441,7 @@ function MobilePaperCard({ paper, onOpen }: { paper: Paper; onOpen: () => void }
 /* ------------------------------------------------ paperwork bottom sheet */
 function MobilePaperSheet() {
   const store = useStore();
-  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, employeesOf, pushToast } = store;
+  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, stampGeoAttachments, setProgress, employeesOf, pushToast, setViewer } = store;
   const paper = ui.drawerId ? db.papers.find((p) => p.id === ui.drawerId) : null;
 
   const [note, setNote] = useState('');
@@ -451,14 +451,18 @@ function MobilePaperSheet() {
   const [rmAtt, setRmAtt] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /* photos whose EXIF location was stripped — offered the device's live GPS */
+  const [geoPending, setGeoPending] = useState<string[]>([]);
+  const [geoBusy, setGeoBusy] = useState(false);
   /* completion slider — local draft while dragging, committed once on release (same as desktop) */
   const [pctDraft, setPctDraft] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // OS back closes this sheet before leaving the app
-  useMobileBack(!!ui.drawerId, closeDrawer);
+  // OS back: photo viewer closes first, then this sheet
+  useMobileBack(!!ui.viewer, () => setViewer(null));
+  useMobileBack(!!ui.drawerId && !ui.viewer, closeDrawer);
 
-  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setBusy(false); setPctDraft(null); }, [ui.drawerId]);
+  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setBusy(false); setPctDraft(null); setGeoPending([]); setGeoBusy(false); setViewer(null); }, [ui.drawerId]);
   if (!paper || !me) return null;
 
   const editable = canEdit(paper);
@@ -487,10 +491,38 @@ function MobilePaperSheet() {
       const { atts, skipped } = await buildAttachments(files, me.name);
       if (atts.length) addAttachments(paper.id, atts);
       if (skipped.length) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
+      // The browser/OS usually strips EXIF GPS on upload — offer the device's live location.
+      const missing = atts.filter((a) => a.kind === 'image' && !a.geotagged).map((a) => a.id);
+      if (missing.length) setGeoPending((g) => [...new Set([...g, ...missing])]);
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+  };
+
+  const stampGeo = () => {
+    if (!paper || !geoPending.length) return;
+    if (!('geolocation' in navigator)) {
+      pushToast('warn', 'This browser has no geolocation support.');
+      setGeoPending([]);
+      return;
+    }
+    setGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        stampGeoAttachments(paper.id, geoPending, pos.coords.latitude, pos.coords.longitude);
+        setGeoPending([]);
+        setGeoBusy(false);
+      },
+      (err) => {
+        pushToast('warn', err.code === err.PERMISSION_DENIED
+          ? 'Location permission denied — allow it in your browser settings to stamp photos.'
+          : 'Could not read device location — turn on GPS / location services and try again.');
+        setGeoPending([]);
+        setGeoBusy(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
   };
 
   return (
@@ -651,12 +683,28 @@ function MobilePaperSheet() {
                 </div>
               </div>
             )}
+            {geoPending.length > 0 && (
+              <div className="anim-pop mb-2 rounded-lg border border-amberx-500/45 bg-amberx-500/10 p-3">
+                <p className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-amberx-400">
+                  <I n="pin" className="h-3 w-3" sw={2.4} /> No location in {geoPending.length} photo{geoPending.length > 1 ? 's' : ''}
+                </p>
+                <p className="mt-1 text-[11px] leading-snug text-mist-300">The browser stripped the photo's GPS. Stamp it with your device's current location instead.</p>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={stampGeo} disabled={geoBusy} className="btn btn-primary flex-1 justify-center py-2 text-[11px] disabled:opacity-60">
+                    {geoBusy ? <><span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-ink-950/30 border-t-ink-950" /> Reading GPS…</> : <><I n="pin" className="h-3.5 w-3.5" sw={2.2} /> Use my location</>}
+                  </button>
+                  <button onClick={() => setGeoPending([])} className="btn btn-ghost px-3 py-2 text-[11px]">Skip</button>
+                </div>
+              </div>
+            )}
             {paper.attachments.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {paper.attachments.map((a) => (
                   <div key={a.id} className="relative overflow-hidden rounded-lg border border-ink-700">
                     {a.kind === 'image' ? (
-                      <img src={a.url} alt={a.name} className="h-20 w-full object-cover" />
+                      <button onClick={() => setViewer({ docId: paper.id, attId: a.id })} className="block h-20 w-full overflow-hidden" title="View photo">
+                        <img src={a.url} alt={a.name} className="h-20 w-full object-cover transition active:scale-105" />
+                      </button>
                     ) : (
                       <a href={a.url} target="_blank" rel="noreferrer" className="flex h-20 w-full flex-col items-center justify-center gap-1 bg-flare-500/10 text-flare-400">
                         <I n="file" className="h-6 w-6" sw={1.6} />

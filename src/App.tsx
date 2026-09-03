@@ -831,6 +831,7 @@ function AppInner() {
         <MobileApp />
         <NewDocModal />
         <ReportModal />
+        <AttachmentViewer />
         <Toasts />
       </>
     );

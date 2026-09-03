@@ -73,8 +73,8 @@ export interface Attachment {
   geotagged: boolean;
   lat?: number;
   lng?: number;
-  /** Where the coordinates came from: EXIF metadata, OCR of a printed GPS stamp, or the live device location. */
-  geoSource?: 'exif' | 'ocr' | 'device';
+  /** Where the coordinates came from: EXIF metadata or the live device location. */
+  geoSource?: 'exif' | 'device';
   by: string;
   at: number;
   size?: string;
@@ -524,121 +524,6 @@ function findLongTag(
   return null;
 }
 
-/* ---------------- OCR fallback for printed GPS stamps ---------------- */
-
-/** Common OCR digit mis-reads → corrected digits. */
-const OCR_FIX: Record<string, string> = { O: '0', o: '0', Q: '0', D: '0', I: '1', l: '1', i: '1', '|': '1', Z: '2', z: '2', S: '5', s: '5', B: '8', g: '9', q: '9', G: '6' };
-
-/**
- * Extract a lat/lng pair from noisy OCR text of a printed GPS stamp.
- * Handles formats like "Lat 9.74883 Long 118.73657", "9.74883, 118.73657",
- * "Latitude: 9.74 N  Longitude: 118.73 E", and Google-style "9.74883,-118.73".
- */
-export function parseGpsFromText(raw: string): { lat: number; lng: number } | null {
-  // Normalize OCR noise inside anything that looks numeric.
-  const fix = (tok: string) => tok.replace(/[OoQDIl1i|ZzSsBgqG]/g, (c) => OCR_FIX[c] ?? c).replace(/,/g, '.');
-  // A decimal number that may contain OCR-confused letters.
-  const NUM = '([-+]?[0-9OoQDIl1i|ZzSsBgqG]{1,3}[.,][0-9OoQDIl1i|ZzSsBgqG]{2,8})';
-
-  const candidates: { lat: string; lng: string }[] = [];
-  const push = (a: string, b: string) => candidates.push({ lat: a, lng: b });
-
-  // "lat … lng/long/lon" labeled (most GPS-stamp cameras)
-  const labeled = new RegExp(`lat\\w*[^0-9-]{0,6}${NUM}[^0-9]{0,30}?lon?g\\w*[^0-9-]{0,6}${NUM}`, 'i');
-  let m = raw.match(labeled);
-  if (m) push(m[1], m[2]);
-
-  // "x: 9.74 … y: 118.73"
-  m = raw.match(new RegExp(`[xy]\\s*[:=][^0-9-]{0,4}${NUM}[^0-9]{0,30}?[xy]\\s*[:=][^0-9-]{0,4}${NUM}`, 'i'));
-  if (m) push(m[1], m[2]);
-
-  // Bare pair "9.74883, 118.73657" (comma/space separated)
-  m = raw.match(new RegExp(`(^|[^0-9.])${NUM}\\s*[,;]\\s*${NUM}([^0-9.]|$)`, 'm'));
-  if (m) push(m[2], m[3]);
-
-  for (const c of candidates) {
-    const lat = parseFloat(fix(c.lat));
-    const lng = parseFloat(fix(c.lng));
-    if (!isFinite(lat) || !isFinite(lng)) continue;
-    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
-    if (lat === 0 && lng === 0) continue;
-    return { lat, lng };
-  }
-  return null;
-}
-
-let ocrWorker: Promise<{ recognize: (img: HTMLCanvasElement) => Promise<string>; terminate: () => Promise<unknown> }> | null = null;
-
-/** Lazily load the Tesseract worker (code-split, fetched on first use).
- *  Worker / WASM core / language data are pinned to CDN so they resolve
- *  reliably no matter how the bundler treats the package. Requires internet
- *  on first use (the browser caches them after). */
-function getOcr() {
-  if (!ocrWorker) {
-    ocrWorker = import('tesseract.js').then(async (T) => {
-      const worker = await T.createWorker('eng', 1, {
-        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
-        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-        logger: () => {},
-      });
-      return {
-        recognize: async (img: HTMLCanvasElement) => (await worker.recognize(img)).data.text,
-        terminate: () => worker.terminate(),
-      };
-    });
-    ocrWorker.catch(() => { ocrWorker = null; });
-  }
-  return ocrWorker;
-}
-
-/**
- * Read a printed GPS stamp burned into the image by OCR.
- * Camera stamp overlays sit on the bottom (most apps) or top edge, so we crop
- * those bands, upscale them for legibility, and OCR each until a pair parses.
- */
-export async function readGpsFromStamp(file: File): Promise<{ lat: number; lng: number } | null> {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const el = new Image();
-      el.onload = () => res(el);
-      el.onerror = () => rej(new Error('decode'));
-      el.src = url;
-    });
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    if (!w || !h) return null;
-
-    const crops = [
-      { y: Math.floor(h * 0.62), ch: h - Math.floor(h * 0.62) }, // bottom ~38%
-      { y: 0, ch: Math.floor(h * 0.26) },                        // top ~26%
-    ];
-    const ocr = await getOcr();
-    for (const c of crops) {
-      if (c.ch < 24) continue;
-      const scale = Math.min(3, Math.max(1, 480 / c.ch));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(c.ch * scale);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) continue;
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(img, 0, c.y, w, c.ch, 0, 0, canvas.width, canvas.height);
-      const text = await ocr.recognize(canvas);
-      const gps = parseGpsFromText(text);
-      if (gps) return gps;
-    }
-    return null;
-  } catch {
-    return null;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export const geobrgyKey = (lat: number, lng: number): string => `${lat.toFixed(3)},${lng.toFixed(3)}`;
 
 export const nominatimReverseUrl = (lat: number, lng: number): string =>
@@ -731,13 +616,8 @@ export async function buildAttachments(files: FileList | File[], by: string): Pr
         r.readAsDataURL(f);
       });
       // GPS must be read from the original file — re-encoding strips EXIF.
-      // 1) Try EXIF metadata. 2) Fall back to OCR of a printed GPS stamp.
-      let gps = isImg ? await readGpsFromJpeg(f) : null;
-      let geoSource: Attachment['geoSource'] = gps ? 'exif' : undefined;
-      if (isImg && !gps) {
-        gps = await readGpsFromStamp(f);
-        if (gps) geoSource = 'ocr';
-      }
+      const gps = isImg ? await readGpsFromJpeg(f) : null;
+      const geoSource: Attachment['geoSource'] = gps ? 'exif' : undefined;
       let bytes = f.size;
       if (isImg) {
         const norm = await normalizeImage(url);

@@ -495,8 +495,7 @@ function MobilePaperSheet() {
       const { atts, skipped } = await buildAttachments(files, me.name);
       if (atts.length) addAttachments(paper.id, atts);
       if (skipped.length) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
-      const ocrHits = atts.filter((a) => a.geoSource === 'ocr').length;
-      if (ocrHits) pushToast('ok', `Location read from the printed GPS stamp on ${ocrHits} photo${ocrHits > 1 ? 's' : ''} (OCR).`);
+
       // The browser/OS usually strips EXIF GPS on upload — offer the device's live location.
       const missing = atts.filter((a) => a.kind === 'image' && !a.geotagged).map((a) => a.id);
       if (missing.length) setGeoPending((g) => [...new Set([...g, ...missing])]);
@@ -719,8 +718,8 @@ function MobilePaperSheet() {
                       </a>
                     )}
                     {a.geotagged && (
-                      <span className={`absolute bottom-1 left-1 rounded-sm px-1 py-px font-mono text-[7.5px] font-bold uppercase text-ink-950 ${a.geoSource === 'ocr' ? 'bg-amberx-400/90' : a.geoSource === 'device' ? 'bg-cyanx-400/90' : 'bg-tealx-500/90'}`} title={`Location via ${a.geoSource === 'ocr' ? 'printed stamp (OCR)' : a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
-                        {a.geoSource === 'ocr' ? 'OCR' : a.geoSource === 'device' ? 'GPS·device' : 'GPS'}
+                      <span className={`absolute bottom-1 left-1 rounded-sm px-1 py-px font-mono text-[7.5px] font-bold uppercase text-ink-950 ${a.geoSource === 'device' ? 'bg-cyanx-400/90' : 'bg-tealx-500/90'}`} title={`Location via ${a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
+                        {a.geoSource === 'device' ? 'GPS·device' : 'GPS'}
                       </span>
                     )}
                     <button

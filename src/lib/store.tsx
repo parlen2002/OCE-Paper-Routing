@@ -269,6 +269,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // variables are written to both <html> and <body> so no cascade layer can
     // strand them above the .bg-blueprint surfaces.
     const isLight = !!mood.mist;
+    // keep <body> in lockstep regardless of CSS cascade (direct, not via variable)
+    document.body.style.backgroundColor = mood.tones[0];
     const line = mood.line ?? accent2 ?? '#56c8f0';
     const warm = accent ?? mood.warm ?? '#ff6b1c';
     const gridA = isLight ? 0.16 : 0.09;

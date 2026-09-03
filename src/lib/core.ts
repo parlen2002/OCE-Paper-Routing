@@ -228,10 +228,10 @@ export const MOODS: Record<string, MoodDef> = {
   midnight: { label: 'Midnight', tones: ['#08060f', '#0d0a19', '#120e23', '#191331', '#241c45', '#32275e', '#45367e'], line: '#9d8cff', warm: '#ff6ec7' },
   slate: { label: 'Slate', tones: ['#101317', '#161a20', '#1c2128', '#242b34', '#303945', '#3f4b59', '#52606f'], line: '#8ba3ba', warm: '#e0b06a' },
   paper: {
-    label: 'Paper (light)',
-    tones: ['#f3efe7', '#fbf8f2', '#efe9dd', '#e6dfcf', '#d4cab6', '#bcae93', '#97896e'],
-    mist: ['#16283c', '#1c2f45', '#2c4260', '#41597a', '#5a7391', '#748ca8', '#90a7bf'],
-    line: '#b3a07c', warm: '#c98d4f',
+    label: 'Paper (light grey)',
+    tones: ['#e9ecef', '#f6f7f8', '#e1e4e8', '#d6dae0', '#c0c6cf', '#a3abb7', '#828c9a'],
+    mist: ['#141c26', '#1a2531', '#28364a', '#3c4e66', '#54687f', '#6e8098', '#8b9aae'],
+    line: '#9aa4b2', warm: '#c98d5a',
     note: 'Light reading mode',
   },
   blossom: {

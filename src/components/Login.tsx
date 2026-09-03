@@ -26,7 +26,7 @@ function wrapHeading(s: string): string[] {
 }
 
 export function Login() {
-  const { login, signup, requestForgotPassword, custom } = useStore();
+  const { login, signup, requestForgotPassword, custom, theme } = useStore();
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [u, setU] = useState('');
   const [p, setP] = useState('');
@@ -73,7 +73,7 @@ export function Login() {
   };
 
   return (
-    <div className="bg-blueprint flex min-h-screen items-center justify-center p-6">
+    <div className="bg-blueprint flex min-h-screen items-center justify-center p-6" style={{ backgroundColor: theme.mood.tones[0] }}>
       <div className="grid w-full max-w-[880px] items-stretch gap-5 lg:grid-cols-[1fr_1.02fr]">
         {/* left: brand box — seal, tagline, photo, description */}
         <div className="anim-fade-up relative flex flex-col overflow-hidden rounded-xl border border-ink-600 bg-ink-900/80 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)]">

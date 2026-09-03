@@ -28,7 +28,7 @@ const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setNewOpen, setProfileOpen, msgUnreadTotal, custom } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setNewOpen, setProfileOpen, msgUnreadTotal, custom, theme } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -46,7 +46,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="bg-blueprint min-h-screen">
+    <div className="bg-blueprint min-h-screen" style={{ backgroundColor: theme.mood.tones[0] }}>
       <aside className="fixed inset-y-0 left-0 z-40 flex w-[228px] flex-col border-r border-ink-700/70 bg-ink-900/95 backdrop-blur">
         <div className="flex items-center gap-2.5 border-b border-ink-700/70 px-4 py-4">
           <Seal className="h-9 w-9" />

@@ -927,23 +927,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /* ---- messaging ---- */
   const overseer = (r?: Role) => r === 'admin' || r === 'supervisor' || r === 'moderator' || r === 'operator';
+  /* Channels follow the officer's TRUE identity — home division, additional
+   * teams, and any unit they are designated OIC of. An OIC assignment only
+   * ADDS a channel; it never takes their own division/team channels away,
+   * and executives keep full oversight regardless of an OIC posting. */
+  const channelUnits = useMemo(() => {
+    const s = new Set<string>();
+    if (user?.divisionId) s.add(user.divisionId);
+    for (const t of user?.teamIds ?? []) s.add(t);
+    if (oicOfDivId) s.add(oicOfDivId);
+    return s;
+  }, [user, oicOfDivId]);
+
   const canSeeChannel = (ch: Channel): boolean => {
-    if (!me) return false;
-    if (overseer(me.role)) return true;
+    if (!user) return false;
+    if (overseer(user.role)) return true;
     if (ch.kind === 'floor') return true;
-    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
-    // home division, or an additional team the officer serves on
-    return me.divisionId === ch.unitId || (!!ch.unitId && (me.teamIds ?? []).includes(ch.unitId));
+    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(user.id);
+    return !!ch.unitId && channelUnits.has(ch.unitId);
   };
   const canPostChannel = (ch: Channel): boolean => {
-    if (!me) return false;
-    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
+    if (!user) return false;
+    if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(user.id);
     if (ch.kind === 'floor') return true;
-    return overseer(me.role) || me.divisionId === ch.unitId || (!!ch.unitId && (me.teamIds ?? []).includes(ch.unitId));
+    return overseer(user.role) || (!!ch.unitId && channelUnits.has(ch.unitId));
   };
   const visibleChannels = useMemo(() => (db.channels ?? []).filter((ch) => canSeeChannel(ch)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db.channels, me]);
+    [db.channels, user, channelUnits]);
   const readKey = (uid0: string, chId: string) => `${uid0}|${chId}`;
   const unreadFor = (chId: string): number => {
     if (!me) return 0;

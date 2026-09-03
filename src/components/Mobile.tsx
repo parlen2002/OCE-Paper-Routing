@@ -59,8 +59,7 @@ function useMobileBack(open: boolean, onClose: () => void) {
   }, [open]);
 }
 
-/** True on Android — used to offer the native photo gallery / camera. */
-const IS_ANDROID = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+
 
 type TabId = 'home' | 'board' | 'docs' | 'chat' | 'me';
 
@@ -442,7 +441,7 @@ function MobilePaperCard({ paper, onOpen }: { paper: Paper; onOpen: () => void }
 /* ------------------------------------------------ paperwork bottom sheet */
 function MobilePaperSheet() {
   const store = useStore();
-  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, employeesOf } = store;
+  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, employeesOf, pushToast } = store;
   const paper = ui.drawerId ? db.papers.find((p) => p.id === ui.drawerId) : null;
 
   const [note, setNote] = useState('');
@@ -451,17 +450,15 @@ function MobilePaperSheet() {
   const [confirmDel, setConfirmDel] = useState(false);
   const [rmAtt, setRmAtt] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [attachOpen, setAttachOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   /* completion slider — local draft while dragging, committed once on release (same as desktop) */
   const [pctDraft, setPctDraft] = useState<number | null>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const pdfRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // OS back closes this sheet before leaving the app
   useMobileBack(!!ui.drawerId, closeDrawer);
 
-  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setAttachOpen(false); setPctDraft(null); }, [ui.drawerId]);
+  useEffect(() => { setNote(''); setStageSel(''); setFwd([]); setConfirmDel(false); setRmAtt(null); setEditOpen(false); setBusy(false); setPctDraft(null); }, [ui.drawerId]);
   if (!paper || !me) return null;
 
   const editable = canEdit(paper);
@@ -483,12 +480,17 @@ function MobilePaperSheet() {
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const iAmPic = isField && (paper.assignees ?? []).includes(me.id);
 
-  const pickFiles = async (files: FileList | null, ref: React.RefObject<HTMLInputElement>) => {
+  const pickFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    const { atts } = await buildAttachments(files, me.name);
-    if (atts.length) addAttachments(paper.id, atts);
-    if (ref.current) ref.current.value = '';
-    setAttachOpen(false);
+    setBusy(true);
+    try {
+      const { atts, skipped } = await buildAttachments(files, me.name);
+      if (atts.length) addAttachments(paper.id, atts);
+      if (skipped.length) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   return (
@@ -630,12 +632,13 @@ function MobilePaperSheet() {
           <section>
             <div className="mb-1.5 flex items-center gap-2">
               <p className="font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Evidence · {paper.attachments.length}</p>
-              {/* Android photo gallery / camera / PDF pickers */}
-              <input ref={galleryRef} type="file" multiple accept="image/*" className="hidden" onChange={(e) => void pickFiles(e.target.files, galleryRef)} />
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void pickFiles(e.target.files, cameraRef)} />
-              <input ref={pdfRef} type="file" multiple accept=".pdf,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files, pdfRef)} />
-              <button onClick={() => setAttachOpen(true)} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95">
-                <I n="plus" className="h-3 w-3" sw={2.4} /> Add photo / PDF
+              <input ref={fileRef} type="file" multiple accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.heic,.heif,.pdf,application/pdf" className="hidden" onChange={(e) => void pickFiles(e.target.files)} />
+              <button onClick={() => fileRef.current?.click()} disabled={busy} className="ml-auto inline-flex items-center gap-1 rounded-md border border-ink-600 bg-ink-850 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-cyanx-400 active:scale-95 disabled:opacity-50">
+                {busy ? (
+                  <><span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-cyanx-400/30 border-t-cyanx-400" /> Processing…</>
+                ) : (
+                  <><I n="plus" className="h-3 w-3" sw={2.4} /> Add photo / PDF</>
+                )}
               </button>
             </div>
             {geo && (
@@ -729,41 +732,6 @@ function MobilePaperSheet() {
       {/* edit paperwork bottom sheet */}
       {editOpen && (
         <MobileEditSheet paper={paper} onClose={() => setEditOpen(false)} onSave={(patch) => { updatePaper(paper.id, patch); setEditOpen(false); }} />
-      )}
-
-      {/* attach source action sheet (Android gallery / camera / PDF) */}
-      {attachOpen && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={() => setAttachOpen(false)} />
-          <div className="anim-slide-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-ink-600 bg-ink-900 px-4 pb-6 pt-3" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-600" />
-            <p className="mb-3 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-mist-500">Add evidence · {IS_ANDROID ? 'Android device detected' : 'choose a source'}</p>
-            <div className="space-y-2">
-              <button onClick={() => galleryRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyanx-500/15 text-cyanx-400"><I n="cam" className="h-5 w-5" sw={1.8} /></span>
-                <span>
-                  <span className="block text-[14px] font-bold text-mist-50">Photo gallery</span>
-                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Pick one or more photos · geotags kept</span>
-                </span>
-              </button>
-              <button onClick={() => cameraRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-flare-500/15 text-flare-400"><I n="cam" className="h-5 w-5" sw={1.8} /></span>
-                <span>
-                  <span className="block text-[14px] font-bold text-mist-50">Take a photo</span>
-                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Use the camera · location stamped if enabled</span>
-                </span>
-              </button>
-              <button onClick={() => pdfRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl border border-ink-600 bg-ink-850 px-4 py-3.5 text-left transition active:scale-[0.98]">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-tealx-500/15 text-tealx-400"><I n="file" className="h-5 w-5" sw={1.8} /></span>
-                <span>
-                  <span className="block text-[14px] font-bold text-mist-50">PDF document</span>
-                  <span className="block font-mono text-[9.5px] uppercase tracking-wider text-mist-500">Attach plans, permits or reports</span>
-                </span>
-              </button>
-              <button onClick={() => setAttachOpen(false)} className="btn btn-ghost w-full justify-center">Cancel</button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -517,26 +517,77 @@ export function extractBarangays(papers: Paper[], customs: string[] = [], geobrg
 
 /* ---------------- attachments helper ---------------- */
 
+/**
+ * Decodes + re-encodes an image to a compact, always-displayable JPEG.
+ * Fixes the common mobile problems: HEIC/HEIF files that `<img>` can't draw,
+ * EXIF-rotated photos, and 12MP frames whose base64 would blow the storage
+ * quota. Returns null when the browser cannot decode the file at all.
+ */
+async function normalizeImage(url: string): Promise<{ url: string; bytes: number } | null> {
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const el = new Image();
+      el.onload = () => res(el);
+      el.onerror = () => rej(new Error('decode'));
+      el.src = url;
+    });
+    const w0 = img.naturalWidth || img.width;
+    const h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0) return null;
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(w0, h0));
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#ffffff'; // flatten transparency for JPEG
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const out = canvas.toDataURL('image/jpeg', 0.82);
+    const bytes = Math.round((out.length - out.indexOf(',') - 1) * 0.75);
+    return { url: out, bytes };
+  } catch {
+    return null;
+  }
+}
+
+const fmtBytes = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
 export async function buildAttachments(files: FileList | File[], by: string): Promise<{ atts: Attachment[]; skipped: string[] }> {
   const atts: Attachment[] = [];
   const skipped: string[] = [];
   for (const f of Array.from(files)) {
-    const isImg = /^image\//.test(f.type);
+    const isImg = /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(f.name);
     const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
     if (!isImg && !isPdf) { skipped.push(`${f.name} (unsupported type)`); continue; }
-    if (f.size > 8 * 1024 * 1024) { skipped.push(`${f.name} (over 8 MB)`); continue; }
+    if (!isImg && f.size > 8 * 1024 * 1024) { skipped.push(`${f.name} (over 8 MB)`); continue; }
     try {
-      const url = await new Promise<string>((res, rej) => {
+      let url = await new Promise<string>((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(String(r.result));
         r.onerror = () => rej(new Error('read'));
         r.readAsDataURL(f);
       });
+      // GPS must be read from the original file — re-encoding strips EXIF.
       const gps = isImg ? await readGpsFromJpeg(f) : null;
+      let bytes = f.size;
+      if (isImg) {
+        const norm = await normalizeImage(url);
+        if (norm) {
+          url = norm.url;
+          bytes = norm.bytes;
+        } else {
+          skipped.push(`${f.name} (could not process — try re-taking as JPEG)`);
+          continue;
+        }
+      }
       atts.push({
         id: uid(), name: f.name, kind: isImg ? 'image' : 'pdf', url,
         geotagged: !!gps, lat: gps?.lat, lng: gps?.lng, by, at: Date.now(),
-        size: f.size < 1024 * 1024 ? `${Math.round(f.size / 1024)} KB` : `${(f.size / 1024 / 1024).toFixed(1)} MB`,
+        size: fmtBytes(bytes),
       });
     } catch { skipped.push(`${f.name} (unreadable)`); }
   }

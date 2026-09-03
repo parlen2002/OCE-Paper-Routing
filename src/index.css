@@ -66,6 +66,11 @@ html {
   overflow-x: clip; /* never allow a page-level horizontal scrollbar */
 }
 
+/* The mobile layout is designed at true device pixels — drop the zoom there. */
+@media (max-width: 820px) {
+  html { zoom: 1; }
+}
+
 /* Ambient backdrop colors — set per-theme by the store's theming effect.
    Defaults match the classic blueprint look. */
 :root {

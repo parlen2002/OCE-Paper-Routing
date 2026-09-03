@@ -7,6 +7,7 @@ import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';
 import { DocDrawer } from './components/Drawer';
+import { MobileApp } from './components/Mobile';
 import { NewDocModal } from './components/NewDoc';
 import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage, CustomizePage } from './components/Pages';
 import { I, Seal, Toasts, SearchSelect, StaticMapImage, type SearchOption } from './components/ui';
@@ -140,7 +141,7 @@ function AttachmentViewer() {
 }
 
 /* ---------------- print center ---------------- */
-type Period = 'daily' | 'weekly' | 'monthly';
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 const toDateInput = (ts: number) => {
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -159,6 +160,11 @@ function periodRange(p: Period, ts: number): { from: number; to: number; label: 
     const dow = (new Date(sod).getDay() + 6) % 7;
     const start = sod - dow * D;
     return { from: start, to: start + 7 * D, label: `${fmt(start)} — ${fmt(start + 6 * D)}` };
+  }
+  if (p === 'yearly') {
+    const start = new Date(d.getFullYear(), 0, 1).getTime();
+    const end = new Date(d.getFullYear() + 1, 0, 1).getTime();
+    return { from: start, to: end, label: `Calendar year ${d.getFullYear()}` };
   }
   const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
@@ -525,6 +531,8 @@ export function ReportModal() {
   const { ui, setReportOpen, db, user, me, visiblePapers } = useStore();
   const [period, setPeriod] = useState<Period>('daily');
   const [date, setDate] = useState(toDateInput(Date.now()));
+  const [fromStr, setFromStr] = useState(toDateInput(Date.now() - 29 * 864e5));
+  const [toStr, setToStr] = useState(toDateInput(Date.now()));
   const [divSel, setDivSel] = useState<string>('all');
 
   useEffect(() => {
@@ -535,7 +543,17 @@ export function ReportModal() {
   const paper = ui.reportPreset?.paperId ? db.papers.find((p) => p.id === ui.reportPreset!.paperId) ?? null : null;
   const mode: 'routing' | 'paper' = paper ? 'paper' : 'routing';
 
-  const range = useMemo(() => periodRange(period, fromInput(date)), [period, date]);
+  const range = useMemo(() => {
+    if (period === 'custom') {
+      const D = 864e5;
+      const fmt = (x: number) => new Date(x).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      const from = fromInput(fromStr);
+      const toDay = fromInput(toStr);
+      const to = Math.max(toDay + D, from + D); // inclusive of the end day
+      return { from, to, label: `${fmt(from)} — ${fmt(toDay)}` };
+    }
+    return periodRange(period, fromInput(date));
+  }, [period, date, fromStr, toStr]);
   const isField = me?.role === 'employee' || me?.role === 'joborder';
   const canSelectAll = me?.role === 'admin' || me?.role === 'supervisor' || me?.role === 'moderator';
 
@@ -595,7 +613,8 @@ export function ReportModal() {
 
   if (!ui.reportOpen || !user) return null;
   const close = () => setReportOpen(false);
-  const title = period === 'daily' ? 'DAILY' : period === 'weekly' ? 'WEEKLY' : 'MONTHLY';
+  const title =
+    period === 'daily' ? 'DAILY' : period === 'weekly' ? 'WEEKLY' : period === 'monthly' ? 'MONTHLY' : period === 'yearly' ? 'YEARLY' : 'CUSTOM RANGE';
   const scopeOptions: SearchOption[] = [
     { value: 'all', label: 'All divisions & offices' },
     ...ALL_UNITS.map((d) => ({
@@ -619,14 +638,22 @@ export function ReportModal() {
           {mode === 'routing' ? (
             <>
               <div className="flex overflow-hidden rounded-md border border-ink-600">
-                {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+                {(['daily', 'weekly', 'monthly', 'yearly', 'custom'] as Period[]).map((p) => (
                   <button key={p} onClick={() => setPeriod(p)}
                     className={`px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${period === p ? 'bg-flare-500/20 text-flare-400' : 'bg-ink-850 text-mist-500 hover:text-mist-200'}`}>
                     {p}
                   </button>
                 ))}
               </div>
-              <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="field w-[150px] py-1.5 font-mono text-[11.5px]" />
+              {period === 'custom' ? (
+                <span className="flex items-center gap-1.5">
+                  <input type="date" value={fromStr} max={toStr} onChange={(e) => e.target.value && setFromStr(e.target.value)} className="field w-[140px] py-1.5 font-mono text-[11.5px]" title="From date" />
+                  <span className="font-mono text-[10px] uppercase text-mist-500">to</span>
+                  <input type="date" value={toStr} min={fromStr} onChange={(e) => e.target.value && setToStr(e.target.value)} className="field w-[140px] py-1.5 font-mono text-[11.5px]" title="To date" />
+                </span>
+              ) : (
+                <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="field w-[150px] py-1.5 font-mono text-[11.5px]" title="Anchor date for the period" />
+              )}
               <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mist-500 md:inline">{range.label}</span>
               {canSelectAll ? (
                 <SearchSelect value={divSel} onChange={setDivSel} options={scopeOptions} width="w-72" placeholder="Search a division / office…" />
@@ -759,9 +786,22 @@ export function ReportModal() {
   );
 }
 
+/** True on phones / small tablets — switches to the dedicated mobile layout. */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 820px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px)');
+    const onChange = () => setMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return mobile;
+}
+
 /* ---------------- app ---------------- */
 function AppInner() {
   const { user, ui, closeDrawer, setNewOpen, setViewer, setReportOpen, setProfileOpen } = useStore();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     (window as unknown as { __OCE_BOOTED__?: boolean }).__OCE_BOOTED__ = true;
@@ -782,6 +822,18 @@ function AppInner() {
 
   if (!user) {
     return (<><Login /><Toasts /></>);
+  }
+
+  // Dedicated touch-first layout on phones / small tablets.
+  if (isMobile) {
+    return (
+      <>
+        <MobileApp />
+        <NewDocModal />
+        <ReportModal />
+        <Toasts />
+      </>
+    );
   }
 
   // Command View is now open to every role (role-scoped inside the page).

@@ -495,6 +495,8 @@ function MobilePaperSheet() {
       const { atts, skipped } = await buildAttachments(files, me.name);
       if (atts.length) addAttachments(paper.id, atts);
       if (skipped.length) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
+      const ocrHits = atts.filter((a) => a.geoSource === 'ocr').length;
+      if (ocrHits) pushToast('ok', `Location read from the printed GPS stamp on ${ocrHits} photo${ocrHits > 1 ? 's' : ''} (OCR).`);
       // The browser/OS usually strips EXIF GPS on upload — offer the device's live location.
       const missing = atts.filter((a) => a.kind === 'image' && !a.geotagged).map((a) => a.id);
       if (missing.length) setGeoPending((g) => [...new Set([...g, ...missing])]);
@@ -693,7 +695,7 @@ function MobilePaperSheet() {
                 <p className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-amberx-400">
                   <I n="pin" className="h-3 w-3" sw={2.4} /> No location in {geoPending.length} photo{geoPending.length > 1 ? 's' : ''}
                 </p>
-                <p className="mt-1 text-[11px] leading-snug text-mist-300">The browser stripped the photo's GPS. Stamp it with your device's current location instead.</p>
+                <p className="mt-1 text-[11px] leading-snug text-mist-300">No GPS in the file's data or printed stamp. Stamp it with your device's current location instead.</p>
                 <div className="mt-2 flex gap-2">
                   <button onClick={stampGeo} disabled={geoBusy} className="btn btn-primary flex-1 justify-center py-2 text-[11px] disabled:opacity-60">
                     {geoBusy ? <><span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-ink-950/30 border-t-ink-950" /> Reading GPS…</> : <><I n="pin" className="h-3.5 w-3.5" sw={2.2} /> Use my location</>}
@@ -716,7 +718,11 @@ function MobilePaperSheet() {
                         <span className="font-mono text-[8px] font-bold uppercase">PDF</span>
                       </a>
                     )}
-                    {a.geotagged && <span className="absolute bottom-1 left-1 rounded-sm bg-tealx-500/90 px-1 py-px font-mono text-[7.5px] font-bold uppercase text-ink-950">GPS</span>}
+                    {a.geotagged && (
+                      <span className={`absolute bottom-1 left-1 rounded-sm px-1 py-px font-mono text-[7.5px] font-bold uppercase text-ink-950 ${a.geoSource === 'ocr' ? 'bg-amberx-400/90' : a.geoSource === 'device' ? 'bg-cyanx-400/90' : 'bg-tealx-500/90'}`} title={`Location via ${a.geoSource === 'ocr' ? 'printed stamp (OCR)' : a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
+                        {a.geoSource === 'ocr' ? 'OCR' : a.geoSource === 'device' ? 'GPS·device' : 'GPS'}
+                      </span>
+                    )}
                     <button
                       onClick={() => (rmAtt === a.id ? (removeAttachment(paper.id, a.id), setRmAtt(null)) : setRmAtt(a.id))}
                       className={`absolute right-1 top-1 rounded-md p-1 font-mono text-[8px] font-bold uppercase ${rmAtt === a.id ? 'bg-redx-500 text-white' : 'bg-ink-950/80 text-mist-300'}`}

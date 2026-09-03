@@ -438,8 +438,8 @@ export function DocDrawer() {
                       <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-mist-600">{a.by} · {timeAgo(a.at)}{a.size ? ` · ${a.size}` : ''}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         {a.geotagged && a.lat != null && a.lng != null && (
-                          <a href={mapsLink(a.lat, a.lng)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-sm bg-tealx-500/12 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-tealx-400 transition hover:bg-tealx-500/25" title={`Geotagged at ${fmtCoord(a.lat, a.lng)}`}>
-                            <I n="pin" className="h-2.5 w-2.5" sw={2.4} /> {fmtCoord(a.lat, a.lng)}
+                          <a href={mapsLink(a.lat, a.lng)} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider transition ${a.geoSource === 'ocr' ? 'bg-amberx-500/12 text-amberx-400 hover:bg-amberx-500/25' : a.geoSource === 'device' ? 'bg-cyanx-500/12 text-cyanx-400 hover:bg-cyanx-500/25' : 'bg-tealx-500/12 text-tealx-400 hover:bg-tealx-500/25'}`} title={`Geotagged at ${fmtCoord(a.lat, a.lng)} · via ${a.geoSource === 'ocr' ? 'printed stamp (OCR)' : a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
+                            <I n="pin" className="h-2.5 w-2.5" sw={2.4} /> {fmtCoord(a.lat, a.lng)}{a.geoSource === 'ocr' ? ' · OCR' : a.geoSource === 'device' ? ' · device' : ''}
                           </a>
                         )}
                         {!(a.geotagged && a.lat != null && a.lng != null) && (
@@ -566,6 +566,8 @@ function AttachControl({ paper, fileRef, onAdd }: { paper: Paper; fileRef: React
     if (fileRef.current) fileRef.current.value = '';
     setStaged((s) => [...s, ...atts]);
     if (skipped.length > 0) pushToast('warn', `Skipped — ${skipped.join('; ')}`);
+    const ocrHits = atts.filter((a) => a.geoSource === 'ocr').length;
+    if (ocrHits) pushToast('ok', `Location read from the printed GPS stamp on ${ocrHits} photo${ocrHits > 1 ? 's' : ''} (OCR).`);
   };
 
   return (
@@ -573,7 +575,7 @@ function AttachControl({ paper, fileRef, onAdd }: { paper: Paper; fileRef: React
       <input ref={fileRef} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,application/pdf" className="hidden" onChange={(e) => void pick(e.target.files)} />
       <button onClick={() => fileRef.current?.click()} disabled={busy}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-ink-600 bg-ink-950/40 px-3 py-3.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-mist-500 transition hover:border-cyanx-500/60 hover:text-cyanx-400">
-        <I n="cam" className="h-4 w-4" /> {busy ? 'Reading EXIF geotags…' : 'Add JPG / PDF evidence (geotagged photos are mapped)'}
+        <I n="cam" className="h-4 w-4" /> {busy ? 'Reading geotags (EXIF, then OCR)…' : 'Add JPG / PDF evidence (geotagged photos are mapped)'}
       </button>
 
       {staged.length > 0 && (

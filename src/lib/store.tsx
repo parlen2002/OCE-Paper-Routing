@@ -739,7 +739,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const entry: CustodyEntryLocal = { id: uid(), at: Date.now(), byName: me.name, action: 'attachment', text: `Device GPS stamped on ${n} photo(s) — ${coord}` };
     setDb((d) => withLog({ ...d, papers: d.papers.map((x) => x.id === docId ? touch(x, (pp) => ({
       ...pp,
-      attachments: pp.attachments.map((a) => want.has(a.id) && !a.geotagged ? { ...a, geotagged: true, lat, lng } : a),
+      attachments: pp.attachments.map((a) => want.has(a.id) && !a.geotagged ? { ...a, geotagged: true, lat, lng, geoSource: 'device' as const } : a),
       custody: [...pp.custody, entry],
     })) : x) },
       { userId: me.id, userName: me.name, type: 'attachment', text: `Stamped device GPS (${coord}) on ${n} photo(s) of ${p.ref}`, ref: p.ref, docId }));

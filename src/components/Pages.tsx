@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, fmtPct, stageMeta, timeAgo, extractBarangays } from '../lib/core';
-import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, type IconName, type SearchOption } from './ui';
+import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, Seal, type IconName, type SearchOption } from './ui';
 
 const unitOptions = (allLabel: string): SearchOption[] => [
   { value: 'all', label: allLabel },
@@ -870,6 +870,7 @@ export function UsersPage() {
   const [uDivF, setUDivF] = useState<'all' | string>('all');
   const [uRoleF, setURoleF] = useState<'all' | Role>('all');
   const [uQ, setUQ] = useState('');
+  const [printOpen, setPrintOpen] = useState(false);
   if (user?.role !== 'admin') return null;
 
   const pending = db.users.filter((u) => u.status === 'pending');
@@ -885,16 +886,56 @@ export function UsersPage() {
     });
   }, [db.users, uDivF, uRoleF, uQ]);
 
+  /** Live counters — recalculated every time a filter or the register changes. */
+  const counts = useMemo(() => ({
+    active: filteredUsers.filter((u) => u.status === 'active').length,
+    pending: filteredUsers.filter((u) => u.status === 'pending').length,
+    disabled: filteredUsers.filter((u) => u.status === 'disabled').length,
+    resets: filteredUsers.filter((u) => u.passwordResetAt).length,
+  }), [filteredUsers]);
+
+  const scopeParts: string[] = [];
+  if (uRoleF !== 'all') scopeParts.push(`Role — ${ROLE_CHIP[uRoleF].label}`);
+  if (uDivF !== 'all') scopeParts.push(`Department — ${divById(uDivF)?.name ?? uDivF}`);
+  if (uQ.trim()) scopeParts.push(`Search — "${uQ.trim()}"`);
+  const scopeLabel = scopeParts.length ? scopeParts.join(' · ') : 'All accounts, no filters';
+
   return (
     <div>
       <PageHead kicker="Administrator" title="Users & accounts"
         sub="Approve sign-up requests, edit accounts, reset passwords and control who holds a key to the system. Every change is written to the system log."
         right={
-          <button className="btn btn-ghost" onClick={() => go('userlogs')}>
-            <I n="history" className="h-4 w-4" sw={2} /> User history & logs
-          </button>
+          <>
+            <button className="btn btn-ghost" onClick={() => go('userlogs')}>
+              <I n="history" className="h-4 w-4" sw={2} /> User history & logs
+            </button>
+            <button className="btn btn-primary" onClick={() => setPrintOpen(true)} disabled={filteredUsers.length === 0} title="Print the accounts currently in scope, with their profiles">
+              <I n="printer" className="h-4 w-4" sw={2.2} /> Print register
+            </button>
+          </>
         }
       />
+
+      {/* live counters — reflect the active filters */}
+      <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-5">
+        {([
+          { label: 'Accounts in scope', value: filteredUsers.length, sub: `of ${db.users.length} on record`, color: '#56c8f0', icon: 'users' as IconName },
+          { label: 'Active', value: counts.active, sub: 'can sign in', color: '#45d483', icon: 'checkc' as IconName },
+          { label: 'Pending', value: counts.pending, sub: 'awaiting verification', color: '#f5b924', icon: 'clock' as IconName },
+          { label: 'Disabled', value: counts.disabled, sub: 'sign-in blocked', color: '#f4645c', icon: 'x' as IconName },
+          { label: 'Reset requests', value: counts.resets, sub: 'queued for the admin', color: '#ff8a4c', icon: 'lock' as IconName },
+        ]).map((s, i) => (
+          <div key={s.label} className="anim-fade-up relative overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80 px-3.5 pb-3 pt-2.5 transition-colors hover:border-ink-500" style={{ animationDelay: `${i * 50}ms` }}>
+            <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: s.color }} />
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: s.color }}><I n={s.icon} className="h-3.5 w-3.5" sw={2.2} /></span>
+              <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.18em] text-mist-500">{s.label}</span>
+            </div>
+            <p key={s.value} className="anim-badge mt-1.5 font-display text-[34px] font-bold leading-none tabular" style={{ color: s.color }}>{s.value}</p>
+            <p className="mt-1 font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">{s.sub}</p>
+          </div>
+        ))}
+      </div>
 
       {pending.length > 0 && (
         <section className="anim-fade-up mb-5 rounded-lg border border-amberx-500/35 bg-ink-900/80 p-4">
@@ -1075,7 +1116,142 @@ export function UsersPage() {
       </div>
 
       {editing && <EditUserModal target={editing} onClose={() => setEditing(null)} />}
+      {printOpen && (
+        <PrintUsersModal
+          rows={filteredUsers}
+          scopeLabel={scopeLabel}
+          preparedBy={user?.name ?? ''}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/* ---- printable account register (follows the active filters) ---- */
+function PrintUsersModal({ rows, scopeLabel, preparedBy, onClose }: {
+  rows: User[];
+  scopeLabel: string;
+  preparedBy: string;
+  onClose: () => void;
+}) {
+  const STATUS_TEXT: Record<UserStatus, string> = { active: 'ACTIVE', pending: 'PENDING', disabled: 'DISABLED' };
+  const ROLE_TEXT: Record<Role, string> = {
+    admin: 'Program Admin', supervisor: 'Dept. Head', moderator: 'Moderator', operator: 'Operator',
+    division: 'Division Head', employee: 'Employee', joborder: 'Job-Order',
+  };
+  return createPortal(
+    <div className="print-reset fixed inset-0 z-[68] overflow-y-auto">
+      <div className="no-print fixed inset-0 bg-ink-950/85 backdrop-blur-sm" onClick={onClose} />
+      <div className="print-reset relative mx-auto my-6 w-[min(900px,94vw)]">
+        <div className="no-print anim-fade-up mb-3 flex items-center gap-2 rounded-lg border border-ink-600 bg-ink-900/95 px-3 py-2.5 shadow-xl">
+          <I n="users" className="h-4 w-4 text-flare-400" sw={2} />
+          <span className="mr-1 font-display text-[15px] font-bold uppercase tracking-wider text-mist-100">Account register · {rows.length} account{rows.length === 1 ? '' : 's'}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button className="btn btn-ghost py-1.5" onClick={onClose}>Close</button>
+            <button className="btn btn-primary py-1.5" onClick={() => window.print()}>
+              <I n="printer" className="h-4 w-4" sw={2.2} /> Print / Save PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="print-sheet print-scroll anim-pop scroll-slim max-h-[80vh] overflow-y-auto rounded-md bg-white text-[#182a3e] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.85)]">
+          <div className="px-9 py-8">
+            <div className="flex items-center gap-4 border-b-[3px] border-[#182a3e] pb-4">
+              <Seal className="h-14 w-14" />
+              <div className="flex-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5b7089]">Republic of the Philippines</p>
+                <p className="font-display text-[22px] font-bold uppercase leading-tight tracking-wide">City of Puerto Princesa</p>
+                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#31506e]">Office of the City Engineer</p>
+                <p className="mt-0.5 text-[9.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">OCE Flow — Account Register</p>
+              </div>
+              <div className="w-16 text-right font-mono text-[9px] uppercase leading-relaxed text-[#8a9ab0]">Form<br />OCE-USR-01</div>
+            </div>
+
+            <div className="mt-5 flex items-end justify-between">
+              <div>
+                <h1 className="font-display text-[26px] font-bold uppercase leading-none tracking-wide">Users & Accounts Register</h1>
+                <p className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-[#5b7089]">Scope · {scopeLabel}</p>
+                <p className="mt-0.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-[#5b7089]">
+                  Printed {fmtDT(Date.now())} · {rows.length} account{rows.length === 1 ? '' : 's'} listed
+                </p>
+              </div>
+              <span className="stamp shrink-0 text-[11px] text-[#0e7490]">Confidential</span>
+            </div>
+
+            {rows.length === 0 ? (
+              <p className="mt-8 border border-dashed border-[#c8d3e0] px-4 py-10 text-center font-mono text-[10.5px] uppercase tracking-[0.18em] text-[#8a9ab0]">
+                No accounts match the current filters
+              </p>
+            ) : (
+              <table className="mt-5 w-full border-collapse text-[10.5px] leading-snug">
+                <thead>
+                  <tr className="border-y-2 border-[#182a3e] text-left font-mono text-[8.5px] uppercase tracking-[0.14em] text-[#5b7089]">
+                    <th className="py-1.5 pr-2">#</th>
+                    <th className="py-1.5 pr-2">Officer</th>
+                    <th className="py-1.5 pr-2">Role</th>
+                    <th className="py-1.5 pr-2">Department / Team</th>
+                    <th className="py-1.5 pr-2">Position</th>
+                    <th className="py-1.5 pr-2">Status</th>
+                    <th className="py-1.5">Contact details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((u, i) => {
+                    const div = u.divisionId ? divById(u.divisionId) : undefined;
+                    return (
+                      <tr key={u.id} className="border-b border-[#dde5ee] align-top">
+                        <td className="py-2 pr-2 font-mono text-[9px] text-[#8a9ab0] tabular">{i + 1}</td>
+                        <td className="py-2 pr-2">
+                          <p className="font-bold">{u.name}</p>
+                          <p className="font-mono text-[9px] text-[#5b7089]">@{u.username}</p>
+                        </td>
+                        <td className="py-2 pr-2 font-mono text-[9.5px] font-bold uppercase">{ROLE_TEXT[u.role]}</td>
+                        <td className="py-2 pr-2">{div ? `${div.name} (${div.code})` : '—'}</td>
+                        <td className="py-2 pr-2">{u.title}</td>
+                        <td className="py-2 pr-2">
+                          <span className="font-mono text-[9px] font-bold uppercase" style={{ color: u.status === 'active' ? '#1f9d55' : u.status === 'pending' ? '#b45309' : '#b91c1c' }}>
+                            {STATUS_TEXT[u.status]}
+                          </span>
+                        </td>
+                        <td className="py-2 text-[9.5px] text-[#31506e]">
+                          {u.phone && <p className="font-mono">{u.phone}</p>}
+                          {u.email && <p className="font-mono">{u.email}</p>}
+                          {u.address && <p className="text-[#5b7089]">{u.address}</p>}
+                          {!u.phone && !u.email && !u.address && <span className="text-[#8a9ab0]">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+
+            <div className="mt-10 grid grid-cols-2 gap-10">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b7089]">Prepared by</p>
+                <div className="mt-10 border-t-2 border-[#182a3e] pt-1.5">
+                  <p className="text-[12px] font-bold">{preparedBy}</p>
+                  <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">Program Administrator</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b7089]">Noted by</p>
+                <div className="mt-10 border-t-2 border-[#182a3e] pt-1.5">
+                  <p className="text-[12px] font-bold">Alphard S. Grande</p>
+                  <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#5b7089]">System Administrator — I.T. Section</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-8 border-t border-[#dde5ee] pt-2 text-center font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#8a9ab0]">
+              Generated by OCE Flow · {fmtDT(Date.now())} · confidential personnel record — handle per data privacy policy
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 

@@ -254,7 +254,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const vis = db.notifs.filter((n) =>
       me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator'
         ? true
-        : (n.scope.type === 'division' && n.scope.divisionId === me.divisionId) || n.targetUserId === me.id
+        : me.role === 'division'
+          ? n.targetUserId === me.id || (n.scope.type === 'division' && n.scope.divisionId === me.divisionId)
+          : n.targetUserId === me.id
     );
     return [...vis].sort((a, b) => b.at - a.at);
   }, [db.notifs, me]);
@@ -269,12 +271,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const pushNotif = (d: DB, n: Omit<Notif, 'id' | 'at' | 'readBy'>, currentUser: User): DB => {
     const notif: Notif = { ...n, id: uid(), at: Date.now(), readBy: [currentUser.id] };
+    // Same scoping rule as the bell: overseers see all; division heads see their
+    // division's signals; employees / job-order only signals addressed to them.
     const targetsMe =
-      currentUser.role === 'admin' || currentUser.role === 'moderator'
+      currentUser.role === 'admin' || currentUser.role === 'supervisor' || currentUser.role === 'moderator' || currentUser.role === 'operator'
         ? true
-        : currentUser.role === 'supervisor'
-          ? n.scope.type === 'supervisors'
-          : n.targetUserId === currentUser.id || (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId);
+        : currentUser.role === 'division'
+          ? n.targetUserId === currentUser.id || (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId)
+          : n.targetUserId === currentUser.id;
     if (targetsMe) fireBrowser('OCE Flow — ' + (n.ref ?? 'Update'), n.text);
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };

@@ -28,7 +28,7 @@ const NOTIF_META: Record<string, { icon: IconName; color: string }> = {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const store = useStore();
-  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setNewOpen, setReportOpen, setProfileOpen, msgUnreadTotal, custom } = store;
+  const { user, ui, go, visibleNotifs, unread, markAllRead, markRead, openDrawer, logout, resetDemo, setNewOpen, setProfileOpen, msgUnreadTotal, custom } = store;
   const [bellOpen, setBellOpen] = useState(false);
   const prevUnread = useRef(unread);
 
@@ -113,11 +113,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2.5">
-            <button onClick={() => setReportOpen(true)} className="rounded-md border border-ink-600 bg-ink-850 p-2.5 text-mist-300 transition hover:border-flare-500/70 hover:text-flare-400"
-              title="Print routing report — daily / weekly / monthly">
-              <I n="printer" className="h-[18px] w-[18px]" />
-            </button>
-
             <div className="relative">
               <button onClick={() => setBellOpen((o) => !o)}
                 className={`relative rounded-md border p-2.5 transition ${bellOpen ? 'border-cyanx-500/60 bg-ink-800 text-cyanx-400' : 'border-ink-600 bg-ink-850 text-mist-300 hover:text-cyanx-400'}`}

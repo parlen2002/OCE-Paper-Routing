@@ -76,7 +76,9 @@ export function DocDrawer() {
   return (
     <div className="fixed inset-0 z-50">
       <div className="fixed inset-0 bg-ink-950/70 backdrop-blur-[2px]" onClick={closeDrawer} />
-      <aside className="anim-pop fixed inset-y-0 right-0 flex w-[min(96vw,1100px)] flex-col border-l border-ink-600 bg-ink-900 shadow-[-40px_0_90px_-30px_rgba(0,0,0,0.9)]">
+      {/* Width adapts to the viewport: the full 1100px when maximized, and it never
+          encroaches on the 228px side navigation on smaller windows. */}
+      <aside className="anim-pop fixed inset-y-0 right-0 flex w-[max(320px,min(1100px,calc(100vw-252px)))] flex-col border-l border-ink-600 bg-ink-900 shadow-[-40px_0_90px_-30px_rgba(0,0,0,0.9)]">
         {/* header */}
         <div className="border-b border-ink-700 px-5 py-4">
           <div className="flex items-center gap-2">

@@ -110,8 +110,51 @@ export function DocDrawer() {
           <h2 className="mt-1.5 font-display text-[26px] font-bold leading-tight tracking-wide text-mist-50">{paper.title}</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-mist-500">
             {KINDS[paper.kind].label} · {paper.origin} · logged by {paper.byName} · {fmtDT(paper.createdAt)}
-            {paper.dueAt ? ` · due ${fmtDT(paper.dueAt)}` : ''}
           </p>
+
+          {/* attention stamps — priority, due date, overdue */}
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            {/* priority stamp */}
+            <span
+              className="stamp px-3 py-1 text-[12px] font-extrabold"
+              style={{
+                color: paper.priority === 'urgent' ? '#f4645c' : paper.priority === 'priority' ? '#f5b924' : '#86a2be',
+                borderColor: paper.priority === 'urgent' ? '#f4645c' : paper.priority === 'priority' ? '#f5b924' : '#86a2be',
+                transform: 'rotate(-5deg)',
+              }}
+              title={`Priority: ${paper.priority}`}
+            >
+              {PRIORITIES[paper.priority].label}
+            </span>
+
+            {/* due date chip — bold, color-coded */}
+            {paper.dueAt != null && (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-mono text-[11px] font-extrabold uppercase tracking-wider ${
+                  isOverdue
+                    ? 'border-redx-500/70 bg-redx-500/15 text-redx-400'
+                    : paper.dueAt - Date.now() < 48 * 36e5 && paper.stage !== 'completed'
+                      ? 'border-amberx-500/70 bg-amberx-500/15 text-amberx-400'
+                      : 'border-mist-500/40 bg-ink-800 text-mist-200'
+                }`}
+                title={isOverdue ? `This paper is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} past its deadline` : 'Deadline for this paper'}
+              >
+                <I n="clock" className="h-3.5 w-3.5" sw={2.4} />
+                Due {new Date(paper.dueAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+
+            {/* overdue stamp — loud, rotated */}
+            {isOverdue && (
+              <span
+                className="anim-badge stamp border-2 px-3 py-1 text-[13px] font-extrabold text-redx-400"
+                style={{ borderColor: '#f4645c', transform: 'rotate(-7deg)', boxShadow: '0 0 18px -4px rgba(244,100,92,0.55)' }}
+                title={`Past deadline by ${hoursOverdue} hour${hoursOverdue === 1 ? '' : 's'}`}
+              >
+                Overdue · {daysOverdue} day{daysOverdue === 1 ? '' : 's'} late
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="scroll-slim flex-1 overflow-y-auto px-5 py-5">

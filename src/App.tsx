@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
-import { ALL_UNITS, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
+import { ALL_UNITS, PRIORITIES, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';

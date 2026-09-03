@@ -6,27 +6,28 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
-import type { Kind, Paper, Priority, Stage, User } from '../lib/core';
+import type { DivInfo, Kind, Paper, Priority, Stage, User } from '../lib/core';
 import {
   ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, MOODS, PRIORITIES, STAGES,
   buildAttachments, divById, fmtCoord, fmtDT, fmtPct, mapsLink, stageMeta, timeAgo,
 } from '../lib/core';
 import { I, Avatar, StageChip, KindTag, PriorityTag, ProgressBar, DivChip, Seal, StaticMapImage, type IconName } from './ui';
 
-type TabId = 'board' | 'docs' | 'chat' | 'alerts' | 'me';
+type TabId = 'home' | 'board' | 'docs' | 'chat' | 'me';
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
+  { id: 'home', label: 'Home', icon: 'grid' },
   { id: 'board', label: 'Board', icon: 'board' },
   { id: 'docs', label: 'Docs', icon: 'file' },
   { id: 'chat', label: 'Chat', icon: 'send' },
-  { id: 'alerts', label: 'Alerts', icon: 'bell' },
   { id: 'me', label: 'Me', icon: 'user' },
 ];
 
 export function MobileApp() {
   const store = useStore();
   const { me, unread, msgUnreadTotal, theme, custom } = store;
-  const [tab, setTab] = useState<TabId>('board');
+  const [tab, setTab] = useState<TabId>('home');
+  const [alertsOpen, setAlertsOpen] = useState(false);
   if (!me) return null;
 
   return (
@@ -44,7 +45,7 @@ export function MobileApp() {
             </p>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <button onClick={() => setTab('alerts')} className="relative rounded-md border border-ink-600 bg-ink-850 p-2 text-mist-300 active:scale-95" title="Alerts">
+            <button onClick={() => setAlertsOpen(true)} className="relative rounded-md border border-ink-600 bg-ink-850 p-2 text-mist-300 active:scale-95" title="Alerts">
               <I n="bell" className="h-4 w-4" />
               {unread > 0 && <span className="anim-badge absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold text-ink-950 tabular">{unread}</span>}
             </button>
@@ -57,12 +58,31 @@ export function MobileApp() {
 
       {/* content */}
       <main className="min-w-0 flex-1" style={{ paddingBottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
+        {tab === 'home' && <MobileHome />}
         {tab === 'board' && <MobileBoard />}
         {tab === 'docs' && <MobileDocs />}
         {tab === 'chat' && <MobileMessages />}
-        {tab === 'alerts' && <MobileAlerts />}
         {tab === 'me' && <MobileMe />}
       </main>
+
+      {/* alerts bottom-sheet (from header bell) */}
+      {alertsOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={() => setAlertsOpen(false)} />
+          <div className="anim-slide-up absolute inset-x-0 bottom-0 max-h-[85vh] overflow-hidden rounded-t-2xl border-t border-ink-600 bg-ink-900 shadow-[0_-20px_60px_-10px_rgba(0,0,0,0.7)]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-ink-600" />
+            <div className="flex items-center justify-between border-b border-ink-700 px-4 pb-2">
+              <p className="font-display text-[17px] font-bold uppercase tracking-wider text-mist-50">Signals</p>
+              <button onClick={() => setAlertsOpen(false)} className="rounded-md border border-ink-600 p-1.5 text-mist-400 active:scale-95">
+                <I n="x" className="h-3.5 w-3.5" sw={2.4} />
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto">
+              <MobileAlerts />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* bottom tab bar */}
       <nav
@@ -72,7 +92,7 @@ export function MobileApp() {
         <div className="grid grid-cols-5">
           {TABS.map((t) => {
             const active = tab === t.id;
-            const badge = t.id === 'alerts' ? unread : t.id === 'chat' ? msgUnreadTotal : 0;
+            const badge = t.id === 'chat' ? msgUnreadTotal : 0;
             return (
               <button key={t.id} onClick={() => setTab(t.id)} className="relative flex flex-col items-center gap-0.5 py-2 active:scale-95">
                 <span className={`relative rounded-lg px-3 py-1 transition-colors ${active ? 'bg-flare-500/15 text-flare-400' : 'text-mist-500'}`}>
@@ -89,6 +109,149 @@ export function MobileApp() {
       {/* paperwork bottom sheet (driven by the shared drawer id) */}
       <MobilePaperSheet />
     </div>
+  );
+}
+
+/* ------------------------------------------------ home / command view */
+function MobileHome() {
+  const { me, scopePapers, divOf, openDrawer } = useStore();
+  if (!me) return null;
+
+  const papers = scopePapers;
+  const open = papers.filter((p) => p.stage !== 'completed');
+  const inQueue = papers.filter((p) => p.stage === 'received' || p.stage === 'review').length;
+  const working = papers.filter((p) => p.stage === 'progress' || p.stage === 'verification').length;
+  const week = Date.now() - 7 * 864e5;
+  const doneWeek = papers.filter((p) => p.stage === 'completed' && p.updatedAt >= week).length;
+  const urgentOpen = open.filter((p) => p.priority === 'urgent').sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity));
+  const overdueOpen = open.filter((p) => p.dueAt != null && p.dueAt < Date.now()).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
+  const daysOver = (dueAt: number) => Math.max(1, Math.ceil((Date.now() - dueAt) / 864e5));
+
+  const myDiv = me.divisionId ? divOf(me.divisionId) : undefined;
+  const isOver = me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator';
+  const scopeLabel = isOver
+    ? 'Whole office'
+    : me.role === 'division'
+      ? myDiv?.name ?? 'Your division'
+      : 'Your work orders';
+
+  const stats: { label: string; value: number; hint: string; color: string; icon: IconName }[] = [
+    { label: 'In intake', value: inQueue, hint: 'Received + review', color: '#56c8f0', icon: 'inbox' },
+    { label: 'Being worked', value: working, hint: 'Progress + verify', color: '#ff8a4c', icon: 'wrench' },
+    { label: 'Urgent open', value: urgentOpen.length, hint: 'Needs attention', color: '#f4645c', icon: 'alert' },
+    { label: 'Overdue', value: overdueOpen.length, hint: 'Past deadline', color: '#f5b924', icon: 'clock' },
+    { label: 'Closed · 7d', value: doneWeek, hint: 'Completed this week', color: '#45d483', icon: 'checkc' },
+    { label: 'Total open', value: open.length, hint: 'On your plate', color: '#a78bfa', icon: 'board' },
+  ];
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  return (
+    <div className="anim-fade-up space-y-4 px-4 pt-4">
+      {/* greeting */}
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-flare-400">Command view</p>
+          <h1 className="mt-0.5 font-display text-[26px] font-bold uppercase leading-none tracking-wide text-mist-50">
+            {greeting}, <span className="text-flare-400">{me.name.split(' ').slice(-1)[0]}</span>
+          </h1>
+          <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-500">
+            {scopeLabel} · {new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })}
+          </p>
+        </div>
+        <Avatar name={me.name} size="lg" />
+      </div>
+
+      {/* status cards */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {stats.map((s, i) => (
+          <button
+            key={s.label}
+            onClick={() => openDrawer(urgentOpen[0]?.id ?? open[0]?.id ?? '')}
+            disabled={!open.length}
+            className="anim-fade-up relative overflow-hidden rounded-xl border border-ink-700 bg-ink-900/80 p-3.5 text-left transition active:scale-[0.97] disabled:cursor-default"
+            style={{ animationDelay: `${i * 50}ms` }}
+          >
+            <span className="absolute right-3 top-3" style={{ color: `${s.color}66` }}>
+              <I n={s.icon} className="h-5 w-5" sw={1.5} />
+            </span>
+            <p className="pr-7 font-mono text-[8.5px] font-semibold uppercase tracking-[0.14em] text-mist-500">{s.label}</p>
+            <p className="mt-1 font-display text-[34px] font-bold leading-none tabular" style={{ color: s.color }}>{s.value}</p>
+            <p className="mt-1 text-[10.5px] text-mist-500">{s.hint}</p>
+            <span className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: `${s.color}55` }} />
+          </button>
+        ))}
+      </div>
+
+      {/* urgent */}
+      <section>
+        <div className="mb-2 flex items-center gap-2">
+          <I n="alert" className="h-4 w-4 text-redx-400" sw={2.2} />
+          <h2 className="font-display text-[17px] font-bold uppercase tracking-wider text-mist-100">Urgent — needs attention</h2>
+          <span className="ml-auto rounded-md bg-redx-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-redx-400 tabular">{urgentOpen.length}</span>
+        </div>
+        {urgentOpen.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-ink-600 px-3 py-5 text-center font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+            Nothing burning — all urgent papers are closed
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {urgentOpen.map((p) => (
+              <PaperRow key={p.id} p={p} div={divOf(p.divisionId)} onOpen={() => openDrawer(p.id)} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* overdue */}
+      <section>
+        <div className="mb-2 flex items-center gap-2">
+          <I n="clock" className="h-4 w-4 text-amberx-400" sw={2.2} />
+          <h2 className="font-display text-[17px] font-bold uppercase tracking-wider text-mist-100">Overdue — act now</h2>
+          <span className={`ml-auto rounded-md px-2 py-0.5 font-mono text-[10px] font-bold tabular ${overdueOpen.length ? 'bg-amberx-500/20 text-amberx-400' : 'bg-ink-700 text-mist-500'}`}>
+            {overdueOpen.length}
+          </span>
+        </div>
+        {overdueOpen.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-ink-600 px-3 py-5 text-center font-mono text-[9.5px] uppercase tracking-[0.16em] text-mist-600">
+            All deadlines are being met — nothing is overdue
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {overdueOpen.map((p) => (
+              <PaperRow key={p.id} p={p} div={divOf(p.divisionId)} onOpen={() => openDrawer(p.id)} badge={`${daysOver(p.dueAt ?? Date.now())}d late`} />
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PaperRow({ p, div, onOpen, badge }: { p: Paper; div?: DivInfo; onOpen: () => void; badge?: string }) {
+  const pct = p.progress ?? (p.stage === 'completed' ? 100 : 0);
+  const pm = PRIORITIES[p.priority];
+  return (
+    <li>
+      <button onClick={onOpen} className="w-full rounded-xl border border-ink-700 bg-ink-900/80 p-3 text-left transition active:scale-[0.98]">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] font-bold tracking-wider text-cyanx-400">{p.ref}</span>
+          <span className="rounded-sm px-1.5 py-px font-mono text-[8.5px] font-bold uppercase tracking-wider" style={{ color: pm.color, background: `${pm.color}1a`, border: `1px solid ${pm.color}40` }}>
+            {p.priority}
+          </span>
+          {badge && <span className="rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1.5 py-px font-mono text-[8.5px] font-bold uppercase tracking-wider text-amberx-400">{badge}</span>}
+          <StageChip stage={p.stage} />
+          <I n="chevR" className="ml-auto h-3.5 w-3.5 shrink-0 text-mist-500" sw={2.4} />
+        </div>
+        <p className="mt-1.5 line-clamp-2 text-[13px] font-semibold leading-snug text-mist-100">{p.title}</p>
+        <div className="mt-2 flex items-center gap-2">
+          {div && <DivChip div={div} />}
+          <span className="ml-auto w-24"><ProgressBar value={pct} /></span>
+          <span className="w-9 text-right font-mono text-[10px] font-bold text-mist-300 tabular">{fmtPct(pct)}%</span>
+        </div>
+      </button>
+    </li>
   );
 }
 

@@ -16,9 +16,11 @@ export function DocDrawer() {
   const [confirmRemove, setConfirmRemove] = useState<Attachment | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  /* completion slider — value is a local draft while dragging, committed once on release */
+  const [pctDraft, setPctDraft] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setRemark(''); setNoteText(''); setForwardSel([]); setConfirmRoute(false); setConfirmRemove(null); setEditOpen(false); setDelOpen(false); }, [ui.drawerId]);
+  useEffect(() => { setRemark(''); setNoteText(''); setForwardSel([]); setConfirmRoute(false); setConfirmRemove(null); setEditOpen(false); setDelOpen(false); setPctDraft(null); }, [ui.drawerId]);
 
   if (!paper || !me) return null;
 
@@ -27,6 +29,13 @@ export function DocDrawer() {
   const div = divById(paper.divisionId);
   const intended = divById(paper.intendedId);
   const pct = paper.progress ?? (paper.stage === 'completed' ? 100 : 0);
+  /* what's on screen: the drag draft while moving, the saved value otherwise */
+  const shown = pctDraft ?? pct;
+  const commitPct = () => {
+    if (pctDraft == null) return;
+    setProgress(paper.id, pctDraft);
+    setPctDraft(null);
+  };
 
   /* overdue — unfinished paper whose deadline has passed */
   const isOverdue = paper.dueAt != null && paper.dueAt < Date.now() && paper.stage !== 'completed';
@@ -216,27 +225,36 @@ export function DocDrawer() {
           </Section>
 
           {/* completion progress */}
-          <Section title={`Completion rate · ${fmtPct(pct)}%`} icon="pulse">
+          <Section title={`Completion rate · ${fmtPct(shown)}%`} icon="pulse">
             <div className="flex items-center gap-3">
               <input
-                type="range" min={0} max={100} step={0.5} value={pct}
+                type="range" min={0} max={100} step={0.5} value={shown}
                 disabled={!editable}
-                onChange={(e) => setProgress(paper.id, Number(e.target.value))}
-                onPointerUp={(e) => setProgress(paper.id, Number((e.target as HTMLInputElement).value))}
+                onChange={(e) => setPctDraft(Number(e.target.value))}
+                onPointerUp={commitPct}
+                onBlur={commitPct}
                 className="range-teal flex-1 accent-tealx-500"
-                title="Drag in half-percent steps"
+                title="Drag in half-percent steps — recorded once when you let go"
               />
-              <span className="w-16 text-right font-display text-[24px] font-bold tabular" style={{ color: pct >= 100 ? '#45d483' : pct >= 50 ? '#2dd4bf' : pct >= 25 ? '#f5b924' : '#ff8a4c' }}>{fmtPct(pct)}%</span>
+              <span
+                className={`w-16 text-right font-display text-[24px] font-bold tabular ${pctDraft != null ? 'text-amberx-400' : ''}`}
+                style={pctDraft == null ? { color: pct >= 100 ? '#45d483' : pct >= 50 ? '#2dd4bf' : pct >= 25 ? '#f5b924' : '#ff8a4c' } : undefined}
+              >
+                {fmtPct(shown)}%
+              </span>
             </div>
-            <div className="mt-2.5 flex items-center gap-1.5">
+            <p className={`mt-1.5 font-mono text-[8.5px] font-bold uppercase tracking-[0.18em] transition-opacity ${pctDraft != null ? 'text-amberx-400 opacity-100' : 'opacity-0'}`}>
+              {pctDraft != null ? `Release to record ${fmtPct(pctDraft)}% — one log entry` : '·'}
+            </p>
+            <div className="mt-1.5 flex items-center gap-1.5">
               {[0, 25, 50, 75, 100].map((v) => {
                 const blocked = isField && v === 100;
-                const on = Math.abs(pct - v) < 0.25;
+                const on = Math.abs(shown - v) < 0.25;
                 return (
                   <button
                     key={v}
                     disabled={!editable || blocked}
-                    onClick={() => setProgress(paper.id, v)}
+                    onClick={() => { setPctDraft(null); setProgress(paper.id, v); }}
                     title={blocked ? 'Completion is verified by the division head — submit for verification instead' : `Set to ${v}%`}
                     className={`flex-1 rounded-md border px-2 py-1.5 font-mono text-[10.5px] font-bold tabular transition active:scale-[0.96] ${
                       on
@@ -251,10 +269,10 @@ export function DocDrawer() {
                 );
               })}
             </div>
-            <div className="mt-2"><ProgressBar value={pct} /></div>
+            <div className="mt-2"><ProgressBar value={shown} /></div>
             <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-mist-600">
               {paper.kind === 'work-order' ? 'Work order — tracked completion for the field report' : 'Optional tracking for this document kind'}
-              {' · half-percent steps'}
+              {' · half-percent steps · logged on release'}
               {isField && ' · completion (100%) is verified by the division head'}
             </p>
           </Section>

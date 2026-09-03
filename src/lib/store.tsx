@@ -723,6 +723,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const label = v % 1 === 0 ? String(v) : v.toFixed(1);
     setDb((d) => withLog({ ...d, papers: d.papers.map((x) => (x.id === id ? touch(x, (pp) => ({ ...pp, progress: v })) : x)) },
       { userId: me.id, userName: me.name, type: 'stage', text: `Set completion of ${p.ref} to ${label}%`, ref: p.ref, docId: p.id }));
+    pushToast('ok', `${p.ref} completion set to ${label}%`);
   };
 
   const assignPaper: StoreCtx['assignPaper'] = (id, ids) => {

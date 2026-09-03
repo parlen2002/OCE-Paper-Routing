@@ -76,7 +76,7 @@ export function DocDrawer() {
   return (
     <div className="fixed inset-0 z-50">
       <div className="fixed inset-0 bg-ink-950/70 backdrop-blur-[2px]" onClick={closeDrawer} />
-      <aside className="anim-pop fixed inset-y-0 right-0 flex w-[min(600px,96vw)] flex-col border-l border-ink-600 bg-ink-900 shadow-[-40px_0_90px_-30px_rgba(0,0,0,0.9)]">
+      <aside className="anim-pop fixed inset-y-0 right-0 flex w-[min(96vw,1100px)] flex-col border-l border-ink-600 bg-ink-900 shadow-[-40px_0_90px_-30px_rgba(0,0,0,0.9)]">
         {/* header */}
         <div className="border-b border-ink-700 px-5 py-4">
           <div className="flex items-center gap-2">
@@ -107,7 +107,9 @@ export function DocDrawer() {
           </p>
         </div>
 
-        <div className="scroll-slim flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="scroll-slim flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="space-y-5">
           {/* route sheet */}
           <Section title="Route sheet — where it has gone" icon="route">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -313,6 +315,8 @@ export function DocDrawer() {
             </div>
           </Section>
 
+          </div>
+          <div className="space-y-5">
           {/* evidence */}
           <Section title={`Evidence & location · ${paper.attachments.length}`} icon="cam">
             {geo && (
@@ -397,6 +401,8 @@ export function DocDrawer() {
               </div>
             )}
           </Section>
+          </div>
+          </div>
         </div>
       </aside>
 

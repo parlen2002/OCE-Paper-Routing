@@ -1311,49 +1311,108 @@ function PrintUsersModal({ rows, scopeLabel, preparedBy, onClose }: {
 /* ------------------------------------------------ personnel boards */
 export function PersonnelPage() {
   const { db, user, openDrawer, returnToEmployee } = useStore();
+  const [sel, setSel] = useState<string | null>(null);
+  const [pq, setPq] = useState('');
+  const [pDivF, setPDivF] = useState('all');
+  const [pRoleF, setPRoleF] = useState<'all' | 'employee' | 'joborder'>('all');
+
   const employees = useMemo(
     () => db.users.filter((u) => (u.role === 'employee' || u.role === 'joborder') && u.status !== 'disabled').sort((a, b) => a.name.localeCompare(b.name)),
     [db.users]
   );
-  const [sel, setSel] = useState<string | null>(employees[0]?.id ?? null);
+
+  const filtered = useMemo(() => {
+    const ql = pq.trim().toLowerCase();
+    return employees.filter((e) => {
+      if (pRoleF !== 'all' && e.role !== pRoleF) return false;
+      if (pDivF !== 'all' && e.divisionId !== pDivF && !(e.teamIds ?? []).includes(pDivF)) return false;
+      if (!ql) return true;
+      return `${e.name} ${e.title} ${e.username}`.toLowerCase().includes(ql);
+    });
+  }, [employees, pq, pDivF, pRoleF]);
+
   if (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'moderator' && user?.role !== 'operator') return null;
 
   const papersOf = (id: string) => db.papers.filter((p) => (p.assignees ?? []).includes(id));
-  const selected = employees.find((e) => e.id === sel) ?? employees[0] ?? null;
+  const selected = filtered.find((e) => e.id === sel) ?? filtered[0] ?? null;
   const selPapers = selected ? papersOf(selected.id) : [];
   const selDiv = selected?.divisionId ? divById(selected.divisionId) : undefined;
 
-  const totalOpen = employees.reduce((a, e) => a + papersOf(e.id).filter((p) => p.stage !== 'completed').length, 0);
-  const totalReview = employees.reduce((a, e) => a + papersOf(e.id).filter((p) => p.pendingHeadReview && p.stage !== 'completed').length, 0);
+  const totalOpen = filtered.reduce((a, e) => a + papersOf(e.id).filter((p) => p.stage !== 'completed').length, 0);
+  const totalReview = filtered.reduce((a, e) => a + papersOf(e.id).filter((p) => p.pendingHeadReview && p.stage !== 'completed').length, 0);
   const week = Date.now() - 7 * 864e5;
-  const totalDone = employees.reduce((a, e) => a + papersOf(e.id).filter((p) => p.stage === 'completed' && p.updatedAt >= week).length, 0);
+  const totalDone = filtered.reduce((a, e) => a + papersOf(e.id).filter((p) => p.stage === 'completed' && p.updatedAt >= week).length, 0);
 
-  const stats = [
-    { label: 'Personnel on record', value: employees.length, color: '#45e0cd' },
+  const stats: { label: string; value: number; color: string; sub?: string }[] = [
+    { label: 'Personnel in view', value: filtered.length, color: '#45e0cd', sub: `of ${employees.length} on record` },
     { label: 'Open work orders', value: totalOpen, color: '#56c8f0' },
     { label: 'Awaiting head verification', value: totalReview, color: '#f5b924' },
     { label: 'Closed this week', value: totalDone, color: '#45d483' },
   ];
+
+  const hasFilters = pq !== '' || pDivF !== 'all' || pRoleF !== 'all';
 
   return (
     <div>
       <PageHead kicker="Admin & executive oversight" title="Personnel boards"
         sub="Every work order designated to an individual, in one place — on top of the division boards. Completion is verified by the division head before a paper can close." />
 
+      {/* search & filters — same uniform boxes as the Documents tab */}
+      <FilterRow>
+        <FilterCell label="Search">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mist-500"><I n="search" className="h-3.5 w-3.5" /></span>
+            <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Name, title, username…"
+              title="Search by full name, position/title, or @username"
+              className="field w-full py-1.5 pl-9 font-mono text-[11.5px]" />
+            {pq && (
+              <button onClick={() => setPq('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-mist-500 transition hover:text-redx-400" title="Clear search">
+                <I n="x" className="h-3 w-3" sw={2.6} />
+              </button>
+            )}
+          </div>
+        </FilterCell>
+        <FilterCell label="Division / team">
+          <SearchSelect value={pDivF} onChange={setPDivF} options={unitOptions('All divisions & teams')} width="w-full" placeholder="All divisions & teams" />
+        </FilterCell>
+        <FilterCell label="Role">
+          <SearchSelect value={pRoleF} onChange={(v) => setPRoleF(v as 'all' | 'employee' | 'joborder')} width="w-full"
+            options={[
+              { value: 'all', label: 'All personnel' },
+              { value: 'employee', label: 'Employee', sub: 'permanent' },
+              { value: 'joborder', label: 'Job-Order', sub: 'contractual' },
+            ]} />
+        </FilterCell>
+        {hasFilters && (
+          <button onClick={() => { setPq(''); setPDivF('all'); setPRoleF('all'); }}
+            className="btn btn-ghost self-center shrink-0 px-2.5 py-1 text-[11px]">
+            <I n="x" className="h-3 w-3" sw={2.4} /> Clear
+          </button>
+        )}
+        <span className="ml-auto self-center shrink-0 rounded bg-ink-800 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-tealx-400 tabular">
+          {filtered.length} of {employees.length}
+        </span>
+      </FilterRow>
+
       <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {stats.map((s, i) => (
-          <div key={s.label} className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 60}ms` }}>
+          <div key={s.label} className="anim-fade-up relative overflow-hidden rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: `${i * 60}ms` }}>
             <p className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.2em] text-mist-500">{s.label}</p>
             <p className="mt-1 font-display text-[40px] font-bold leading-none tabular" style={{ color: s.color }}>{s.value}</p>
+            {s.sub && <p className="mt-1 text-[11px] text-mist-500">{s.sub}</p>}
+            <span className="absolute inset-x-0 bottom-0 h-[2.5px]" style={{ background: `${s.color}55` }} />
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
         <section className="anim-fade-up self-start rounded-lg border border-ink-700 bg-ink-900/80 p-3" style={{ animationDelay: '120ms' }}>
-          <p className="px-1.5 pb-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.22em] text-mist-500">Personnel roster · {employees.length}</p>
+          <p className="px-1.5 pb-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.22em] text-mist-500">Personnel roster · {filtered.length}</p>
           <div className="scroll-slim max-h-[62vh] space-y-1.5 overflow-y-auto pr-1">
-            {employees.map((e) => {
+            {filtered.length === 0 && (
+              <p className="px-2 py-8 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-mist-600">No personnel match the filters</p>
+            )}
+            {filtered.map((e) => {
               const ps = papersOf(e.id);
               const open = ps.filter((p) => p.stage !== 'completed').length;
               const review = ps.filter((p) => p.pendingHeadReview && p.stage !== 'completed').length;

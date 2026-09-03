@@ -209,6 +209,132 @@ export function EmptyState({ icon = 'inbox', title, sub }: { icon?: IconName; ti
 /* ---------------- searchable dropdown ---------------- */
 
 /**
+ * Renders a location map (with the pin baked in) onto a canvas from OpenStreetMap
+ * tiles, then exposes it as a plain <img>. Because the output is a static image —
+ * not a cross-origin iframe — the pin survives "Save as PDF", and the picture is
+ * identical in the on-screen preview and the printout.
+ */
+function lonToTileX(lon: number, z: number) {
+  return ((lon + 180) / 360) * Math.pow(2, z);
+}
+function latToTileY(lat: number, z: number) {
+  const r = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z);
+}
+
+function drawPin(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+  // soft shadow
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 1.02, s * 0.5, s * 0.16, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(7,17,32,0.35)';
+  ctx.fill();
+  ctx.restore();
+  // teardrop
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.bezierCurveTo(cx - s * 0.62, cy - s * 0.62, cx - s * 0.62, cy - s * 1.32, cx, cy - s * 1.32);
+  ctx.bezierCurveTo(cx + s * 0.62, cy - s * 1.32, cx + s * 0.62, cy - s * 0.62, cx, cy);
+  ctx.closePath();
+  ctx.fillStyle = '#ff6b1c';
+  ctx.fill();
+  ctx.lineWidth = s * 0.09;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+  // inner dot
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.88, s * 0.22, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.restore();
+}
+
+export function StaticMapImage({
+  lat, lng, zoom = 15, aspect = 16 / 9, className,
+}: {
+  lat: number; lng: number; zoom?: number; aspect?: number; className?: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc(null); setFailed(false); setLoading(true);
+
+    const W = 760;
+    const H = Math.round(W / aspect);
+    const z = zoom;
+    const px = lonToTileX(lng, z) * 256;
+    const py = latToTileY(lat, z) * 256;
+    const x0 = Math.floor((px - W / 2) / 256);
+    const x1 = Math.floor((px + W / 2) / 256);
+    const y0 = Math.floor((py - H / 2) / 256);
+    const y1 = Math.floor((py + H / 2) / 256);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { setFailed(true); setLoading(false); return; }
+    // base wash so seams never flash
+    ctx.fillStyle = '#dfe7ee';
+    ctx.fillRect(0, 0, W, H);
+
+    const loads: Promise<void>[] = [];
+    for (let x = x0; x <= x1; x++) {
+      for (let y = y0; y <= y1; y++) {
+        const url = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+        const p = new Promise<void>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            ctx.drawImage(img, x * 256 - (px - W / 2), y * 256 - (py - H / 2));
+            resolve();
+          };
+          img.onerror = () => resolve(); // keep going if one tile fails
+          img.src = url;
+        });
+        loads.push(p);
+      }
+    }
+
+    void Promise.all(loads).then(() => {
+      if (cancelled) return;
+      drawPin(ctx, W / 2, H / 2, Math.round(H * 0.055));
+      // attribution (required by OSM tile policy)
+      ctx.font = '600 11px "IBM Plex Mono", monospace';
+      const text = '© OpenStreetMap';
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
+      ctx.fillRect(W - tw - 14, H - 22, tw + 12, 16);
+      ctx.fillStyle = '#4c6785';
+      ctx.fillText(text, W - tw - 8, H - 10);
+      setSrc(canvas.toDataURL('image/png'));
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [lat, lng, zoom, aspect]);
+
+  if (failed || (!loading && !src)) {
+    return (
+      <div className={`flex items-center justify-center gap-2 rounded-lg border border-ink-700 bg-ink-850 font-mono text-[10px] uppercase tracking-wider text-mist-500 ${className ?? ''}`}>
+        <I n="pin" className="h-3.5 w-3.5 text-mist-400" sw={2} /> Map unavailable offline
+      </div>
+    );
+  }
+  if (loading || !src) {
+    return (
+      <div className={`flex animate-pulse items-center justify-center rounded-lg border border-ink-700 bg-ink-850 ${className ?? ''}`}>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-mist-500">Rendering map…</span>
+      </div>
+    );
+  }
+  return <img src={src} alt={`Site at ${lat.toFixed(4)}, ${lng.toFixed(4)}`} className={className} />;
+}
+
+/**
  * Multi-select chip field for sub-units / teams — the same visual language as
  * the forward / re-route desks control, tuned for membership pickers.
  */

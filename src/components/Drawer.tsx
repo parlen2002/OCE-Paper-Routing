@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Attachment, Custody, Kind, Paper, Priority, Stage } from '../lib/core';
-import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, fmtDT, fmtPct, geobrgyKey, mapsLink, osmEmbed, timeAgo } from '../lib/core';
+import { CROSS_UNITS, DESKS, DIVISIONS, KINDS, PRIORITIES, STAGES, buildAttachments, divById, fmtCoord, fmtDT, fmtPct, geobrgyKey, mapsLink, timeAgo } from '../lib/core';
 import { useStore } from '../lib/store';
-import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect, Section, StageChip } from './ui';
+import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect, Section, StageChip, StaticMapImage } from './ui';
 
 export function DocDrawer() {
   const store = useStore();
@@ -389,7 +389,7 @@ export function DocDrawer() {
           <Section title={`Evidence & location · ${paper.attachments.length}`} icon="cam">
             {geo && (
               <div className="mb-3 overflow-hidden rounded-lg border border-ink-700">
-                <iframe title="Site location" src={osmEmbed(geo.lat!, geo.lng!)} className="h-44 w-full" loading="lazy" />
+                <StaticMapImage lat={geo.lat!} lng={geo.lng!} aspect={16 / 7} className="h-44 w-full object-cover" />
                 <div className="flex items-center gap-2 bg-ink-850 px-3 py-2">
                   <I n="pin" className="h-3.5 w-3.5 text-tealx-400" sw={2.2} />
                   <span className="font-mono text-[10px] text-mist-300">{fmtCoord(geo.lat!, geo.lng!)}</span>

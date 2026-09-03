@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StoreProvider, useStore } from './lib/store';
 import type { Paper, User } from './lib/core';
-import { ALL_UNITS, PRIORITIES, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink, osmEmbed } from './lib/core';
+import { ALL_UNITS, PRIORITIES, STAGES, divById, stageMeta, cityEngineerName, fmtDT, fmtCoord, geobrgyKey, mapsLink } from './lib/core';
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
 import { Board } from './components/Board';
 import { DocDrawer } from './components/Drawer';
 import { NewDocModal } from './components/NewDoc';
 import { Dashboard, DocumentsPage, DivisionsPage, ActivityPage, UsersPage, PersonnelPage, LogsPage, MessagesPage, CustomizePage } from './components/Pages';
-import { I, Seal, Toasts, SearchSelect, type SearchOption } from './components/ui';
+import { I, Seal, Toasts, SearchSelect, StaticMapImage, type SearchOption } from './components/ui';
 
 /* ---------------- startup fault + error boundary ---------------- */
 window.addEventListener('error', (e) => {
@@ -452,7 +452,7 @@ function PaperSheet({ paper, userName, userTitle, users, geobrgy = {} }: { paper
       {geo.length > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div>
-            <iframe title="Site location" src={osmEmbed(geo[0].lat!, geo[0].lng!)} className="h-56 w-full border border-[#c8d3e0]" loading="lazy" />
+            <StaticMapImage lat={geo[0].lat!} lng={geo[0].lng!} aspect={16 / 9} className="h-56 w-full border border-[#c8d3e0] object-cover" />
             <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#5b7089]">Site map · {fmtCoord(geo[0].lat!, geo[0].lng!)}</p>
           </div>
           <div>

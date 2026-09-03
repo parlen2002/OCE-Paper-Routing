@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useStore, MSG_EDIT_WINDOW } from '../lib/store';
 import type { Activity, Channel, DivInfo, Kind, Message, Paper, Role, Stage, User, UserStatus } from '../lib/core';
 import { ALL_UNITS, CROSS_UNITS, DESKS, DIVISIONS, KINDS, STAGES, divById, dayLabel, fmtDT, fmtPct, stageMeta, timeAgo, extractBarangays } from '../lib/core';
-import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, Seal, type IconName, type SearchOption } from './ui';
+import { I, Avatar, DivChip, StageChip, KindTag, PageHead, Section, EmptyState, ProgressBar, SearchSelect, Seal, TeamChips, type IconName, type SearchOption } from './ui';
 
 const unitOptions = (allLabel: string): SearchOption[] => [
   { value: 'all', label: allLabel },
@@ -14,9 +14,16 @@ const unitOptions = (allLabel: string): SearchOption[] => [
 
 /* ------------------------------------------------ dashboard */
 export function Dashboard() {
-  const { db, user, activities, go, setDivFilter, openDrawer, setNewOpen, divOf } = useStore();
-  if (!user) return null;
-  const papers = db.papers;
+  const { db, user, me, scopePapers, activities, go, setDivFilter, openDrawer, setNewOpen, divOf } = useStore();
+  if (!user || !me) return null;
+
+  // Executives, moderator, operator and program admin see the whole office;
+  // division heads AND their employees share one division-scoped picture.
+  const isOver = me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator';
+  const isField = me.role === 'employee' || me.role === 'joborder';
+  const myDiv = me.divisionId ? divOf(me.divisionId) : undefined;
+
+  const papers = scopePapers;
   const open = papers.filter((p) => p.stage !== 'completed');
   const inQueue = papers.filter((p) => p.stage === 'received' || p.stage === 'review').length;
   const working = papers.filter((p) => p.stage === 'progress' || p.stage === 'verification').length;
@@ -27,7 +34,8 @@ export function Dashboard() {
     .filter((p) => p.dueAt != null && p.dueAt < Date.now())
     .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   const daysOver = (dueAt: number) => Math.max(1, Math.ceil((Date.now() - dueAt) / 864e5));
-  const load = ALL_UNITS.map((d) => ({ d: divOf(d.id)!, n: open.filter((p) => p.divisionId === d.id).length }));
+  const allLoad = ALL_UNITS.map((d) => ({ d: divOf(d.id)!, n: open.filter((p) => p.divisionId === d.id).length }));
+  const load = isOver ? allLoad : allLoad.filter((l) => l.d.id === me.divisionId);
   const maxLoad = Math.max(1, ...load.map((l) => l.n));
 
   const stats: { label: string; value: number; hint: string; color: string; icon: IconName }[] = [
@@ -55,13 +63,27 @@ export function Dashboard() {
             Command <span className="text-cyanx-500">view</span>
           </h1>
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-mist-400">
-            On duty: <b className="text-mist-200">{user.name}</b> — {user.title}. Every hand-off below is stamped into the custody trail.
+            On duty: <b className="text-mist-200">{user.name}</b> — {user.title}.{' '}
+            {isOver
+              ? 'Every hand-off below is stamped into the custody trail.'
+              : `Showing papers for ${myDiv?.name ?? 'your division'} — the same picture your ${isField ? 'division head sees' : 'division shares'}.`}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
-          <I n="plus" className="h-4 w-4" sw={2.2} /> Log paperwork
-        </button>
+        {!isField && (
+          <button className="btn btn-primary" onClick={() => setNewOpen(true)}>
+            <I n="plus" className="h-4 w-4" sw={2.2} /> Log paperwork
+          </button>
+        )}
       </div>
+
+      {!isOver && (
+        <div className="anim-fade-up mb-4 flex items-center gap-2.5 rounded-md border border-cyanx-500/30 bg-cyanx-500/[0.06] px-3.5 py-2.5">
+          <I n="pulse" className="h-3.5 w-3.5 shrink-0 text-cyanx-400" sw={2} />
+          <p className="text-[12px] text-mist-300">
+            The live floor activity feed is visible to executives, the moderator, the operator and the program admin only.
+          </p>
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {stats.map((s, i) => (
@@ -75,34 +97,47 @@ export function Dashboard() {
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
+      <div className={`grid gap-4 ${isOver ? 'xl:grid-cols-3' : ''}`}>
+        <div className={`space-y-4 ${isOver ? 'xl:col-span-2' : ''}`}>
           <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: '120ms' }}>
             <div className="mb-3 flex items-center gap-2">
               <I n="sitemap" className="h-3.5 w-3.5 text-flare-400" sw={2} />
-              <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Desk load — open papers</h3>
+              <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">
+                {isOver ? 'Desk load — open papers' : `${myDiv?.name ?? 'Your desk'} — open papers`}
+              </h3>
               <span className="h-px flex-1 bg-ink-700" />
               <button onClick={() => go('board')} className="font-mono text-[10px] uppercase tracking-wider text-cyanx-400 hover:text-cyanx-300">Open board →</button>
             </div>
             <ul className="space-y-1">
-              {load.map(({ d, n }) => (
-                <li key={d.id}>
-                  <button onClick={() => { setDivFilter(d.id); go('board'); }} className="group flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-800/80">
-                    <DivChip div={d} />
-                    <span className="w-48 truncate text-[12.5px] font-semibold text-mist-200 group-hover:text-mist-50">{d.name}</span>
-                    <span className="relative h-[7px] flex-1 overflow-hidden rounded-full bg-ink-800">
-                      <span className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-                        style={{
-                          width: `${(n / maxLoad) * 100}%`,
-                          background: d.id.startsWith('desk-') ? 'linear-gradient(90deg,#b98a12,#fbc94a)'
-                            : d.id === 'insp-team' ? 'linear-gradient(90deg,#0f9d8a,#45e0cd)'
-                            : d.cluster === 'ops' ? 'linear-gradient(90deg,#c24a0c,#ff8a4c)' : 'linear-gradient(90deg,#2fa9d6,#6cd1f4)',
-                        }} />
-                    </span>
-                    <span className="w-6 text-right font-mono text-[12px] font-bold text-mist-100 tabular">{n}</span>
-                  </button>
-                </li>
-              ))}
+              {load.map(({ d, n }) => {
+                const closed = papers.filter((p) => p.divisionId === d.id && p.stage === 'completed').length;
+                const avg = open.length
+                  ? Math.round(open.filter((p) => p.divisionId === d.id).reduce((a, p) => a + (p.progress ?? 0), 0) / Math.max(1, n))
+                  : 0;
+                return (
+                  <li key={d.id}>
+                    <button onClick={() => { setDivFilter(d.id); go('board'); }} className="group flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-800/80">
+                      <DivChip div={d} />
+                      <span className={`${isOver ? 'w-48' : 'w-56'} truncate text-[12.5px] font-semibold text-mist-200 group-hover:text-mist-50`}>{d.name}</span>
+                      <span className="relative h-[7px] flex-1 overflow-hidden rounded-full bg-ink-800">
+                        <span className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+                          style={{
+                            width: `${(n / maxLoad) * 100}%`,
+                            background: d.id.startsWith('desk-') ? 'linear-gradient(90deg,#b98a12,#fbc94a)'
+                              : d.id === 'insp-team' ? 'linear-gradient(90deg,#0f9d8a,#45e0cd)'
+                              : d.cluster === 'ops' ? 'linear-gradient(90deg,#c24a0c,#ff8a4c)' : 'linear-gradient(90deg,#2fa9d6,#6cd1f4)',
+                          }} />
+                      </span>
+                      <span className="w-6 text-right font-mono text-[12px] font-bold text-mist-100 tabular">{n}</span>
+                      {!isOver && (
+                        <span className="shrink-0 rounded-sm border border-ink-600 bg-ink-850 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wider text-mist-400 tabular">
+                          {closed} closed · avg {avg}%
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
 
@@ -182,7 +217,7 @@ export function Dashboard() {
           </section>
         </div>
 
-        <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: '160ms' }}>
+        {isOver && <section className="anim-fade-up rounded-lg border border-ink-700 bg-ink-900/80 p-4" style={{ animationDelay: '160ms' }}>
           <div className="mb-3 flex items-center gap-2">
             <I n="pulse" className="h-3.5 w-3.5 text-tealx-400" sw={2} />
             <h3 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em] text-mist-300">Live floor activity</h3>
@@ -211,10 +246,10 @@ export function Dashboard() {
           <button onClick={() => go('activity')} className="mt-3 w-full rounded-md border border-ink-600 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-mist-400 transition hover:border-cyanx-500/60 hover:text-cyanx-400">
             Full activity log →
           </button>
-        </section>
+        </section>}
       </div>
 
-      <div className="anim-fade-up mt-4 grid gap-3 sm:grid-cols-2" style={{ animationDelay: '260ms' }}>
+      {isOver && <div className="anim-fade-up mt-4 grid gap-3 sm:grid-cols-2" style={{ animationDelay: '260ms' }}>
         {(['u-sup1', 'u-sup2'] as const).map((supId) => {
           const su = db.users.find((x) => x.id === supId);
           return (
@@ -230,7 +265,7 @@ export function Dashboard() {
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -754,9 +789,11 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
   const [phone, setPhone] = useState(target.phone ?? '');
   const [address, setAddress] = useState(target.address ?? '');
   const [email, setEmail] = useState(target.email ?? '');
+  const [teams, setTeams] = useState<string[]>(target.teamIds ?? []);
   const [err, setErr] = useState('');
 
   const needsDivision = role === 'division' || role === 'employee' || role === 'joborder';
+  const showTeams = role === 'employee' || role === 'joborder';
   const divEditable = needsDivision || role === 'moderator';
 
   const save = () => {
@@ -767,6 +804,7 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
     updateUser(target.id, {
       name: name.trim(), title: title.trim(), role,
       ...(divPatch === undefined ? {} : { divisionId: divPatch }),
+      teamIds: showTeams ? teams : [],
       status, password: password || undefined,
       phone: phone.trim() || undefined, address: address.trim() || undefined, email: email.trim() || undefined,
     });
@@ -821,6 +859,18 @@ function EditUserModal({ target, onClose }: { target: User; onClose: () => void 
                 <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">Optional — anchors the moderator to a home desk</span>
               )}
             </div>
+            {showTeams && (
+              <div className="sm:col-span-3">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Additional sub-units / teams</span>
+                  <span className="rounded-sm bg-tealx-500/12 px-1.5 py-px font-mono text-[8.5px] font-bold text-tealx-400 tabular">{teams.length} extra</span>
+                </div>
+                <TeamChips selected={teams} onToggle={(id) => setTeams((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]))} />
+                <span className="mt-1 block font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+                  Home division stays semi-permanent — teams are additional task assignments. Members join the team's message channel.
+                </span>
+              </div>
+            )}
             <label className="block">
               <span className="mb-1 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Status</span>
               <SearchSelect value={status} onChange={(v) => setStatus(v as UserStatus)} width="w-full"
@@ -1090,7 +1140,19 @@ export function UsersPage() {
                     <td className="px-3 py-3">
                       <span className="rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: rc.color, background: `${rc.color}1a`, border: `1px solid ${rc.color}55` }}>{rc.label}</span>
                     </td>
-                    <td className="px-3 py-3">{div ? <DivChip div={div} /> : <span className="font-mono text-[9.5px] uppercase tracking-wider text-mist-600">—</span>}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {div ? <DivChip div={div} /> : <span className="font-mono text-[9.5px] uppercase tracking-wider text-mist-600">—</span>}
+                        {(u.teamIds ?? []).map((tid) => {
+                          const t = divById(tid);
+                          return t ? (
+                            <span key={tid} title={`Also serves on ${t.name}`} className="rounded-sm border border-tealx-500/40 bg-tealx-500/10 px-1 py-px font-mono text-[7.5px] font-bold uppercase tracking-wider text-tealx-400">
+                              +{t.code}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </td>
                     <td className="px-3 py-3">
                       <span className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: sc.color, background: `${sc.color}14`, border: `1px solid ${sc.color}50` }}>
                         <span className={`h-1.5 w-1.5 rounded-full ${u.status === 'active' ? 'bg-greenx-500' : u.status === 'pending' ? 'bg-amberx-500' : 'bg-redx-500'}`} />
@@ -1315,6 +1377,18 @@ export function PersonnelPage() {
                     <span className="min-w-0 flex-1">
                       <span className={`block truncate text-[13px] font-bold ${active ? 'text-tealx-400' : 'text-mist-100'}`}>{e.name}</span>
                       <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-mist-500">{e.title} {d ? `· ${d.code}` : ''}</span>
+                      {(e.teamIds ?? []).length > 0 && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {(e.teamIds ?? []).map((tid) => {
+                            const t = divById(tid);
+                            return t ? (
+                              <span key={tid} title={`Also serves on ${t.name}`} className="rounded-sm border border-tealx-500/40 bg-tealx-500/10 px-1 py-px font-mono text-[7.5px] font-bold uppercase tracking-wider text-tealx-400">
+                                +{t.code}
+                              </span>
+                            ) : null;
+                          })}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-right">
                       <span className="block font-display text-[20px] font-bold leading-none text-mist-100 tabular">{open}</span>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Division, Kind, Priority, Stage } from '../lib/core';
-import { KINDS, PRIORITIES, initials, stageMeta } from '../lib/core';
+import { CROSS_UNITS, KINDS, PRIORITIES, initials, stageMeta } from '../lib/core';
 import { useStore } from '../lib/store';
 
 export type IconName =
@@ -207,6 +207,37 @@ export function EmptyState({ icon = 'inbox', title, sub }: { icon?: IconName; ti
 }
 
 /* ---------------- searchable dropdown ---------------- */
+
+/**
+ * Multi-select chip field for sub-units / teams — the same visual language as
+ * the forward / re-route desks control, tuned for membership pickers.
+ */
+export function TeamChips({ selected, onToggle, disabled }: { selected: string[]; onToggle: (id: string) => void; disabled?: boolean }) {
+  return (
+    <div className={`flex flex-wrap gap-1.5 rounded-lg border border-ink-600 bg-ink-950/40 p-2.5 transition-colors focus-within:border-tealx-500/50 ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
+      {CROSS_UNITS.map((t) => {
+        const on = selected.includes(t.id);
+        return (
+          <button
+            type="button"
+            key={t.id}
+            disabled={disabled}
+            onClick={() => onToggle(t.id)}
+            title={`${t.name} — headed by ${t.head}`}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition active:scale-[0.95] ${
+              on
+                ? 'border-tealx-500/70 bg-tealx-500/12 text-tealx-400 shadow-[0_0_14px_-5px_rgba(45,212,191,0.6)]'
+                : 'border-ink-600 bg-ink-850 text-mist-500 hover:border-tealx-500/40 hover:text-mist-200'
+            }`}
+          >
+            {on && <I n="check" className="h-3 w-3" sw={2.6} />}
+            {t.code}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export interface SearchOption {
   value: string;

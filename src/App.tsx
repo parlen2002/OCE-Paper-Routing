@@ -784,12 +784,17 @@ function AppInner() {
     return (<><Login /><Toasts /></>);
   }
 
-  const RESTRICTED = ['dashboard', 'users', 'userlogs', 'activity', 'personnel', 'customize'];
+  // Command View is now open to every role (role-scoped inside the page).
+  const RESTRICTED_COMMON = ['users', 'userlogs', 'personnel', 'customize'];
   const page =
     user.role === 'employee' || user.role === 'joborder'
-      ? RESTRICTED.includes(ui.page) ? 'myboard' : ui.page
-      : user.role === 'division' && RESTRICTED.includes(ui.page)
-        ? 'board'
+      ? RESTRICTED_COMMON.includes(ui.page) || ui.page === 'activity'
+        ? 'myboard'
+        : ui.page
+      : user.role === 'division'
+        ? RESTRICTED_COMMON.includes(ui.page) || ui.page === 'activity'
+          ? 'board'
+          : ui.page
         : ui.page;
 
   return (

@@ -42,6 +42,7 @@ export function Login() {
   const [suPhone, setSuPhone] = useState('');
   const [suAddress, setSuAddress] = useState('');
   const [suEmail, setSuEmail] = useState('');
+  const [suTeams, setSuTeams] = useState<string[]>([]);
   const [suErr, setSuErr] = useState('');
   const [suDone, setSuDone] = useState(false);
 
@@ -59,7 +60,7 @@ export function Login() {
   const submitSignup = (e: React.FormEvent) => {
     e.preventDefault();
     if (suPass !== suPass2) return setSuErr('Passwords do not match.');
-    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, phone: suPhone, address: suAddress, email: suEmail });
+    const reason = signup({ name: suName, username: suUser, password: suPass, divisionId: suDiv, title: suTitle, phone: suPhone, address: suAddress, email: suEmail, teamIds: suTeams });
     if (reason) return setSuErr(reason);
     setSuDone(true);
   };

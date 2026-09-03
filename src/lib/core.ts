@@ -12,6 +12,11 @@ export interface User {
   title: string;
   shortTitle?: string;
   divisionId?: string;
+  /**
+   * Additional sub-units / teams the officer serves on top of their home
+   * division (semi-permanent). Teams are extra task assignments.
+   */
+  teamIds?: string[];
   status: UserStatus;
   phone?: string;
   address?: string;
@@ -516,10 +521,10 @@ export const INITIAL_USERS: User[] = [
   { id: 'u-admindiv', name: 'Ms. Carol Estrella', username: 'cestrella', password: 'cityeng2026', role: 'division', title: 'Records & Admin Officer', divisionId: 'admin', status: 'active' },
   { id: 'u-ricadomingo', name: 'Ms. Rica Domingo', username: 'ricadomingo', password: 'cityeng2026', role: 'division', title: 'Team Head — Documentation & Monitoring', divisionId: 'docmon', status: 'active' },
   { id: 'u-afajardo', name: 'Mr. Aldrin Fajardo', username: 'afajardo', password: 'cityeng2026', role: 'division', title: 'Team Head — Subaybayan', divisionId: 'subay', status: 'active' },
-  { id: 'u-pmanalo', name: 'Engr. Paolo Manalo', username: 'pmanalo', password: 'cityeng2026', role: 'employee', title: 'Project Engineer I', divisionId: 'const', status: 'active' },
+  { id: 'u-pmanalo', name: 'Engr. Paolo Manalo', username: 'pmanalo', password: 'cityeng2026', role: 'employee', title: 'Project Engineer I', divisionId: 'const', teamIds: ['docmon'], status: 'active' },
   { id: 'u-daquino', name: 'Mr. Dennis Aquino', username: 'daquino', password: 'cityeng2026', role: 'employee', title: 'Maintenance Foreman', divisionId: 'maint', status: 'active' },
   { id: 'u-jreyes', name: 'Mr. Joem Reyes', username: 'jreyes', password: 'cityeng2026', role: 'employee', title: 'Lineman II', divisionId: 'elec', status: 'active' },
-  { id: 'u-kvillanueva', name: 'Engr. Kara Villanueva', username: 'kvillanueva', password: 'cityeng2026', role: 'employee', title: 'Survey Technician III', divisionId: 'survey', status: 'active' },
+  { id: 'u-kvillanueva', name: 'Engr. Kara Villanueva', username: 'kvillanueva', password: 'cityeng2026', role: 'employee', title: 'Survey Technician III', divisionId: 'survey', teamIds: ['insp-team'], status: 'active' },
   { id: 'u-rito', name: 'Mr. Ramon Ito', username: 'rito', password: 'cityeng2026', role: 'employee', title: 'Sanitation Inspector', divisionId: 'psd', status: 'active' },
   { id: 'u-kduque', name: 'Mr. Kevin Duque', username: 'kduque', password: 'cityeng2026', role: 'joborder', title: 'Skilled Worker II (Job Order)', divisionId: 'maint', status: 'active' },
   { id: 'u-lmarquez', name: 'Ms. Lani Marquez', username: 'lmarquez', password: 'cityeng2026', role: 'joborder', title: 'Records Clerk (Job Order)', divisionId: 'admin', status: 'active' },
@@ -741,7 +746,7 @@ export function freshSeed(): DB {
     [geobrgyKey(9.7435, 118.7349)]: 'Liwanag',
   };
 
-  return { v: 19, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads: {}, geobrgy, msgDeletes: [], seq: 148 };
+  return { v: 20, session: null, papers, notifs, logs: deriveLogs(papers), users: INITIAL_USERS.map((u) => ({ ...u })), divisions, channels, messages, reads: {}, geobrgy, msgDeletes: [], seq: 148 };
 }
 
 const LOG_MAP: Record<CustodyAction, LogType | null> = {

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Activity, Attachment, Channel, Customization, DB, DivInfo, DivisionMeta, Kind, Message, MsgDeleteRequest, Notif, Paper, Priority, Role, Stage, SysLog, User } from './core';
 import { ALL_UNITS, DEFAULT_CUSTOM, deriveActivities, deriveLogs, divById, freshSeed, geobrgyKey, nominatimReverseUrl, stageMeta, uid } from './core';
 
-const LS_KEY = 'ppc-ceoflow-v19';
+const LS_KEY = 'ppc-ceoflow-v20';
 
 /** A chat message may be edited by its author for 10 minutes after posting. */
 export const MSG_EDIT_WINDOW = 10 * 60 * 1000;
@@ -30,7 +30,7 @@ function loadDb(): DB {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d && d.v === 19 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
+      if (d && d.v === 20 && Array.isArray(d.papers) && Array.isArray(d.notifs) && Array.isArray(d.users)) {
         if (!Array.isArray(d.logs)) d.logs = deriveLogs(d.papers);
         if (!Array.isArray(d.channels)) d.channels = [];
         if (!Array.isArray(d.messages)) d.messages = [];
@@ -71,6 +71,8 @@ interface StoreCtx {
   user: User | null;
   me: User | null;
   myUnitId: string | null;
+  /** Papers in scope for the Command View (role-filtered). */
+  scopePapers: Paper[];
   toasts: Toast[];
   ui: UIState;
   activities: Activity[];
@@ -84,7 +86,7 @@ interface StoreCtx {
   employeesOf: (unitId: string | undefined) => User[];
   divOf: (id: string) => DivInfo | undefined;
   login: (username: string, password: string) => string | null;
-  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string; phone?: string; address?: string; email?: string }) => string | null;
+  signup: (input: { name: string; username: string; password: string; divisionId: string; title: string; phone?: string; address?: string; email?: string; teamIds?: string[] }) => string | null;
   approveUser: (id: string) => void;
   denyUser: (id: string) => void;
   updateUser: (id: string, patch: Partial<User>) => void;
@@ -249,6 +251,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return db.papers.filter(mine).sort((a, b) => b.updatedAt - a.updatedAt);
   }, [db.papers, me]);
 
+  /**
+   * Papers in scope for the Command View. Overseers see everything; division
+   * heads AND the employees/job-order under the same division share one
+   * division-level picture (desk load, urgent, overdue…).
+   */
+  const scopePapers = useMemo(() => {
+    if (!me) return [];
+    if (me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator')
+      return [...db.papers].sort((a, b) => b.updatedAt - a.updatedAt);
+    const divId = me.divisionId ?? '';
+    return db.papers
+      .filter(
+        (p) =>
+          p.divisionId === divId ||
+          p.intendedId === divId ||
+          (p.recipientIds ?? []).includes(divId) ||
+          p.custody.some((e) => e.toDivisionId === divId || e.fromDivisionId === divId)
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [db.papers, me]);
+
   const visibleNotifs = useMemo(() => {
     if (!me) return [];
     const vis = db.notifs.filter((n) =>
@@ -347,6 +370,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       title: input.title.trim() || 'Division Staff', divisionId: input.divisionId, status: 'pending',
       requestedDivisionId: input.divisionId, requestedTitle: input.title.trim(), requestedAt: Date.now(),
       phone: input.phone?.trim() || undefined, address: input.address?.trim() || undefined, email,
+      teamIds: input.teamIds?.length ? input.teamIds : undefined,
     };
     setDb((d) => {
       let next: DB = { ...d, users: [...d.users, nu] };
@@ -842,13 +866,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (overseer(me.role)) return true;
     if (ch.kind === 'floor') return true;
     if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
-    return me.divisionId === ch.unitId;
+    // home division, or an additional team the officer serves on
+    return me.divisionId === ch.unitId || (!!ch.unitId && (me.teamIds ?? []).includes(ch.unitId));
   };
   const canPostChannel = (ch: Channel): boolean => {
     if (!me) return false;
     if (ch.kind === 'executive') return (ch.memberIds ?? []).includes(me.id);
     if (ch.kind === 'floor') return true;
-    return overseer(me.role) || me.divisionId === ch.unitId;
+    return overseer(me.role) || me.divisionId === ch.unitId || (!!ch.unitId && (me.teamIds ?? []).includes(ch.unitId));
   };
   const visibleChannels = useMemo(() => (db.channels ?? []).filter((ch) => canSeeChannel(ch)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1001,7 +1026,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value: StoreCtx = {
-    db, user, me, myUnitId, toasts, ui, activities, visiblePapers, visibleNotifs, unread, custom, geotagBrgys,
+    db, user, me, myUnitId, scopePapers, toasts, ui, activities, visiblePapers, visibleNotifs, unread, custom, geotagBrgys,
     canEdit, canManageDivision, employeesOf, divOf,
     login, signup, approveUser, denyUser, updateUser, changePassword, requestPasswordReset, requestForgotPassword, approvePasswordReset, updateProfile, logout, resetDemo,
     go: (page) => setUi((u) => ({ ...u, page })),

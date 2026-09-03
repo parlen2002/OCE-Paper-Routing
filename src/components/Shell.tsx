@@ -5,7 +5,7 @@ import { useStore, type Page } from '../lib/store';
 import { I, Seal, Avatar, type IconName } from './ui';
 
 const NAV: { page: Page; label: string; icon: IconName; roles?: Role[] }[] = [
-  { page: 'dashboard', label: 'Command View', icon: 'grid', roles: ['supervisor', 'admin'] },
+  { page: 'dashboard', label: 'Command View', icon: 'grid' },
   { page: 'board', label: 'Tracker Board', icon: 'board', roles: ['supervisor', 'admin', 'division', 'moderator', 'operator'] },
   { page: 'myboard', label: 'My Work Board', icon: 'board', roles: ['employee', 'joborder'] },
   { page: 'personnel', label: 'Personnel Boards', icon: 'users', roles: ['supervisor', 'admin', 'moderator', 'operator'] },

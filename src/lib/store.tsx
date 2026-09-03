@@ -122,7 +122,9 @@ interface StoreCtx {
   returnToEmployee: (id: string) => void;
   deletePaper: (id: string) => void;
   updatePaper: (id: string, patch: Partial<Paper>) => void;
-  ackPaper: (id: string) => void;
+  ackPaper: (id: string, unitId?: string) => void;
+  /** Units the officer is designated OIC of. */
+  oicUnitIds: string[];
   updateDivision: (id: string, patch: { name?: string; desc?: string }) => void;
   setDivisionHead: (id: string, userId: string, temporary: boolean, note?: string) => void;
   removeDivisionOIC: (id: string) => void;
@@ -206,6 +208,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     : me.role === 'division' ? me.divisionId ?? null
       : me.role === 'supervisor' ? (me.title.includes('Assistant') ? 'desk-ace' : 'desk-ce')
         : null;
+
+  /** Units the signed-in officer is designated OIC of — receipt rights follow the posting, whatever their role. */
+  const oicUnitIds = useMemo(() => {
+    if (!user) return [] as string[];
+    const ids: string[] = [];
+    for (const d of ALL_UNITS) if (db.divisions?.[d.id]?.oicId === user.id) ids.push(d.id);
+    return ids;
+  }, [db.divisions, user]);
 
   useEffect(() => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* quota */ }
@@ -659,21 +669,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', `${p.ref} forwarded to ${codes} — now in their Received tray${targets.length > 1 ? 's' : ''}`);
   };
 
-  const ackPaper: StoreCtx['ackPaper'] = (id) => {
-    if (!me || !myUnitId) return;
+  const ackPaper: StoreCtx['ackPaper'] = (id, unitId) => {
+    if (!me) return;
     const p = db.papers.find((x) => x.id === id);
     if (!p) return;
-    if (!(p.recipientIds ?? []).includes(myUnitId)) { pushToast('warn', 'Your desk is not an addressee of this paper'); return; }
-    if ((p.receivedBy ?? []).includes(myUnitId)) return;
-    const unitName = divById(myUnitId)?.name ?? myUnitId;
-    const entry: CustodyEntryLocal = { id: uid(), at: Date.now(), byName: me.name, action: 'received', toDivisionId: myUnitId, text: `Receipt acknowledged for ${unitName}` };
+    /* desks this officer may stamp: their real membership plus any unit they are OIC of */
+    const eligible = Array.from(new Set([myUnitId, ...oicUnitIds].filter((u): u is string => !!u)));
+    const candidates = eligible.filter((u) => (p.recipientIds ?? []).includes(u) && !(p.receivedBy ?? []).includes(u));
+    const unit = unitId && candidates.includes(unitId) ? unitId : candidates[0];
+    if (!unit) {
+      pushToast('warn', eligible.length === 0 ? 'You are not an addressee of this paper' : 'Your desks have already stamped this paper');
+      return;
+    }
+    const unitName = divById(unit)?.name ?? unit;
+    const asOic = unit !== myUnitId;
+    const entry: CustodyEntryLocal = { id: uid(), at: Date.now(), byName: me.name, action: 'received', toDivisionId: unit, text: `Receipt acknowledged for ${unitName}${asOic ? ` (acting OIC — ${me.name})` : ''}` };
     setDb((d) => withLog({
       ...d,
-      papers: d.papers.map((x) => x.id === id ? touch(x, (pp) => ({ ...pp, receivedBy: [...(pp.receivedBy ?? []), myUnitId], custody: [...pp.custody, entry] })) : x),
-    }, { userId: me.id, userName: me.name, type: 'create', text: `Acknowledged receipt of ${p.ref} for ${divById(myUnitId)?.code ?? myUnitId}`, ref: p.ref, docId: p.id }));
+      papers: d.papers.map((x) => x.id === id ? touch(x, (pp) => ({ ...pp, receivedBy: [...(pp.receivedBy ?? []), unit], custody: [...pp.custody, entry] })) : x),
+    }, { userId: me.id, userName: me.name, type: 'create', text: `Acknowledged receipt of ${p.ref} for ${divById(unit)?.code ?? unit}${asOic ? ' as OIC' : ''}`, ref: p.ref, docId: p.id }));
     const total = (p.recipientIds ?? []).length;
     const done = (p.receivedBy ?? []).length + 1;
-    pushToast('ok', done === total ? `${p.ref} — all ${total} desks have acknowledged receipt` : `Receipt recorded — ${done} of ${total} desks acknowledged`);
+    pushToast('ok', done === total ? `${p.ref} — all ${total} desks have acknowledged receipt` : `Receipt recorded for ${divById(unit)?.code ?? unit} — ${done} of ${total} desks acknowledged`);
   };
 
   const addNote: StoreCtx['addNote'] = (id, text) => {
@@ -1103,7 +1120,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value: StoreCtx = {
-    db, user, me, myUnitId, scopePapers, toasts, ui, activities, visiblePapers, visibleNotifs, unread, custom, geotagBrgys,
+    db, user, me, myUnitId, oicUnitIds, scopePapers, toasts, ui, activities, visiblePapers, visibleNotifs, unread, custom, geotagBrgys,
     canEdit, canManageDivision, employeesOf, divOf,
     login, signup, approveUser, denyUser, updateUser, changePassword, requestPasswordReset, requestForgotPassword, approvePasswordReset, updateProfile, logout, resetDemo,
     go: (page) => setUi((u) => ({ ...u, page })),

@@ -6,7 +6,7 @@ import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect, Section, S
 
 export function DocDrawer() {
   const store = useStore();
-  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, setViewer, deletePaper, updatePaper, ackPaper, myUnitId, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, setReportOpen } = store;
+  const { db, me, ui, closeDrawer, moveStage, routePaperMulti, addNote, canEdit, setViewer, deletePaper, updatePaper, ackPaper, myUnitId, oicUnitIds, assignPaper, submitToHead, returnToEmployee, addAttachments, removeAttachment, setProgress, setReportOpen } = store;
   const paper = ui.drawerId ? db.papers.find((p) => p.id === ui.drawerId) : null;
 
   const [remark, setRemark] = useState('');
@@ -63,7 +63,11 @@ export function DocDrawer() {
 
   const receipts = custodySorted.filter((e) => e.action === 'received');
   const pendingDesks = ((paper.recipientIds ?? []).filter((r) => !(paper.receivedBy ?? []).includes(r)));
-  const iAmAddressee = !!myUnitId && (paper.recipientIds ?? []).includes(myUnitId) && !(paper.receivedBy ?? []).includes(myUnitId);
+  /* desks this viewer may stamp — real membership plus any unit they act as OIC for */
+  const stampableUnits = Array.from(new Set([myUnitId, ...oicUnitIds].filter((u): u is string => !!u)));
+  const myStampUnit = stampableUnits.find((u) => (paper.recipientIds ?? []).includes(u) && !(paper.receivedBy ?? []).includes(u)) ?? null;
+  const iAmAddressee = !!myStampUnit;
+  const stampingAsOic = !!myStampUnit && myStampUnit !== myUnitId;
 
   const doMove = (s: Stage) => { if (editable) moveStage(paper.id, s, remark || undefined); setRemark(''); };
   const doForward = () => {
@@ -203,18 +207,31 @@ export function DocDrawer() {
                   {divById(r.toDivisionId!)?.code ?? r.toDivisionId} · received
                 </span>
               ))}
-              {pendingDesks.map((rid) => (
-                <span key={rid} className="stamp border-dashed border-amberx-500/70 px-2 py-0.5 text-[9.5px] text-amberx-400" title="Awaiting this desk's receipt stamp">
-                  {divById(rid)?.code ?? rid} · pending
-                </span>
-              ))}
+              {pendingDesks.map((rid) => {
+                const canStamp = stampableUnits.includes(rid);
+                return canStamp ? (
+                  <button
+                    key={rid}
+                    onClick={() => ackPaper(paper.id, rid)}
+                    className="stamp cursor-pointer border-amberx-500 bg-amberx-500/10 px-2 py-0.5 text-[9.5px] text-amberx-400 transition hover:bg-greenx-500/15 hover:text-greenx-500"
+                    title={`${rid !== myUnitId ? 'You are OIC here — ' : ''}Click to stamp receipt for ${divById(rid)?.name ?? rid}`}
+                  >
+                    {divById(rid)?.code ?? rid} · tap to receive
+                  </button>
+                ) : (
+                  <span key={rid} className="stamp border-dashed border-amberx-500/70 px-2 py-0.5 text-[9.5px] text-amberx-400" title="Awaiting this desk's receipt stamp">
+                    {divById(rid)?.code ?? rid} · pending
+                  </span>
+                );
+              })}
               <span className="stamp border-flare-500/80 px-2 py-0.5 text-[9.5px] text-flare-400" title={`Current holder${paper.diverted ? ' · re-routed from ' + (intended?.code ?? '') : ''}`}>
                 {div?.code ?? paper.divisionId} · now here
               </span>
             </div>
             {iAmAddressee && paper.stage !== 'completed' && (
-              <button onClick={() => ackPaper(paper.id)} className="btn btn-primary mt-3 w-full justify-center">
-                <I n="checkc" className="h-4 w-4" sw={2} /> Receive — stamp {divById(myUnitId!)?.code}
+              <button onClick={() => ackPaper(paper.id, myStampUnit!)} className="btn btn-primary mt-3 w-full justify-center">
+                <I n="checkc" className="h-4 w-4" sw={2} /> Receive — stamp {divById(myStampUnit!)?.code}
+                {stampingAsOic && <span className="rounded-sm bg-ink-950/25 px-1.5 py-px font-mono text-[8.5px] font-bold uppercase tracking-wider">as OIC</span>}
               </button>
             )}
             {paper.diverted && (

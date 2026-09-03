@@ -5,7 +5,7 @@ import { useStore } from '../lib/store';
 import { I, DivChip, KindTag, PriorityTag, ProgressBar, SearchSelect } from './ui';
 
 function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; onOpen: () => void }) {
-  const { db, me } = useStore();
+  const { db, me, oicUnitIds } = useStore();
   const div = divById(paper.divisionId);
   const geo = paper.attachments.some((a) => a.geotagged);
   const imgs = paper.attachments.filter((a) => a.kind === 'image').slice(0, 3);
@@ -13,9 +13,10 @@ function Card({ paper, draggable, onOpen }: { paper: Paper; draggable: boolean; 
   const done = paper.stage === 'completed';
   const recipients = paper.recipientIds ?? [paper.divisionId];
   const multi = recipients.length > 1;
-  const myDesk = me?.role === 'division' ? me.divisionId : null;
-  const addressedToMe = !!myDesk && recipients.includes(myDesk);
-  const iAcknowledged = !!myDesk && (paper.receivedBy ?? []).includes(myDesk);
+  /* desks this viewer answers for — real division plus any unit they are OIC of */
+  const myDesks = Array.from(new Set([me?.role === 'division' ? me.divisionId : null, ...oicUnitIds].filter((u): u is string => !!u)));
+  const addressedToMe = myDesks.some((d) => recipients.includes(d));
+  const iAcknowledged = myDesks.some((d) => (paper.receivedBy ?? []).includes(d));
   const pics = (paper.assignees ?? []).map((id) => db.users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const pct = paper.progress ?? (done ? 100 : 0);
 

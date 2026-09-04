@@ -1215,7 +1215,7 @@ function MobileAlerts() {
 /* ------------------------------------------------ me (profile + settings) */
 function MobileMe() {
   const store = useStore();
-  const { me, db, theme, themeDraft, themeDirty, previewTheme, clearThemePreview, saveTheme, updateProfile, changePassword, requestPasswordReset, resetDemo, logout, custom } = store;
+  const { me, db, theme, themeDraft, themeDirty, previewTheme, clearThemePreview, saveTheme, updateProfile, changePassword, requestPasswordReset, resetDemo, logout, custom, updateCustom, officeDraft, officeDirty, previewOfficeTheme, saveOfficeTheme, clearOfficeDraft, pushToast } = store;
   const [pName, setPName] = useState(me?.name ?? '');
   const [pTitle, setPTitle] = useState(me?.title ?? '');
   const [pPhone, setPPhone] = useState(me?.phone ?? '');
@@ -1223,11 +1223,50 @@ function MobileMe() {
   const [pAddress, setPAddress] = useState(me?.address ?? '');
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
+  /* program-admin customization */
+  const [cOrg, setCOrg] = useState(custom.orgName ?? '');
+  const [cTag, setCTag] = useState(custom.tagline ?? '');
+  const [cDesc, setCDesc] = useState(custom.description ?? '');
+  const [newBrgy, setNewBrgy] = useState('');
+  const logoRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const meUser = me ? db.users.find((u) => u.id === me.id) : null;
   if (!me) return null;
 
   const ACCENTS = ['#ff6b1c', '#56c8f0', '#2dd4bf', '#f5b924', '#45d483', '#f4645c', '#a78bfa'];
   const ACCENTS2 = ['#56c8f0', '#ff6b1c', '#45e0cd', '#fbc94a', '#8adcf8', '#f8837c', '#6cd1f4'];
+
+  const readAsUrl = (f: File) => new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = () => rej(new Error('read'));
+    r.readAsDataURL(f);
+  });
+
+  const pickLogo = async (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > 1.5 * 1024 * 1024) { pushToast('warn', 'Logo too large — keep it under 1.5 MB.'); return; }
+    updateCustom({ logoKind: 'custom', logoUrl: await readAsUrl(f) });
+    if (logoRef.current) logoRef.current.value = '';
+  };
+
+  const pickPhoto = async (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) { pushToast('warn', 'Photo too large — keep it under 2 MB.'); return; }
+    updateCustom({ loginImage: await readAsUrl(f) });
+    if (photoRef.current) photoRef.current.value = '';
+  };
+
+  const brgyList = custom.barangays ?? [];
+  const addBrgy = () => {
+    const v = newBrgy.trim();
+    if (!v) return;
+    if (brgyList.some((b) => b.toLowerCase() === v.toLowerCase())) { pushToast('warn', 'That barangay is already on the list.'); return; }
+    updateCustom({ barangays: [...brgyList, v] });
+    setNewBrgy('');
+  };
+
+  const effTone = (officeDraft && 'bgTone' in officeDraft ? officeDraft.bgTone : custom.bgTone) ?? 'blueprint';
 
   return (
     <div className="space-y-4 px-3 pb-4 pt-3">
@@ -1335,6 +1374,135 @@ function MobileMe() {
           Tap to preview the whole app instantly — press <span className="text-tealx-400">Save theme</span> (or Save profile) to keep it. Nothing is registered until you save.
         </p>
       </section>
+
+      {/* program-admin customization */}
+      {me.role === 'admin' && (
+        <section className="rounded-2xl border border-ink-700 bg-ink-900/85 p-4">
+          <p className="mb-1 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-flare-400">Customize the office</p>
+          <p className="mb-3 text-[10.5px] leading-snug text-mist-500">Identity, logo, the office-wide default theme and the barangay list.</p>
+
+          {/* identity */}
+          <p className="mb-1.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Identity</p>
+          <div className="space-y-2">
+            <input value={cOrg} onChange={(e) => setCOrg(e.target.value)} placeholder="Organization name" className="field" />
+            <input value={cTag} onChange={(e) => setCTag(e.target.value)} placeholder="Tagline" className="field" />
+            <textarea value={cDesc} onChange={(e) => setCDesc(e.target.value)} rows={2} placeholder="Description / welcome text" className="field resize-y" />
+            <button onClick={() => updateCustom({ orgName: cOrg.trim() || undefined, tagline: cTag.trim() || undefined, description: cDesc.trim() || undefined })}
+              className="btn btn-ghost w-full justify-center py-2 text-[11px]">
+              <I n="check" className="h-3.5 w-3.5" sw={2.2} /> Save identity
+            </button>
+          </div>
+
+          {/* logo */}
+          <p className="mb-1.5 mt-4 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Company logo</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {([['seal', 'Seal'], ['gear', 'Gear'], ['bridge', 'Bridge']] as const).map(([k, label]) => (
+              <button key={k} onClick={() => updateCustom({ logoKind: k, logoUrl: undefined })}
+                className={`rounded-md border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition active:scale-95 ${
+                  (custom.logoKind ?? 'seal') === k && custom.logoKind !== 'custom' ? 'border-flare-500/70 bg-flare-500/12 text-flare-400' : 'border-ink-600 bg-ink-850 text-mist-400'
+                }`}>
+                {label}
+              </button>
+            ))}
+            <button onClick={() => logoRef.current?.click()}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition active:scale-95 ${
+                custom.logoKind === 'custom' && custom.logoUrl ? 'border-flare-500/70 bg-flare-500/12 text-flare-400' : 'border-ink-600 bg-ink-850 text-mist-400'
+              }`}>
+              <I n="cam" className="h-3 w-3" sw={2.2} /> Upload
+            </button>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} />
+            {custom.logoKind === 'custom' && custom.logoUrl && (
+              <button onClick={() => updateCustom({ logoKind: 'seal', logoUrl: undefined })} className="btn btn-ghost px-2 py-1.5 text-[9.5px]">Remove</button>
+            )}
+          </div>
+
+          {/* sign-in photo */}
+          <p className="mb-1.5 mt-4 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Sign-in page photo</p>
+          <div className="flex items-center gap-2.5">
+            {custom.loginImage ? (
+              <img src={custom.loginImage} alt="login" className="h-14 w-20 rounded-md border border-ink-600 object-cover" />
+            ) : (
+              <div className="flex h-14 w-20 items-center justify-center rounded-md border border-dashed border-ink-600 text-mist-600"><I n="cam" className="h-4 w-4" sw={1.6} /></div>
+            )}
+            <button onClick={() => photoRef.current?.click()} className="btn btn-ghost flex-1 justify-center py-2 text-[10.5px]">
+              <I n="cam" className="h-3.5 w-3.5" sw={2} /> Choose photo
+            </button>
+            {custom.loginImage && (
+              <button onClick={() => updateCustom({ loginImage: undefined })} className="btn btn-ghost px-2.5 py-2 text-[10.5px] hover:border-redx-500/60 hover:text-redx-400">
+                <I n="x" className="h-3.5 w-3.5" sw={2.2} />
+              </button>
+            )}
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => void pickPhoto(e.target.files?.[0])} />
+          </div>
+
+          {/* office-wide default theme — preview, then save */}
+          <p className="mb-1.5 mt-4 flex items-center gap-2 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">
+            Office default theme
+            {officeDirty && (
+              <span className="anim-pop inline-flex items-center gap-1 rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1.5 py-px font-mono text-[7.5px] font-bold uppercase tracking-wider text-amberx-400">
+                <span className="h-1 w-1 animate-pulse rounded-full bg-amberx-400" /> preview
+              </span>
+            )}
+          </p>
+          <p className="mb-2 font-mono text-[8px] uppercase tracking-[0.12em] text-mist-600">Tap to preview office-wide · save to apply</p>
+          <div className="flex flex-wrap gap-2">
+            {ACCENTS.map((c) => (
+              <button key={c} onClick={() => previewOfficeTheme({ accent: c })}
+                className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${(officeDraft?.accent ?? custom.accent) === c ? 'border-white' : 'border-transparent'}`}
+                style={{ background: c }} title={`Primary accent ${c}`} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {ACCENTS2.map((c) => (
+              <button key={c} onClick={() => previewOfficeTheme({ accent2: c })}
+                className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${(officeDraft?.accent2 ?? custom.accent2) === c ? 'border-white' : 'border-transparent'}`}
+                style={{ background: c }} title={`Secondary accent ${c}`} />
+            ))}
+          </div>
+          <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+            {Object.entries(MOODS).map(([k, m]) => (
+              <button key={k} onClick={() => previewOfficeTheme({ bgTone: k })}
+                className={`rounded-lg border p-2 text-left transition active:scale-95 ${effTone === k ? 'border-cyanx-500/70 bg-cyanx-500/10' : 'border-ink-600 bg-ink-850'}`}>
+                <span className="block h-6 rounded" style={{ background: `linear-gradient(135deg, ${m.tones[0]}, ${m.tones[4] ?? m.tones[2]})` }} />
+                <span className={`mt-1 block truncate font-mono text-[8px] font-bold uppercase tracking-wider ${effTone === k ? 'text-cyanx-400' : 'text-mist-400'}`}>{m.label}</span>
+              </button>
+            ))}
+          </div>
+          {officeDirty ? (
+            <div className="anim-pop mt-2.5 rounded-lg border border-amberx-500/45 bg-amberx-500/10 p-3">
+              <p className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-amberx-400">Office theme preview — not saved</p>
+              <div className="mt-2 flex gap-2">
+                <button onClick={saveOfficeTheme} className="btn btn-primary flex-1 justify-center py-2 text-[10.5px]">
+                  <I n="check" className="h-3.5 w-3.5" sw={2.4} /> Save office theme
+                </button>
+                <button onClick={clearOfficeDraft} className="btn btn-ghost flex-1 justify-center py-2 text-[10.5px]">Revert</button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 font-mono text-[8px] uppercase tracking-[0.12em] text-mist-600">Officers without a personal theme follow this default.</p>
+          )}
+
+          {/* barangay list */}
+          <p className="mb-1.5 mt-4 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-mist-600">Barangay list · {brgyList.length} custom</p>
+          <div className="flex gap-1.5">
+            <input value={newBrgy} onChange={(e) => setNewBrgy(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addBrgy()}
+              placeholder="e.g. San Jose" className="field flex-1 font-mono text-[11px]" />
+            <button onClick={addBrgy} className="btn btn-ghost shrink-0 px-3 py-2 text-[10.5px]"><I n="plus" className="h-3.5 w-3.5" sw={2.4} /></button>
+          </div>
+          {brgyList.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {brgyList.map((b) => (
+                <span key={b} className="inline-flex items-center gap-1.5 rounded-md border border-tealx-500/40 bg-tealx-500/10 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-tealx-400">
+                  {b}
+                  <button onClick={() => updateCustom({ barangays: brgyList.filter((x) => x !== b) })} className="text-tealx-400/70 transition hover:text-redx-400" title="Remove">
+                    <I n="x" className="h-2.5 w-2.5" sw={2.6} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* actions */}
       <section className="space-y-2">

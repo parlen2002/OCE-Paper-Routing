@@ -2230,7 +2230,7 @@ function readFileAsUrl(f: File): Promise<string> {
 }
 
 export function CustomizePage() {
-  const { user, db, custom, updateCustom, pushToast, geotagBrgys } = useStore();
+  const { user, db, custom, updateCustom, pushToast, geotagBrgys, officeDraft, officeDirty, previewOfficeTheme, saveOfficeTheme, clearOfficeDraft } = useStore();
   const [newBrgy, setNewBrgy] = useState('');
   const logoRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
@@ -2332,36 +2332,43 @@ export function CustomizePage() {
         </Section>
 
         <div className="space-y-4">
-          <Section title="Theme & colors" icon="pulse">
+          <Section title="Theme & colors" icon="pulse" right={officeDirty ? (
+            <span className="anim-pop inline-flex items-center gap-1.5 rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-2 py-1 font-mono text-[8.5px] font-bold uppercase tracking-wider text-amberx-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amberx-400" /> previewing
+            </span>
+          ) : undefined}>
+            <p className="mb-3 font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+              Pick away — changes preview on your screen instantly and apply office-wide only when you save. No history spam while exploring.
+            </p>
             <div className="space-y-4">
               <div>
                 <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Primary accent</span>
                 <div className="flex flex-wrap items-center gap-2">
                   {ACCENTS.map((c) => (
-                    <button key={c} onClick={() => updateCustom({ accent: c })} title={c}
-                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${custom.accent === c ? 'border-white' : 'border-transparent'}`}
+                    <button key={c} onClick={() => previewOfficeTheme({ accent: c })} title={c}
+                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${(officeDraft?.accent ?? custom.accent) === c ? 'border-white' : 'border-transparent'}`}
                       style={{ background: c }} />
                   ))}
                   <label className="flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-850 px-2 py-1.5">
-                    <input type="color" value={custom.accent ?? '#ff6b1c'} onChange={(e) => updateCustom({ accent: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
+                    <input type="color" value={(officeDraft?.accent ?? custom.accent) ?? '#ff6b1c'} onChange={(e) => previewOfficeTheme({ accent: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
                     <span className="font-mono text-[9px] uppercase tracking-wider text-mist-400">Custom</span>
                   </label>
-                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => updateCustom({ accent: undefined })}>Reset</button>
+                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => previewOfficeTheme({ accent: undefined })}>Reset</button>
                 </div>
               </div>
               <div>
                 <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-mist-500">Secondary accent</span>
                 <div className="flex flex-wrap items-center gap-2">
                   {ACCENTS2.map((c) => (
-                    <button key={c} onClick={() => updateCustom({ accent2: c })} title={c}
-                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${custom.accent2 === c ? 'border-white' : 'border-transparent'}`}
+                    <button key={c} onClick={() => previewOfficeTheme({ accent2: c })} title={c}
+                      className={`h-8 w-8 rounded-full border-2 transition hover:scale-110 ${(officeDraft?.accent2 ?? custom.accent2) === c ? 'border-white' : 'border-transparent'}`}
                       style={{ background: c }} />
                   ))}
                   <label className="flex items-center gap-1.5 rounded-md border border-ink-600 bg-ink-850 px-2 py-1.5">
-                    <input type="color" value={custom.accent2 ?? '#56c8f0'} onChange={(e) => updateCustom({ accent2: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
+                    <input type="color" value={(officeDraft?.accent2 ?? custom.accent2) ?? '#56c8f0'} onChange={(e) => previewOfficeTheme({ accent2: e.target.value })} className="h-5 w-7 cursor-pointer bg-transparent" />
                     <span className="font-mono text-[9px] uppercase tracking-wider text-mist-400">Custom</span>
                   </label>
-                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => updateCustom({ accent2: undefined })}>Reset</button>
+                  <button className="btn btn-ghost px-2.5 py-1.5 text-[10.5px]" onClick={() => previewOfficeTheme({ accent2: undefined })}>Reset</button>
                 </div>
               </div>
               <div>
@@ -2377,9 +2384,9 @@ export function CustomizePage() {
                       {group.ids.map((id) => {
                         const m = MOODS[id];
                         if (!m) return null;
-                        const on = (custom.bgTone ?? 'blueprint') === id;
+                        const on = ((officeDraft && 'bgTone' in officeDraft ? officeDraft.bgTone : custom.bgTone) ?? 'blueprint') === id;
                         return (
-                          <button key={id} onClick={() => updateCustom({ bgTone: id })} title={m.note ?? m.label}
+                          <button key={id} onClick={() => previewOfficeTheme({ bgTone: id })} title={m.note ?? m.label}
                             className={`flex items-center gap-2.5 rounded-md border px-3 py-2 transition active:scale-[0.97] ${on ? 'border-cyanx-500/70 bg-cyanx-500/12' : 'border-ink-600 bg-ink-850 hover:border-ink-500'}`}>
                             <span className="h-7 w-10 shrink-0 rounded" style={{ background: `linear-gradient(135deg, ${m.tones[1]}, ${m.tones[3]})` }} />
                             <span className="text-left">
@@ -2392,9 +2399,23 @@ export function CustomizePage() {
                     </div>
                   </div>
                 ))}
-                <p className="font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
-                  Sets the office default. Each officer can personalize their own view (and toggle auto-seasonal moods) from their profile panel.
-                </p>
+
+                {officeDirty ? (
+                  <div className="anim-pop mt-1 rounded-md border border-amberx-500/45 bg-amberx-500/10 p-3">
+                    <p className="font-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-amberx-400">Previewing the office default — not saved yet</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-mist-300">Officers without a personal theme will see this once you save. It writes a single history entry.</p>
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={saveOfficeTheme} className="btn btn-primary flex-1 justify-center py-2">
+                        <I n="check" className="h-3.5 w-3.5" sw={2.4} /> Save office theme
+                      </button>
+                      <button onClick={clearOfficeDraft} className="btn btn-ghost flex-1 justify-center py-2">Revert</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-mono text-[8.5px] uppercase tracking-[0.12em] text-mist-600">
+                    Sets the office default. Each officer can personalize their own view (and toggle auto-seasonal moods) from their profile panel.
+                  </p>
+                )}
               </div>
             </div>
           </Section>

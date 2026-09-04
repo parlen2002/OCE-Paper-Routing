@@ -133,6 +133,12 @@ interface StoreCtx {
   /** Resolved theme: personal choice > seasonal auto-mood > office default. */
   theme: { toneId: string; mood: MoodDef; accent?: string; accent2?: string; seasonal: string | null; autoSeason: boolean; isPersonal: boolean };
   updateMyTheme: (patch: Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>>) => void;
+  /** Office-wide theme draft (program admin) — previewed locally, written on save. */
+  officeDraft: Partial<Customization> | null;
+  officeDirty: boolean;
+  previewOfficeTheme: (patch: Partial<Customization>) => void;
+  saveOfficeTheme: () => void;
+  clearOfficeDraft: () => void;
   /** Unsaved theme edits shown as a live preview; committed only on save. */
   themeDraft: Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>;
   themeDirty: boolean;
@@ -247,25 +253,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /* Unsaved theme edits — previewed live, written to the account only on save
      (so exploring moods never spams the user history log). */
   const [themePreview, setThemePreview] = useState<Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>> | null>(null);
+  /* Program admin's unsaved office-wide theme draft — visible only on this
+     session's screens until saved, so exploring moods is free of log spam. */
+  const [officeDraft, setOfficeDraft] = useState<Partial<Customization> | null>(null);
 
   const theme = useMemo(() => {
+    // Office defaults overlaid with the admin's unsaved draft.
+    const eff = { ...custom, ...(officeDraft ?? {}) };
     // Draft = saved personal values overlaid with the unsaved preview.
     const autoSeason = (themePreview?.autoSeason ?? me?.autoSeason) ?? false;
     const seasonal = autoSeason ? seasonalMood() : null;
     const pTone = themePreview && 'themeTone' in themePreview ? themePreview.themeTone : me?.themeTone;
     const pAccent = themePreview && 'themeAccent' in themePreview ? themePreview.themeAccent : me?.themeAccent;
     const pAccent2 = themePreview && 'themeAccent2' in themePreview ? themePreview.themeAccent2 : me?.themeAccent2;
-    const toneId = pTone ?? seasonal ?? custom.bgTone ?? 'blueprint';
+    const toneId = pTone ?? seasonal ?? eff.bgTone ?? 'blueprint';
     return {
       toneId,
       mood: MOODS[toneId] ?? MOODS.blueprint,
-      accent: pAccent ?? (seasonal ? MOODS[seasonal]?.accent : undefined) ?? custom.accent,
-      accent2: pAccent2 ?? (seasonal ? MOODS[seasonal]?.accent2 : undefined) ?? custom.accent2,
+      accent: pAccent ?? (seasonal ? MOODS[seasonal]?.accent : undefined) ?? eff.accent,
+      accent2: pAccent2 ?? (seasonal ? MOODS[seasonal]?.accent2 : undefined) ?? eff.accent2,
       seasonal,
       autoSeason,
       isPersonal: !!(pTone || pAccent || pAccent2),
     };
-  }, [custom, me, themePreview]);
+  }, [custom, officeDraft, me, themePreview]);
+
+  const previewOfficeTheme: StoreCtx['previewOfficeTheme'] = (patch) => setOfficeDraft((d) => ({ ...(d ?? {}), ...patch }));
+  const clearOfficeDraft = () => setOfficeDraft(null);
 
   const themeDraft: StoreCtx['themeDraft'] = {
     themeTone: themePreview && 'themeTone' in themePreview ? themePreview.themeTone : me?.themeTone,
@@ -449,6 +463,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setDb((d) => user ? withLog({ ...d, session: null }, { userId: user.id, userName: user.name, type: 'logout', text: 'Signed out — session closed' }) : { ...d, session: null });
     setThemePreview(null); // unsaved theme edits never follow into the next session
+    setOfficeDraft(null);
     setUi((u) => ({ ...u, drawerId: null, newOpen: false, reportOpen: false, reportPreset: null, profileOpen: false, viewer: null, search: '' }));
   };
 
@@ -950,6 +965,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast('ok', 'Customization saved — applied across the program.');
   };
 
+  /** Commit the previewed office theme — one clean log entry. */
+  const saveOfficeTheme: StoreCtx['saveOfficeTheme'] = () => {
+    if (!user || user.role !== 'admin' || !officeDraft) return;
+    updateCustom(officeDraft);
+    setOfficeDraft(null);
+  };
+
   /** Any signed-in user can personalize their own theme from the profile panel. */
   const updateMyTheme: StoreCtx['updateMyTheme'] = (patch) => {
     if (!user) return;
@@ -1201,6 +1223,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     deletePaper, updatePaper, ackPaper,
     updateDivision, setDivisionHead, removeDivisionOIC, updateCustom, theme, updateMyTheme,
     themeDraft, themeDirty: themePreview != null, previewTheme, clearThemePreview, saveTheme,
+    officeDraft, officeDirty: officeDraft != null, previewOfficeTheme, saveOfficeTheme, clearOfficeDraft,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [], stampGeoAttachments,
     markAllRead, markRead, pushToast,

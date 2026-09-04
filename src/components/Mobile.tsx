@@ -1215,7 +1215,7 @@ function MobileAlerts() {
 /* ------------------------------------------------ me (profile + settings) */
 function MobileMe() {
   const store = useStore();
-  const { me, db, theme, updateMyTheme, updateProfile, changePassword, requestPasswordReset, resetDemo, logout, custom } = store;
+  const { me, db, theme, themeDraft, themeDirty, previewTheme, clearThemePreview, saveTheme, updateProfile, changePassword, requestPasswordReset, resetDemo, logout, custom } = store;
   const [pName, setPName] = useState(me?.name ?? '');
   const [pTitle, setPTitle] = useState(me?.title ?? '');
   const [pPhone, setPPhone] = useState(me?.phone ?? '');
@@ -1255,8 +1255,14 @@ function MobileMe() {
           <input value={pPhone} onChange={(e) => setPPhone(e.target.value)} placeholder="Phone number" className="field font-mono text-[12px]" />
           <input value={pEmail} onChange={(e) => setPEmail(e.target.value)} placeholder="Email address" className="field font-mono text-[12px]" />
           <input value={pAddress} onChange={(e) => setPAddress(e.target.value)} placeholder="Home address" className="field" />
-          <button onClick={() => updateProfile({ name: pName, title: pTitle, phone: pPhone, email: pEmail, address: pAddress })} className="btn btn-primary w-full justify-center">
-            <I n="check" className="h-4 w-4" sw={2.2} /> Save profile
+          <button
+            onClick={() => {
+              updateProfile({ name: pName, title: pTitle, phone: pPhone, email: pEmail, address: pAddress });
+              if (themeDirty) saveTheme();
+            }}
+            className="btn btn-primary w-full justify-center"
+          >
+            <I n="check" className="h-4 w-4" sw={2.2} /> Save profile{themeDirty ? ' & theme' : ''}
           </button>
         </div>
       </section>
@@ -1274,36 +1280,60 @@ function MobileMe() {
         </div>
       </section>
 
-      {/* theme */}
-      <section className="rounded-2xl border border-ink-700 bg-ink-900/85 p-4">
-        <p className="mb-2.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-tealx-400">My theme</p>
+      {/* theme — tap to preview live, saved only on Save (nothing logged until you save) */}
+      <section className={`rounded-2xl border bg-ink-900/85 p-4 transition-colors ${themeDirty ? 'border-amberx-500/50' : 'border-ink-700'}`}>
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <p className="font-mono text-[9.5px] font-bold uppercase tracking-[0.2em] text-tealx-400">My theme</p>
+          {themeDirty && (
+            <span className="anim-pop rounded-sm border border-amberx-500/50 bg-amberx-500/12 px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-wider text-amberx-400">
+              previewing — not saved
+            </span>
+          )}
+          {!themeDirty && theme.isPersonal && (
+            <span className="rounded-sm bg-tealx-500/12 px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-wider text-tealx-400">personal</span>
+          )}
+        </div>
         <p className="mb-1.5 font-mono text-[8.5px] uppercase tracking-[0.16em] text-mist-600">Primary accent</p>
         <div className="flex flex-wrap gap-2">
           {ACCENTS.map((c) => (
-            <button key={c} onClick={() => updateMyTheme({ themeAccent: c })} className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${theme.accent === c ? 'border-white' : 'border-transparent'}`} style={{ background: c }} />
+            <button key={c} onClick={() => previewTheme({ themeAccent: c })} className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${themeDraft.themeAccent === c ? 'border-white scale-110' : 'border-transparent'}`} style={{ background: c }} />
           ))}
         </div>
         <p className="mb-1.5 mt-3 font-mono text-[8.5px] uppercase tracking-[0.16em] text-mist-600">Secondary accent</p>
         <div className="flex flex-wrap gap-2">
           {ACCENTS2.map((c) => (
-            <button key={c} onClick={() => updateMyTheme({ themeAccent2: c })} className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${theme.accent2 === c ? 'border-white' : 'border-transparent'}`} style={{ background: c }} />
+            <button key={c} onClick={() => previewTheme({ themeAccent2: c })} className={`h-8 w-8 rounded-full border-2 transition active:scale-90 ${themeDraft.themeAccent2 === c ? 'border-white scale-110' : 'border-transparent'}`} style={{ background: c }} />
           ))}
         </div>
         <p className="mb-1.5 mt-3 font-mono text-[8.5px] uppercase tracking-[0.16em] text-mist-600">Background mood</p>
         <div className="grid grid-cols-3 gap-1.5">
           {Object.entries(MOODS).map(([k, m]) => (
-            <button key={k} onClick={() => updateMyTheme({ themeTone: k })} className={`rounded-lg border p-2 text-left transition active:scale-95 ${theme.toneId === k ? 'border-tealx-500/70 bg-tealx-500/10' : 'border-ink-600 bg-ink-850'}`}>
+            <button key={k} onClick={() => previewTheme({ themeTone: k })} className={`rounded-lg border p-2 text-left transition active:scale-95 ${themeDraft.themeTone === k ? 'border-tealx-500/70 bg-tealx-500/10' : 'border-ink-600 bg-ink-850'}`}>
               <span className="block h-6 rounded" style={{ background: `linear-gradient(135deg, ${m.tones[0]}, ${m.tones[4] ?? m.tones[2]})` }} />
               <span className="mt-1 block truncate font-mono text-[8.5px] font-bold uppercase tracking-wider text-mist-300">{m.label}</span>
             </button>
           ))}
         </div>
         <div className="mt-3 flex gap-2">
-          <button onClick={() => updateMyTheme({ autoSeason: !theme.autoSeason })} className={`btn flex-1 justify-center py-2 text-[10.5px] ${theme.autoSeason ? 'btn-primary' : 'btn-ghost'}`}>
-            <I n="refresh" className="h-3.5 w-3.5" sw={2.2} /> Auto seasonal {theme.autoSeason ? 'on' : 'off'}
+          <button onClick={() => previewTheme({ autoSeason: !themeDraft.autoSeason })} className={`btn flex-1 justify-center py-2 text-[10.5px] ${themeDraft.autoSeason ? 'btn-primary' : 'btn-ghost'}`}>
+            <I n="refresh" className="h-3.5 w-3.5" sw={2.2} /> Auto seasonal {themeDraft.autoSeason ? 'on' : 'off'}
           </button>
-          <button onClick={() => updateMyTheme({ themeTone: undefined, themeAccent: undefined, themeAccent2: undefined })} className="btn btn-ghost flex-1 justify-center py-2 text-[10.5px]">Office default</button>
+          <button onClick={() => previewTheme({ themeTone: undefined, themeAccent: undefined, themeAccent2: undefined })} className="btn btn-ghost flex-1 justify-center py-2 text-[10.5px]">Office default</button>
         </div>
+
+        {themeDirty && (
+          <div className="anim-pop mt-3 flex gap-2">
+            <button onClick={saveTheme} className="btn btn-primary flex-1 justify-center py-2 text-[10.5px]">
+              <I n="check" className="h-3.5 w-3.5" sw={2.4} /> Save theme
+            </button>
+            <button onClick={clearThemePreview} className="btn btn-ghost flex-1 justify-center py-2 text-[10.5px]">
+              <I n="x" className="h-3.5 w-3.5" sw={2.4} /> Revert
+            </button>
+          </div>
+        )}
+        <p className="mt-2 font-mono text-[7.5px] uppercase leading-relaxed tracking-[0.12em] text-mist-600">
+          Tap to preview the whole app instantly — press <span className="text-tealx-400">Save theme</span> (or Save profile) to keep it. Nothing is registered until you save.
+        </p>
       </section>
 
       {/* actions */}

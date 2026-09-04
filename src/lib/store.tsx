@@ -448,6 +448,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setDb((d) => user ? withLog({ ...d, session: null }, { userId: user.id, userName: user.name, type: 'logout', text: 'Signed out — session closed' }) : { ...d, session: null });
+    setThemePreview(null); // unsaved theme edits never follow into the next session
     setUi((u) => ({ ...u, drawerId: null, newOpen: false, reportOpen: false, reportPreset: null, profileOpen: false, viewer: null, search: '' }));
   };
 

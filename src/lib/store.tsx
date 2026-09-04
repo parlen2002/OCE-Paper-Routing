@@ -133,6 +133,12 @@ interface StoreCtx {
   /** Resolved theme: personal choice > seasonal auto-mood > office default. */
   theme: { toneId: string; mood: MoodDef; accent?: string; accent2?: string; seasonal: string | null; autoSeason: boolean; isPersonal: boolean };
   updateMyTheme: (patch: Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>>) => void;
+  /** Unsaved theme edits shown as a live preview; committed only on save. */
+  themeDraft: Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>;
+  themeDirty: boolean;
+  previewTheme: (patch: Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>>) => void;
+  clearThemePreview: () => void;
+  saveTheme: () => void;
   visibleChannels: Channel[];
   messagesOf: (chId: string) => Message[];
   unreadFor: (chId: string) => number;
@@ -238,21 +244,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * auto-mood, which beats the office default the program admin set in Customize. */
   const custom: Customization = useMemo(() => ({ ...DEFAULT_CUSTOM, ...(db.custom ?? {}) }), [db.custom]);
 
+  /* Unsaved theme edits — previewed live, written to the account only on save
+     (so exploring moods never spams the user history log). */
+  const [themePreview, setThemePreview] = useState<Partial<Pick<User, 'themeAccent' | 'themeAccent2' | 'themeTone' | 'autoSeason'>> | null>(null);
+
   const theme = useMemo(() => {
-    // Off by default — seasonal moods opt in per user from the profile panel.
-    const autoSeason = me?.autoSeason ?? false;
+    // Draft = saved personal values overlaid with the unsaved preview.
+    const autoSeason = (themePreview?.autoSeason ?? me?.autoSeason) ?? false;
     const seasonal = autoSeason ? seasonalMood() : null;
-    const toneId = me?.themeTone ?? seasonal ?? custom.bgTone ?? 'blueprint';
+    const pTone = themePreview && 'themeTone' in themePreview ? themePreview.themeTone : me?.themeTone;
+    const pAccent = themePreview && 'themeAccent' in themePreview ? themePreview.themeAccent : me?.themeAccent;
+    const pAccent2 = themePreview && 'themeAccent2' in themePreview ? themePreview.themeAccent2 : me?.themeAccent2;
+    const toneId = pTone ?? seasonal ?? custom.bgTone ?? 'blueprint';
     return {
       toneId,
       mood: MOODS[toneId] ?? MOODS.blueprint,
-      accent: me?.themeAccent ?? (seasonal ? MOODS[seasonal]?.accent : undefined) ?? custom.accent,
-      accent2: me?.themeAccent2 ?? (seasonal ? MOODS[seasonal]?.accent2 : undefined) ?? custom.accent2,
+      accent: pAccent ?? (seasonal ? MOODS[seasonal]?.accent : undefined) ?? custom.accent,
+      accent2: pAccent2 ?? (seasonal ? MOODS[seasonal]?.accent2 : undefined) ?? custom.accent2,
       seasonal,
       autoSeason,
-      isPersonal: !!(me?.themeTone || me?.themeAccent || me?.themeAccent2),
+      isPersonal: !!(pTone || pAccent || pAccent2),
     };
-  }, [custom, me]);
+  }, [custom, me, themePreview]);
+
+  const themeDraft: StoreCtx['themeDraft'] = {
+    themeTone: themePreview && 'themeTone' in themePreview ? themePreview.themeTone : me?.themeTone,
+    themeAccent: themePreview && 'themeAccent' in themePreview ? themePreview.themeAccent : me?.themeAccent,
+    themeAccent2: themePreview && 'themeAccent2' in themePreview ? themePreview.themeAccent2 : me?.themeAccent2,
+    autoSeason: (themePreview?.autoSeason ?? me?.autoSeason) ?? false,
+  };
+
+  const previewTheme: StoreCtx['previewTheme'] = (patch) => setThemePreview((p) => ({ ...(p ?? {}), ...patch }));
+  const clearThemePreview = () => setThemePreview(null);
+  const saveTheme = () => {
+    if (!user || !themePreview) return;
+    setDb((d) =>
+      withLog(
+        { ...d, users: d.users.map((x) => (x.id === user.id ? { ...x, ...themePreview } : x)) },
+        { userId: user.id, userName: user.name, type: 'profile', text: 'Saved their personal theme' }
+      )
+    );
+    setThemePreview(null);
+    pushToast('ok', 'Theme saved to your profile.');
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -338,11 +372,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const visibleNotifs = useMemo(() => {
     if (!me) return [];
     const vis = db.notifs.filter((n) =>
-      me.role === 'admin' || me.role === 'supervisor' || me.role === 'moderator' || me.role === 'operator'
+      // overseers see everything; everyone else only what's intended for them
+      me.role === 'admin' || me.role === 'moderator' || me.role === 'operator'
         ? true
-        : me.role === 'division'
-          ? n.targetUserId === me.id || (n.scope.type === 'division' && n.scope.divisionId === me.divisionId)
-          : n.targetUserId === me.id
+        : me.role === 'supervisor'
+          ? n.targetUserId === me.id || n.scope.type === 'supervisors'
+          : me.role === 'division'
+            ? n.targetUserId === me.id || (n.scope.type === 'division' && n.scope.divisionId === me.divisionId)
+            : n.targetUserId === me.id
     );
     return [...vis].sort((a, b) => b.at - a.at);
   }, [db.notifs, me]);
@@ -360,11 +397,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Same scoping rule as the bell: overseers see all; division heads see their
     // division's signals; employees / job-order only signals addressed to them.
     const targetsMe =
-      currentUser.role === 'admin' || currentUser.role === 'supervisor' || currentUser.role === 'moderator' || currentUser.role === 'operator'
+      currentUser.role === 'admin' || currentUser.role === 'moderator' || currentUser.role === 'operator'
         ? true
-        : currentUser.role === 'division'
-          ? n.targetUserId === currentUser.id || (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId)
-          : n.targetUserId === currentUser.id;
+        : currentUser.role === 'supervisor'
+          ? n.targetUserId === currentUser.id || n.scope.type === 'supervisors'
+          : currentUser.role === 'division'
+            ? n.targetUserId === currentUser.id || (n.scope.type === 'division' && n.scope.divisionId === currentUser.divisionId)
+            : n.targetUserId === currentUser.id;
     if (targetsMe) fireBrowser('OCE Flow — ' + (n.ref ?? 'Update'), n.text);
     return { ...d, notifs: [notif, ...d.notifs].slice(0, 80) };
   };
@@ -1149,13 +1188,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     closeDrawer: () => setUi((u) => ({ ...u, drawerId: null })),
     setNewOpen: (open) => setUi((u) => ({ ...u, newOpen: open })),
     setReportOpen: (open, preset) => setUi((u) => ({ ...u, reportOpen: open, reportPreset: preset ?? null })),
-    setProfileOpen: (open) => setUi((u) => ({ ...u, profileOpen: open })),
+    // closing the profile panel (any path, incl. Esc) discards unsaved theme edits
+    setProfileOpen: (open) => {
+      setUi((u) => ({ ...u, profileOpen: open }));
+      if (!open) setThemePreview(null);
+    },
     setSearch: (s) => setUi((u) => ({ ...u, search: s })),
     setDivFilter: (s) => setUi((u) => ({ ...u, divFilter: s })),
     setViewer: (v) => setUi((u) => ({ ...u, viewer: v })),
     createPaper, moveStage, routePaperMulti, addNote, addAttachments, removeAttachment, setProgress, assignPaper, submitToHead, returnToEmployee,
     deletePaper, updatePaper, ackPaper,
     updateDivision, setDivisionHead, removeDivisionOIC, updateCustom, theme, updateMyTheme,
+    themeDraft, themeDirty: themePreview != null, previewTheme, clearThemePreview, saveTheme,
     visibleChannels, messagesOf, unreadFor, msgUnreadTotal, canPostChannel, sendMsg, markChannelRead, manageChannelMember,
     updateMessage, requestDeleteMessage, approveDeleteMessage, denyDeleteMessage, msgDeletes: db.msgDeletes ?? [], stampGeoAttachments,
     markAllRead, markRead, pushToast,

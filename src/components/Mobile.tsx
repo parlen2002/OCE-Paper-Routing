@@ -88,7 +88,7 @@ export function MobileApp() {
           <Seal className="h-8 w-8" />
           <div className="min-w-0">
             <p className="font-display text-[16px] font-bold uppercase leading-none tracking-wider text-mist-50">
-              OCE <span className="text-flare-500">Flow</span>
+              OCE <span className="text-flare-400">Flow</span>
             </p>
             <p className="mt-0.5 truncate font-mono text-[8px] uppercase tracking-[0.18em] text-mist-500">
               {custom.orgName || 'Office of the City Engineer'}
@@ -97,7 +97,7 @@ export function MobileApp() {
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => setAlertsOpen(true)} className="relative rounded-md border border-ink-600 bg-ink-850 p-2 text-mist-300 active:scale-95" title="Alerts">
               <I n="bell" className="h-4 w-4" />
-              {unread > 0 && <span className="anim-badge absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold text-ink-950 tabular">{unread}</span>}
+              {unread > 0 && <span className="anim-badge absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold ink-flare tabular">{unread}</span>}
             </button>
             <button onClick={() => setTab('me')} className="rounded-md active:scale-95" title="Profile">
               <Avatar name={me.name} size="sm" />
@@ -147,7 +147,7 @@ export function MobileApp() {
               <button key={t.id} onClick={() => setTab(t.id)} className="relative flex flex-col items-center gap-0.5 py-2 active:scale-95">
                 <span className={`relative rounded-lg px-3 py-1 transition-colors ${active ? 'bg-flare-500/15 text-flare-400' : 'text-mist-500'}`}>
                   <I n={t.icon} className="h-[18px] w-[18px]" sw={active ? 2.2 : 1.8} />
-                  {badge > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold text-ink-950 tabular">{badge}</span>}
+                  {badge > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[9px] font-bold ink-flare tabular">{badge}</span>}
                 </span>
                 <span className={`font-mono text-[8.5px] font-bold uppercase tracking-wider ${active ? 'text-flare-400' : 'text-mist-600'}`}>{t.label}</span>
               </button>
@@ -383,7 +383,7 @@ function MobileBoard() {
       {!isField && (
         <button
           onClick={() => setNewOpen(true)}
-          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-flare-500 py-3 pl-4 pr-5 font-mono text-[11px] font-bold uppercase tracking-wider text-ink-950 shadow-[0_12px_30px_-8px_rgba(255,107,28,0.6)] transition active:scale-95"
+          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-flare-500 py-3 pl-4 pr-5 font-mono text-[11px] font-bold uppercase tracking-wider ink-flare shadow-[0_12px_30px_-8px_rgba(255,107,28,0.6)] transition active:scale-95"
         >
           <I n="plus" className="h-4 w-4" sw={2.6} /> Log
         </button>
@@ -718,7 +718,7 @@ function MobilePaperSheet() {
                       </a>
                     )}
                     {a.geotagged && (
-                      <span className={`absolute bottom-1 left-1 rounded-sm px-1 py-px font-mono text-[7.5px] font-bold uppercase text-ink-950 ${a.geoSource === 'device' ? 'bg-cyanx-400/90' : 'bg-tealx-500/90'}`} title={`Location via ${a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
+                      <span className={`absolute bottom-1 left-1 rounded-sm px-1 py-px font-mono text-[7.5px] font-bold uppercase ${a.geoSource === 'device' ? 'bg-cyanx-400/90 ink-cyanx' : 'bg-tealx-500/90 text-ink-950'}`} title={`Location via ${a.geoSource === 'device' ? 'device location' : 'photo EXIF'}`}>
                         {a.geoSource === 'device' ? 'GPS·device' : 'GPS'}
                       </span>
                     )}
@@ -1040,7 +1040,7 @@ function MobileMessages() {
                         <span className="block truncate text-[13.5px] font-bold text-mist-100">{c.name}</span>
                         <span className="block font-mono text-[9px] uppercase tracking-wider text-mist-600">{c.kind === 'unit' ? divById(c.unitId ?? '')?.code ?? 'unit' : c.kind}</span>
                       </span>
-                      {u > 0 && <span className="rounded-full bg-flare-500 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-950 tabular">{u}</span>}
+                      {u > 0 && <span className="rounded-full bg-flare-500 px-2 py-0.5 font-mono text-[10px] font-bold ink-flare tabular">{u}</span>}
                     </button>
                   );
                 })}
@@ -1138,7 +1138,7 @@ function MobileMessages() {
               return (
                 <button key={p.id} onClick={() => setAttachIds((a) => (on ? a.filter((x) => x !== p.id) : [...a, p.id]))}
                   className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left ${on ? 'border-cyanx-500/60 bg-cyanx-500/10' : 'border-ink-700 bg-ink-850'}`}>
-                  <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 text-ink-950' : 'border-ink-600'}`}>{on && <I n="check" className="h-2.5 w-2.5" sw={3} />}</span>
+                  <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 ink-cyanx' : 'border-ink-600'}`}>{on && <I n="check" className="h-2.5 w-2.5" sw={3} />}</span>
                   <span className="font-mono text-[9.5px] font-bold text-cyanx-400">{p.ref}</span>
                   <span className="truncate text-[11.5px] text-mist-200">{p.title}</span>
                 </button>

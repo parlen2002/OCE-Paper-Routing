@@ -378,7 +378,7 @@ export function DocDrawer() {
                         return (
                           <button key={d.id} type="button" disabled={!editable} onClick={() => toggleForward(d.id)}
                             className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left font-mono text-[10px] font-bold uppercase tracking-wider transition ${on ? 'bg-cyanx-500/15 text-cyanx-400' : 'text-mist-400 hover:bg-ink-800 hover:text-mist-200'}`}>
-                            <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 text-ink-950' : 'border-ink-600'}`}>
+                            <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 ink-cyanx' : 'border-ink-600'}`}>
                               {on && <I n="check" className="h-2 w-2" sw={3.4} />}
                             </span>
                             {d.code} <span className="truncate font-body text-[10px] font-medium normal-case tracking-normal text-mist-500">{d.name}</span>

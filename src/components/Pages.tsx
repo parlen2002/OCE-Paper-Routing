@@ -1844,7 +1844,7 @@ export function MessagesPage() {
           </span>
         </span>
         {un > 0 && (
-          <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{un}</span>
+          <span className="anim-badge flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold ink-flare tabular">{un}</span>
         )}
       </button>
     );
@@ -2153,7 +2153,7 @@ export function MessagesPage() {
                         className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition ${attachOpen || attachIds.length > 0 ? 'border-cyanx-500/60 bg-cyanx-500/12 text-cyanx-400' : 'border-ink-600 bg-ink-850 text-mist-400 hover:border-cyanx-500/50 hover:text-mist-200'}`}>
                         <I n="clip" className="h-3.5 w-3.5" sw={2.2} />
                         Attach papers
-                        {attachIds.length > 0 && <span className="rounded-full bg-cyanx-500 px-1.5 py-px text-[9px] font-bold text-ink-950 tabular">{attachIds.length}</span>}
+                        {attachIds.length > 0 && <span className="rounded-full bg-cyanx-500 px-1.5 py-px text-[9px] font-bold ink-cyanx tabular">{attachIds.length}</span>}
                       </button>
                       <span className="ml-auto font-mono text-[8.5px] uppercase tracking-[0.14em] text-mist-600">Delivered live to every open session</span>
                     </div>
@@ -2180,7 +2180,7 @@ export function MessagesPage() {
                             return (
                               <button key={p.id} type="button" onClick={() => toggleAttach(p.id)}
                                 className={`flex w-full items-center gap-2.5 border-l-2 px-3 py-2 text-left transition ${on ? 'border-cyanx-500 bg-cyanx-500/12' : 'border-transparent hover:bg-ink-800/70'}`}>
-                                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 text-ink-950' : 'border-ink-600'}`}>
+                                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-cyanx-500 bg-cyanx-500 ink-cyanx' : 'border-ink-600'}`}>
                                   {on && <I n="check" className="h-2.5 w-2.5" sw={3} />}
                                 </span>
                                 <span className="min-w-0 flex-1">

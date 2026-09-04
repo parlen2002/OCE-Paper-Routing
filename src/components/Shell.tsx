@@ -51,7 +51,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2.5 border-b border-ink-700/70 px-4 py-4">
           <Seal className="h-9 w-9" />
           <div>
-            <p className="font-display text-[15px] font-bold uppercase leading-tight tracking-wider text-mist-50">OCE <span className="text-flare-500">Flow</span></p>
+            <p className="font-display text-[15px] font-bold uppercase leading-tight tracking-wider text-mist-50">OCE <span className="text-flare-400">Flow</span></p>
             <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-mist-500">{custom.orgName || 'Office of the City Engineer · PPC'}</p>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   <span className="ml-auto rounded bg-ink-700 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyanx-400 tabular">{openPapers}</span>
                 )}
                 {n.page === 'messages' && msgUnreadTotal > 0 && (
-                  <span className="anim-badge ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950 tabular">{msgUnreadTotal}</span>
+                  <span className="anim-badge ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold ink-flare tabular">{msgUnreadTotal}</span>
                 )}
               </button>
             );
@@ -119,7 +119,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 title="Notifications">
                 <I n="bell" className="h-[18px] w-[18px]" />
                 {unread > 0 && (
-                  <span key={unread} className="anim-badge absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold text-ink-950">{unread}</span>
+                  <span key={unread} className="anim-badge absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-flare-500 px-1 font-mono text-[10px] font-bold ink-flare">{unread}</span>
                 )}
               </button>
 
@@ -152,7 +152,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                               <span className={`block text-[12.5px] leading-snug ${isUnread ? 'font-semibold text-mist-100' : 'text-mist-300'}`}>{n.text}</span>
                               <span className="mt-0.5 block font-mono text-[10px] text-mist-500">{n.ref ? `${n.ref} · ` : ''}{timeAgo(n.at)}</span>
                             </span>
-                            {isUnread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-flare-500" />}
+                            {isUnread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-flare-400" />}
                           </button>
                         );
                       })}

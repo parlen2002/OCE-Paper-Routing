@@ -78,7 +78,15 @@ html {
   --bg-grid-fine: rgba(86, 200, 240, 0.024);
   --bg-glow-a: rgba(86, 200, 240, 0.08);
   --bg-glow-b: rgba(255, 107, 28, 0.07);
+  /* Ink that sits on the solid primary / secondary accent — flips to white
+     automatically when a dark accent is chosen. */
+  --flare-ink: #16100a;
+  --cyanx-ink: #16100a;
 }
+
+/* Adaptive ink for text on solid accent surfaces */
+.ink-flare { color: var(--flare-ink, #16100a); }
+.ink-cyanx { color: var(--cyanx-ink, #16100a); }
 
 .bg-blueprint {
   background-image:
@@ -137,7 +145,7 @@ body,
 }
 .btn:active { transform: translateY(1px) scale(0.99); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-.btn-primary { background: var(--color-flare-500); color: #16100a; box-shadow: 0 6px 18px -6px rgba(255, 107, 28, 0.55); }
+.btn-primary { background: var(--color-flare-500); color: var(--flare-ink, #16100a); box-shadow: 0 6px 18px -6px rgba(255, 107, 28, 0.55); }
 .btn-primary:hover:not(:disabled) { background: var(--color-flare-400); box-shadow: 0 10px 24px -8px rgba(255, 107, 28, 0.7); }
 .btn-ghost { background: transparent; border: 1px solid var(--color-ink-600); color: var(--color-mist-200); }
 .btn-ghost:hover:not(:disabled) { border-color: var(--color-cyanx-500); color: var(--color-mist-50); background: rgba(86, 200, 240, 0.06); }

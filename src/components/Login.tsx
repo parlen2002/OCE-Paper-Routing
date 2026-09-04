@@ -83,7 +83,7 @@ export function Login() {
               <Seal className="h-12 w-12 shrink-0" />
               <div className="min-w-0">
                 <p className="font-display text-[22px] font-bold uppercase leading-none tracking-wider text-mist-50">
-                  OCE <span className="text-flare-500">Flow</span>
+                  OCE <span className="text-flare-400">Flow</span>
                 </p>
                 <p className="mt-1 truncate font-mono text-[8.5px] uppercase tracking-[0.22em] text-mist-500">{custom.tagline || 'Paperwork flow command'}</p>
               </div>

@@ -19,6 +19,21 @@ function shade(hex: string, amt: number): string {
   return `#${[mix(r), mix(g), mix(b)].map((ch) => ch.toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** Perceived brightness 0..1 — decides whether text on an accent goes white or dark. */
+function lum(hex: string): number {
+  const m = hex.replace('#', '');
+  const full = m.length === 3 ? m.split('').map((ch) => ch + ch).join('') : m;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return 1;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/** Dark accents get white ink on solid surfaces; bright ones keep the deep ink. */
+const INK_DARK = '#16100a';
+const INK_LIGHT = '#ffffff';
+const isDark = (hex: string) => lum(hex) <= 0.55;
+
 /** hex + alpha → rgba() string for ambient backdrop layers */
 function rgba(hex: string, a: number): string {
   const m = hex.replace('#', '');
@@ -306,18 +321,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     const { accent, accent2, mood } = theme;
     if (accent) {
-      root.style.setProperty('--color-flare-300', shade(accent, 0.35));
-      root.style.setProperty('--color-flare-400', shade(accent, 0.18));
+      const dark = isDark(accent);
+      // Dark accents: brighten the mid-tones so labels stay legible on dark panels,
+      // and flip the ink on solid accent surfaces to white.
+      root.style.setProperty('--color-flare-300', shade(accent, dark ? 0.62 : 0.35));
+      root.style.setProperty('--color-flare-400', shade(accent, dark ? 0.45 : 0.18));
       root.style.setProperty('--color-flare-500', accent);
-      root.style.setProperty('--color-flare-600', shade(accent, -0.12));
-      root.style.setProperty('--color-flare-700', shade(accent, -0.22));
-    } else ['--color-flare-300', '--color-flare-400', '--color-flare-500', '--color-flare-600', '--color-flare-700'].forEach((k) => root.style.removeProperty(k));
+      root.style.setProperty('--color-flare-600', shade(accent, dark ? -0.15 : -0.12));
+      root.style.setProperty('--color-flare-700', shade(accent, dark ? -0.3 : -0.22));
+      root.style.setProperty('--flare-ink', dark ? INK_LIGHT : INK_DARK);
+    } else {
+      ['--color-flare-300', '--color-flare-400', '--color-flare-500', '--color-flare-600', '--color-flare-700'].forEach((k) => root.style.removeProperty(k));
+      root.style.setProperty('--flare-ink', INK_DARK);
+    }
     if (accent2) {
-      root.style.setProperty('--color-cyanx-300', shade(accent2, 0.3));
-      root.style.setProperty('--color-cyanx-400', shade(accent2, 0.15));
+      const dark2 = isDark(accent2);
+      root.style.setProperty('--color-cyanx-300', shade(accent2, dark2 ? 0.58 : 0.3));
+      root.style.setProperty('--color-cyanx-400', shade(accent2, dark2 ? 0.42 : 0.15));
       root.style.setProperty('--color-cyanx-500', accent2);
-      root.style.setProperty('--color-cyanx-600', shade(accent2, -0.18));
-    } else ['--color-cyanx-300', '--color-cyanx-400', '--color-cyanx-500', '--color-cyanx-600'].forEach((k) => root.style.removeProperty(k));
+      root.style.setProperty('--color-cyanx-600', shade(accent2, dark2 ? -0.15 : -0.18));
+      root.style.setProperty('--cyanx-ink', dark2 ? INK_LIGHT : INK_DARK);
+    } else {
+      ['--color-cyanx-300', '--color-cyanx-400', '--color-cyanx-500', '--color-cyanx-600'].forEach((k) => root.style.removeProperty(k));
+      root.style.setProperty('--cyanx-ink', INK_DARK);
+    }
     ['--color-ink-950', '--color-ink-900', '--color-ink-850', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500'].forEach((k, i) => root.style.setProperty(k, mood.tones[i]));
     // light moods invert the text ramp so everything stays readable
     const mist = mood.mist ?? DEFAULT_MIST;
